@@ -59,6 +59,7 @@ export {
 // Export classifier functions
 export {
   classifyTask,
+  classifyTaskWithIntent,
   extractComplexitySignals,
   calculateComplexityScore,
   scoreToTier,
@@ -68,6 +69,11 @@ export {
   assessParallelization,
   assessContextRisk,
   extractDomainSignals,
+  extractTaskIntent,
+  filterDomainSignalsByIntent,
+  mergeIntents,
+  type TaskIntentResult,
+  type IntentAwareClassification,
 } from "./classifier"
 
 // Export project detector functions
@@ -203,7 +209,8 @@ import type {
   BudgetTier,
   AutoRouterConfig,
 } from "./types"
-import { classifyTask } from "./classifier"
+import type { AutoRouterSessionContext } from "../../hooks/auto-router/types"
+import { classifyTask, classifyTaskWithIntent, type IntentAwareClassification } from "./classifier"
 import { selectTechnique, getTechniqueDescription, techniqueIncludes } from "./technique-selector"
 import { createEscalationManager, EscalationManager } from "./escalation-manager"
 import {
@@ -234,20 +241,43 @@ export interface AutoRouterResult {
   escalationManager: EscalationManager
   presetApplied: PresetSelection | null
   analyticsRecommendation: TechniqueCombo | null
+  /** v3.6.4: Intent-aware classification with task intent and filtered signals */
+  intentAwareClassification?: IntentAwareClassification
 }
 
 /**
  * Create an auto-router instance and analyze a task
+ *
+ * @param taskDescription - The task description from /auto command
+ * @param directory - Project directory for context detection
+ * @param config - Optional auto-router configuration
+ * @param sessionContext - v3.6.4: Session context for preserving intents across commands
  */
 export async function createAutoRouter(
   taskDescription: string,
   directory: string,
-  config?: Partial<AutoRouterConfig>
+  config?: Partial<AutoRouterConfig>,
+  sessionContext?: AutoRouterSessionContext
 ): Promise<AutoRouterResult> {
   const mergedConfig = { ...DEFAULT_AUTO_ROUTER_CONFIG, ...config }
 
-  // Step 1: Classify the task
-  const classification = await classifyTask(taskDescription, directory)
+  // Step 1: Classify the task with intent preservation (v3.6.4)
+  // Use classifyTaskWithIntent which merges preserved context
+  const enhancedClassification = await classifyTaskWithIntent(
+    taskDescription,
+    directory,
+    sessionContext
+  )
+  const classification = enhancedClassification as TaskClassification
+
+  // v3.6.4: Log if session context was used
+  if (sessionContext?.previousTask) {
+    log("[AutoRouter] Using preserved session context", {
+      previousTask: sessionContext.previousTask.substring(0, 50),
+      preservedIntents: sessionContext.preservedIntents,
+      preservedTools: sessionContext.requiredTools,
+    })
+  }
 
   // Step 2: Select development preset based on project type and domain
   const presetSelection = selectPreset(
@@ -322,6 +352,7 @@ export async function createAutoRouter(
     escalationManager,
     presetApplied: presetAdjustments.adjusted ? presetSelection : null,
     analyticsRecommendation,
+    intentAwareClassification: enhancedClassification, // v3.6.4: Include intent-aware classification
   }
 }
 

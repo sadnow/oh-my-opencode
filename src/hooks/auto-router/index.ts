@@ -62,6 +62,8 @@ interface SessionState {
   taskIntent?: TaskIntent
   /** v3.6.3: Tools explicitly requested by user */
   requiredTools?: string[]
+  /** v3.6.4: Session context preserved between /auto commands */
+  sessionContext: AutoRouterSessionContext
 }
 
 interface ProcessedCommand {
@@ -110,18 +112,11 @@ export function createAutoRouterHook(
   const processedCommands = new Map<string, number>() // key -> timestamp
 
   /**
-   * v3.6.3: Session context preservation between /auto commands.
-   * This prevents loss of focus when running sequential tasks.
-   * For example, if user runs:
-   * 1. /auto "make a horror game"
-   * 2. /auto "play through the game with playwright"
-   *
-   * The second command should remember that we're working with a game project,
-   * and preserve the "playwright" requirement even if project has vercel.json.
+   * v3.6.4: Helper to get or create session state with proper initialization.
+   * This ensures sessionContext is preserved between /auto commands in the same session.
    */
-  let sessionContext: AutoRouterSessionContext = {
-    preservedIntents: [],
-    requiredTools: [],
+  function getOrCreateSession(sessionID: string): SessionState | null {
+    return sessions.get(sessionID) ?? null
   }
 
   // Validate config if provided
@@ -351,6 +346,11 @@ export function createAutoRouterHook(
       // NOTE: Config keys use snake_case (from schema) but createAutoRouter expects camelCase
       // The conversion is done inline below. If schema changes, update mappings here.
       const directory = options?.directory ?? ctx.directory
+
+      // v3.6.4: Get existing session context to preserve between /auto commands
+      const existingSessionForContext = getOrCreateSession(input.sessionID)
+      const sessionContextForClassification = existingSessionForContext?.sessionContext
+
       const result = await createAutoRouter(
         detected.taskDescription,
         directory,
@@ -361,7 +361,8 @@ export function createAutoRouterHook(
           maxEscalations: config.max_escalations ?? 3,
           enableJudge: config.enable_judge ?? true,
           qualityThreshold: config.quality_threshold ?? 0.7,
-        }
+        },
+        sessionContextForClassification
       )
 
       // Apply technique override if specified
@@ -377,15 +378,6 @@ export function createAutoRouterHook(
         requiredTools: taskIntentResult.requiredTools,
         confidence: taskIntentResult.confidence,
       })
-
-      // v3.6.3: Update session context for preservation between /auto commands
-      sessionContext = {
-        previousTask: detected.taskDescription,
-        previousDomain: result.classification.domainSignals[0],
-        preservedIntents: taskIntentResult.intents,
-        requiredTools: taskIntentResult.requiredTools,
-        lastCommandAt: new Date().toISOString(),
-      }
 
       // Determine if ralph-loop should be enabled (intelligent determination)
       // v3.3.0: Use shouldEnableRalphLoop for complexity-aware decision
@@ -418,16 +410,38 @@ export function createAutoRouterHook(
         })
       }
 
+      // v3.6.4: Get existing session to preserve context, or start fresh
+      const existingSession = getOrCreateSession(input.sessionID)
+      const previousContext = existingSession?.sessionContext ?? {
+        preservedIntents: [],
+        requiredTools: [],
+      }
+
+      // v3.6.4: Build updated session context with preserved + new intents/tools
+      const updatedSessionContext: AutoRouterSessionContext = {
+        previousTask: detected.taskDescription,
+        previousDomain: result.classification.domainSignals[0],
+        preservedIntents: taskIntentResult.intents,
+        requiredTools: [
+          ...new Set([
+            ...previousContext.requiredTools,
+            ...taskIntentResult.requiredTools,
+          ]),
+        ],
+        lastCommandAt: new Date().toISOString(),
+      }
+
       // Store session state for escalation tracking
       sessions.set(input.sessionID, {
         escalationManager: result.escalationManager,
         taskDescription: detected.taskDescription,
-        iteration: 1,
-        createdAt: Date.now(),
+        iteration: existingSession ? existingSession.iteration + 1 : 1,
+        createdAt: existingSession?.createdAt ?? Date.now(),
         ralphLoopEnabled,
         technique: finalTechnique,
         taskIntent: taskIntentResult.primaryIntent,
         requiredTools: taskIntentResult.requiredTools,
+        sessionContext: updatedSessionContext,
       })
 
       // Generate summary for logging
@@ -469,6 +483,22 @@ The user wants to TEST/PLAY/VERIFY this project.
 Focus on running tests and verification. Do NOT deploy unless explicitly asked.
 Ignore deployment suggestions in project files unless the user asked for deployment.`
         }
+      }
+
+      // v3.6.4: Inject preserved context from previous /auto commands
+      const prevTask = existingSessionForContext?.sessionContext?.previousTask
+      if (prevTask) {
+        const prevCtx = existingSessionForContext.sessionContext
+        const truncatedTask = prevTask.substring(0, 100) + (prevTask.length > 100 ? "..." : "")
+        injectedPrompt += `
+
+## PRESERVED CONTEXT (from previous /auto command)
+- **Previous Task**: ${truncatedTask}
+- **Previous Domain**: ${prevCtx.previousDomain ?? "none"}
+- **Preserved Intents**: ${prevCtx.preservedIntents.join(", ") || "none"}
+- **Required Tools**: ${prevCtx.requiredTools.join(", ") || "none"}
+
+Continue with the same context unless explicitly overridden by the current task.`
       }
 
       // Determine the final budget (magic keyword or explicit override takes precedence)

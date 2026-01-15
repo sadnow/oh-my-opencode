@@ -858,3 +858,170 @@ describe("parseAutoCommand", () => {
     })
   })
 })
+
+// ============================================================================
+// SESSION CONTEXT PRESERVATION TESTS (v3.6.4)
+// ============================================================================
+
+describe("session context preservation (v3.6.4)", () => {
+  const mockCtx = {
+    directory: "/test/project",
+    client: {
+      tui: {
+        showToast: mock(() => Promise.resolve()),
+      },
+    },
+  } as any
+
+  beforeEach(() => {
+    mockCtx.client.tui.showToast.mockClear()
+  })
+
+  it("should preserve required tools across sequential /auto commands", async () => {
+    // #given auto-router hook
+    const autoRouter = createAutoRouterHook(mockCtx)
+    const sessionID = "preserve-tools-test"
+
+    // #when processing first command with playwright
+    const input1 = { sessionID, messageID: "msg-1" }
+    const textPart1 = { type: "text", text: '/auto "test with playwright"' }
+    const output1 = { parts: [textPart1] }
+    await autoRouter["chat.message"](input1 as any, output1 as any)
+
+    // #then session should have playwright in required tools
+    const state1 = autoRouter.getSessionState(sessionID)
+    expect(state1?.sessionContext.requiredTools).toContain("playwright")
+
+    // #when processing second command (same session, no new tools)
+    const input2 = { sessionID, messageID: "msg-2" }
+    const textPart2 = { type: "text", text: '/auto "fix the failing test"' }
+    const output2 = { parts: [textPart2] }
+    await autoRouter["chat.message"](input2 as any, output2 as any)
+
+    // #then session should STILL have playwright in required tools
+    const state2 = autoRouter.getSessionState(sessionID)
+    expect(state2?.sessionContext.requiredTools).toContain("playwright")
+  })
+
+  it("should accumulate tools across commands", async () => {
+    // #given auto-router hook
+    const autoRouter = createAutoRouterHook(mockCtx)
+    const sessionID = "accumulate-tools-test"
+
+    // #when processing first command with playwright
+    const input1 = { sessionID, messageID: "msg-1" }
+    const textPart1 = { type: "text", text: '/auto "test with playwright"' }
+    const output1 = { parts: [textPart1] }
+    await autoRouter["chat.message"](input1 as any, output1 as any)
+
+    // #when processing second command with cypress
+    const input2 = { sessionID, messageID: "msg-2" }
+    const textPart2 = { type: "text", text: '/auto "also run cypress tests"' }
+    const output2 = { parts: [textPart2] }
+    await autoRouter["chat.message"](input2 as any, output2 as any)
+
+    // #then session should have BOTH tools
+    const state = autoRouter.getSessionState(sessionID)
+    expect(state?.sessionContext.requiredTools).toContain("playwright")
+    expect(state?.sessionContext.requiredTools).toContain("cypress")
+  })
+
+  it("should inject preserved context in prompt for second command", async () => {
+    // #given auto-router hook
+    const autoRouter = createAutoRouterHook(mockCtx)
+    const sessionID = "inject-context-test"
+
+    // #when processing first command
+    const input1 = { sessionID, messageID: "msg-1" }
+    const textPart1 = { type: "text", text: '/auto "make a horror game"' }
+    const output1 = { parts: [textPart1] }
+    await autoRouter["chat.message"](input1 as any, output1 as any)
+
+    // #when processing second command
+    const input2 = { sessionID, messageID: "msg-2" }
+    const textPart2 = { type: "text", text: '/auto "play through it"' }
+    const output2 = { parts: [textPart2] }
+    await autoRouter["chat.message"](input2 as any, output2 as any)
+
+    // #then prompt should contain preserved context section
+    expect(textPart2.text).toContain("PRESERVED CONTEXT")
+    expect(textPart2.text).toContain("Previous Task")
+    expect(textPart2.text).toContain("horror game")
+  })
+
+  it("should NOT preserve context across different sessions", async () => {
+    // #given auto-router hook
+    const autoRouter = createAutoRouterHook(mockCtx)
+
+    // #when processing command in session A
+    const inputA = { sessionID: "session-a", messageID: "msg-1" }
+    const textPartA = { type: "text", text: '/auto "test with playwright"' }
+    const outputA = { parts: [textPartA] }
+    await autoRouter["chat.message"](inputA as any, outputA as any)
+
+    // #when processing command in session B (different session)
+    const inputB = { sessionID: "session-b", messageID: "msg-1" }
+    const textPartB = { type: "text", text: '/auto "play the game"' }
+    const outputB = { parts: [textPartB] }
+    await autoRouter["chat.message"](inputB as any, outputB as any)
+
+    // #then session B should NOT have playwright from session A
+    const stateB = autoRouter.getSessionState("session-b")
+    expect(stateB?.sessionContext.requiredTools).not.toContain("playwright")
+    // And should not have preserved context injected
+    expect(textPartB.text).not.toContain("Previous Task")
+  })
+
+  it("should increment iteration count across commands", async () => {
+    // #given auto-router hook
+    const autoRouter = createAutoRouterHook(mockCtx)
+    const sessionID = "iteration-test"
+
+    // #when processing first command
+    const input1 = { sessionID, messageID: "msg-1" }
+    const textPart1 = { type: "text", text: '/auto "first task"' }
+    const output1 = { parts: [textPart1] }
+    await autoRouter["chat.message"](input1 as any, output1 as any)
+
+    const state1 = autoRouter.getSessionState(sessionID)
+    expect(state1?.iteration).toBe(1)
+
+    // #when processing second command
+    const input2 = { sessionID, messageID: "msg-2" }
+    const textPart2 = { type: "text", text: '/auto "second task"' }
+    const output2 = { parts: [textPart2] }
+    await autoRouter["chat.message"](input2 as any, output2 as any)
+
+    // #then iteration should increment
+    const state2 = autoRouter.getSessionState(sessionID)
+    expect(state2?.iteration).toBe(2)
+  })
+
+  it("should preserve createdAt timestamp across commands", async () => {
+    // #given auto-router hook
+    const autoRouter = createAutoRouterHook(mockCtx)
+    const sessionID = "createdAt-test"
+
+    // #when processing first command
+    const input1 = { sessionID, messageID: "msg-1" }
+    const textPart1 = { type: "text", text: '/auto "first task"' }
+    const output1 = { parts: [textPart1] }
+    await autoRouter["chat.message"](input1 as any, output1 as any)
+
+    const state1 = autoRouter.getSessionState(sessionID)
+    const createdAt1 = state1?.createdAt
+
+    // Add small delay
+    await new Promise(resolve => setTimeout(resolve, 10))
+
+    // #when processing second command
+    const input2 = { sessionID, messageID: "msg-2" }
+    const textPart2 = { type: "text", text: '/auto "second task"' }
+    const output2 = { parts: [textPart2] }
+    await autoRouter["chat.message"](input2 as any, output2 as any)
+
+    // #then createdAt should be preserved (not updated)
+    const state2 = autoRouter.getSessionState(sessionID)
+    expect(state2?.createdAt).toBe(createdAt1)
+  })
+})

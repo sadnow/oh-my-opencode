@@ -24,7 +24,7 @@ import {
   EXPLICIT_TOOL_KEYWORDS,
   IGNORED_PROJECT_ARTIFACT_SIGNALS,
 } from "./constants"
-import type { TaskIntent } from "../../hooks/auto-router/types"
+import type { TaskIntent, AutoRouterSessionContext } from "../../hooks/auto-router/types"
 import {
   detectProjectType,
   buildProjectContext,
@@ -641,7 +641,7 @@ export function containsIgnorableArtifactSignals(text: string): boolean {
  * 2. Required tools are preserved regardless of project context
  * 3. Domain signals from project files don't override user intent
  */
-export interface EnhancedClassification extends TaskClassification {
+export interface IntentAwareClassification extends TaskClassification {
   /** Task intent detected from user prompt */
   taskIntent: TaskIntent
   /** Tools explicitly requested by user */
@@ -651,29 +651,77 @@ export interface EnhancedClassification extends TaskClassification {
 }
 
 /**
+ * Merge current intents with preserved intents from previous commands.
+ * Current intents take priority, preserved intents fill gaps.
+ *
+ * v3.6.4: This enables intent preservation across sequential /auto commands
+ */
+export function mergeIntents(
+  currentIntents: TaskIntent[],
+  preservedIntents: TaskIntent[]
+): TaskIntent[] {
+  // If current has explicit intents (not unknown), use them
+  if (currentIntents.length > 0 && currentIntents[0] !== "unknown") {
+    return currentIntents
+  }
+
+  // If current is vague but we have preserved intents, inherit them
+  if (preservedIntents.length > 0) {
+    return [...new Set([...preservedIntents, ...currentIntents.filter(i => i !== "unknown")])]
+  }
+
+  return currentIntents
+}
+
+/**
  * Enhanced version of classifyTask that preserves user intent.
+ *
+ * v3.6.4: Now accepts sessionContext to merge with preserved intents/tools
+ * from previous /auto commands in the same session.
+ *
+ * @param taskDescription - Current task description
+ * @param directory - Project directory
+ * @param sessionContext - Optional context from previous commands
  */
 export async function classifyTaskWithIntent(
   taskDescription: string,
-  directory: string
-): Promise<EnhancedClassification> {
+  directory: string,
+  sessionContext?: AutoRouterSessionContext
+): Promise<IntentAwareClassification> {
   // Get base classification
   const baseClassification = await classifyTask(taskDescription, directory)
 
-  // Extract task intent from user prompt ONLY
-  const intentResult = extractTaskIntent(taskDescription)
+  // Extract task intent from current user prompt ONLY
+  const currentIntentResult = extractTaskIntent(taskDescription)
 
-  // Filter domain signals based on intent
+  // v3.6.4: Merge with preserved intents from previous commands
+  const mergedIntents = mergeIntents(
+    currentIntentResult.intents,
+    sessionContext?.preservedIntents ?? []
+  )
+
+  // v3.6.4: Merge required tools (accumulate across commands)
+  const mergedTools = [
+    ...new Set([
+      ...(sessionContext?.requiredTools ?? []),
+      ...currentIntentResult.requiredTools,
+    ]),
+  ]
+
+  // Determine primary intent from merged list
+  const primaryIntent = mergedIntents[0] ?? currentIntentResult.primaryIntent
+
+  // Filter domain signals based on merged intent
   const filteredDomainSignals = filterDomainSignalsByIntent(
     baseClassification.domainSignals,
-    intentResult.primaryIntent,
-    intentResult.requiredTools
+    primaryIntent,
+    mergedTools
   )
 
   return {
     ...baseClassification,
-    taskIntent: intentResult.primaryIntent,
-    requiredTools: intentResult.requiredTools,
+    taskIntent: primaryIntent,
+    requiredTools: mergedTools,
     rawDomainSignals: baseClassification.domainSignals,
     domainSignals: filteredDomainSignals,
   }
