@@ -202,7 +202,7 @@ export function createConfigHandler(deps: ConfigHandlerDeps) {
             prometheusOverride?.model ??
             categoryConfig?.model ??
             defaultModel ??
-            "anthropic/claude-opus-4-5",
+            "openai/gpt-5.2",  // Anthropic OAuth disabled
           mode: "primary" as const,
           prompt: PROMETHEUS_SYSTEM_PROMPT,
           permission: PROMETHEUS_PERMISSION,

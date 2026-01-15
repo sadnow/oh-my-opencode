@@ -23,9 +23,9 @@ describe("Prometheus category config resolution", () => {
     // #when
     const config = resolveCategoryConfig(categoryName)
 
-    // #then
+    // #then - visual-engineering uses antigravity models now
     expect(config).toBeDefined()
-    expect(config?.model).toBe("google/gemini-3-pro-preview")
+    expect(config?.model).toBe("google/antigravity-gemini-3-flash")
     expect(config?.temperature).toBe(0.7)
   })
 

@@ -1,6 +1,6 @@
 import * as fs from "fs";
 import * as path from "path";
-import { OhMyOpenCodeConfigSchema, type OhMyOpenCodeConfig } from "./config";
+import { OhMyOpenCodeConfigSchema, type OhMyOpenCodeConfig, type HookName } from "./config";
 import {
   log,
   deepMerge,
@@ -10,6 +10,16 @@ import {
   detectConfigFile,
   migrateConfigFile,
 } from "./shared";
+
+/**
+ * Hooks that are disabled by default.
+ * - anthropic-context-window-limit-recovery: Disabled because direct Anthropic API access
+ *   is blocked for OpenCode as of Jan 2026. Users can still enable it manually if using
+ *   Anthropic via proxy providers (GitHub Copilot, Amazon Bedrock).
+ */
+const DEFAULT_DISABLED_HOOKS: HookName[] = [
+  "anthropic-context-window-limit-recovery",
+];
 
 export function loadConfigFromPath(
   configPath: string,
@@ -114,9 +124,16 @@ export function loadPluginConfig(
       ? projectDetected.path
       : projectBasePath + ".json";
 
-  // Load user config first (base)
-  let config: OhMyOpenCodeConfig =
-    loadConfigFromPath(userConfigPath, ctx) ?? {};
+  // Start with default config (includes default disabled hooks)
+  const defaultConfig: OhMyOpenCodeConfig = {
+    disabled_hooks: DEFAULT_DISABLED_HOOKS,
+  };
+
+  // Load user config and merge with defaults
+  const userConfig = loadConfigFromPath(userConfigPath, ctx);
+  let config: OhMyOpenCodeConfig = userConfig
+    ? mergeConfigs(defaultConfig, userConfig)
+    : defaultConfig;
 
   // Override with project config
   const projectConfig = loadConfigFromPath(projectConfigPath, ctx);
