@@ -40,7 +40,8 @@
         "enum": [
           "playwright",
           "frontend-ui-ux",
-          "git-master"
+          "git-master",
+          "auto"
         ]
       }
     },
@@ -79,7 +80,8 @@
           "edit-error-recovery",
           "prometheus-md-only",
           "start-work",
-          "sisyphus-orchestrator"
+          "sisyphus-orchestrator",
+          "auto-router"
         ]
       }
     },
@@ -2377,6 +2379,42 @@
         },
         "state_dir": {
           "type": "string"
+        },
+        "completion_judge": {
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "default": true,
+              "type": "boolean"
+            },
+            "min_confidence": {
+              "default": 0.8,
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            },
+            "model": {
+              "default": "github-copilot/gpt-4o-mini",
+              "type": "string"
+            },
+            "fallback_models": {
+              "default": [
+                "google/antigravity-gemini-3-flash",
+                "openai/gpt-4o-mini",
+                "opencode/glm-4.7-free"
+              ],
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "timeout_ms": {
+              "default": 30000,
+              "type": "number",
+              "minimum": 1000,
+              "maximum": 120000
+            }
+          }
         }
       }
     },
@@ -2427,6 +2465,116 @@
         "include_co_authored_by": {
           "default": true,
           "type": "boolean"
+        }
+      }
+    },
+    "auto_router": {
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "default": true,
+          "type": "boolean"
+        },
+        "default_budget": {
+          "default": "cheap",
+          "type": "string",
+          "enum": [
+            "cheap",
+            "moderate",
+            "expensive",
+            "maximum"
+          ]
+        },
+        "auto_escalate": {
+          "default": true,
+          "type": "boolean"
+        },
+        "max_escalations": {
+          "default": 3,
+          "type": "number",
+          "minimum": 0,
+          "maximum": 10
+        },
+        "enable_judge": {
+          "default": true,
+          "type": "boolean"
+        },
+        "quality_threshold": {
+          "default": 0.7,
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "project_type_override": {
+          "type": "string",
+          "enum": [
+            "game",
+            "web-app",
+            "cli",
+            "api-server",
+            "bot",
+            "indexer-crawler",
+            "data-pipeline",
+            "static-site",
+            "library",
+            "monorepo",
+            "unknown"
+          ]
+        },
+        "technique_override": {
+          "type": "string",
+          "enum": [
+            "direct",
+            "ulw",
+            "ultrathink",
+            "ralph",
+            "ulw+ralph",
+            "ultrathink+ulw",
+            "ultrathink+ralph",
+            "triple"
+          ]
+        },
+        "budget_override": {
+          "type": "string",
+          "enum": [
+            "cheap",
+            "moderate",
+            "expensive",
+            "maximum"
+          ]
+        },
+        "full_autonomy": {
+          "default": true,
+          "type": "boolean"
+        },
+        "wizard_mode": {
+          "default": false,
+          "type": "boolean"
+        },
+        "parallel_agents": {
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "default": true,
+              "type": "boolean"
+            },
+            "max_concurrent": {
+              "default": 2,
+              "type": "number",
+              "minimum": 1,
+              "maximum": 3
+            },
+            "agents_for_tier3": {
+              "default": [
+                "explore",
+                "librarian"
+              ],
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          }
         }
       }
     }

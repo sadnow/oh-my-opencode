@@ -68,7 +68,8 @@
     "@types/js-yaml": "^4.0.9",
     "@types/picomatch": "^3.0.2",
     "bun-types": "latest",
-    "typescript": "^5.7.3"
+    "tsx": "^4.21.0",
+    "typescript": "^5.9.3"
   },
   "trustedDependencies": [
     "@ast-grep/cli",
