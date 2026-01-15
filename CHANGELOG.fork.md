@@ -10,6 +10,41 @@ For upstream changes, see the [original repository](https://github.com/code-yeon
 
 ### Added
 
+#### Upstream Sync Notification System
+
+Automatically checks for updates from the upstream repository (`code-yeongyu/oh-my-opencode`) on startup and notifies when new releases are available.
+
+**Features:**
+- Compares fork version against upstream releases via GitHub API
+- Shows notification on startup if behind upstream
+- Provides sync instructions (merge vs rebase)
+- Non-blocking - doesn't slow down startup
+
+**Configuration:**
+```typescript
+// src/features/upstream-sync/index.ts
+FORK_BASE_VERSION = {
+  basedOnTag: "v3.0.0-beta.7",     // Update after syncing
+  basedOnCommit: "325ce12...",     // Update after syncing
+  lastSyncDate: "2026-01-10",      // Update after syncing
+}
+```
+
+**Example notification:**
+```
+╔════════════════════════════════════════════════════════════════╗
+║  UPSTREAM UPDATE AVAILABLE                                     ║
+╠════════════════════════════════════════════════════════════════╣
+║  Latest upstream release: v3.0.0-beta.8                        ║
+║  Your fork is based on:   v3.0.0-beta.7                        ║
+║  Commits behind upstream: 99                                   ║
+╠════════════════════════════════════════════════════════════════╣
+║  To sync your fork with upstream, run:                         ║
+║    git fetch upstream                                          ║
+║    git merge upstream/dev                                      ║
+╚════════════════════════════════════════════════════════════════╝
+```
+
 #### Per-Provider Concurrent Agent Rate Limiting
 
 We throttle ourselves out of caution and respect for providers offering free or cheap services.

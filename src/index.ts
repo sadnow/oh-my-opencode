@@ -77,10 +77,16 @@ import { log, detectExternalNotificationPlugin, getNotificationConflictWarning }
 import { loadPluginConfig } from "./plugin-config";
 import { createModelCacheState, getModelLimit } from "./plugin-state";
 import { createConfigHandler } from "./plugin-handlers";
+import { showSyncNotificationIfNeeded } from "./features/upstream-sync";
 
 const OhMyOpenCodePlugin: Plugin = async (ctx) => {
   // Start background tmux check immediately
   startTmuxCheck();
+
+  // Check for upstream updates (runs async, doesn't block startup)
+  showSyncNotificationIfNeeded().catch(() => {
+    // Silently fail - network issues shouldn't block startup
+  });
 
   const pluginConfig = loadPluginConfig(ctx.directory, ctx);
   const disabledHooks = new Set(pluginConfig.disabled_hooks ?? []);
