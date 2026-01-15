@@ -3,6 +3,7 @@ import {
   EXCLUDED_COMMANDS,
 } from "./constants"
 import type { ParsedSlashCommand } from "./types"
+import { log } from "../../shared/logger"
 
 const CODE_BLOCK_PATTERN = /```[\s\S]*?```/g
 
@@ -48,7 +49,16 @@ export function detectSlashCommand(text: string): ParsedSlashCommand | null {
     return null
   }
 
-  if (isExcludedCommand(parsed.command)) {
+  // Debug logging to trace /auto handling
+  const isExcluded = isExcludedCommand(parsed.command)
+  log("[auto-slash-command] detectSlashCommand", {
+    command: parsed.command,
+    isExcluded,
+    excludedCommands: [...EXCLUDED_COMMANDS],
+  })
+
+  if (isExcluded) {
+    log("[auto-slash-command] Command excluded, returning null", { command: parsed.command })
     return null
   }
 

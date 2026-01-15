@@ -174,6 +174,13 @@ After`
       expect(isExcludedCommand("cancel-ralph")).toBe(true)
     })
 
+    it("should exclude auto (handled by auto-router)", () => {
+      // #given auto command
+      // #when checking exclusion
+      // #then should be excluded (handled by auto-router hook)
+      expect(isExcludedCommand("auto")).toBe(true)
+    })
+
     it("should be case-insensitive for exclusion", () => {
       // #given uppercase variants
       // #when checking exclusion
