@@ -1225,6 +1225,139 @@ POTENTIAL ACTIONS:
 - Bisect without proper good/bad boundaries -> Wasted time`,
 }
 
+const autoSkill: BuiltinSkill = {
+  name: "auto",
+  description:
+    "Intelligent task router - automatically analyzes task complexity and selects optimal technique (direct/ulw/ultrathink/ralph/combinations) with adaptive budget escalation. Use for any task where you want automatic orchestration.",
+  argumentHint: '"task description" [--budget=cheap|moderate|expensive|maximum] [--force-technique=direct|ulw|ultrathink|ralph|triple]',
+  template: `# Auto-Router: Intelligent Task Orchestration
+
+You are operating with the Auto-Router system, which has analyzed the task and determined the optimal execution strategy.
+
+---
+
+## How Auto-Router Works
+
+The Auto-Router performs automatic analysis of:
+1. **Project Type**: Detects game, web-app, api-server, cli, bot, data-pipeline, etc.
+2. **Task Complexity**: Scores complexity based on steps, conditionals, integrations, scope
+3. **Novelty Assessment**: Determines if task is known, familiar, or novel
+4. **Verification Capabilities**: Detects available tests, build gates, type checking
+5. **Domain Signals**: Identifies special domains (crypto, real-time, security-sensitive, etc.)
+
+Based on this analysis, it selects:
+- **Technique**: direct, ulw, ultrathink, ralph, or combinations (ulw+ralph, ultrathink+ulw, triple)
+- **Budget Tier**: cheap (Haiku), moderate (Sonnet), expensive (Sonnet+Opus), maximum (Opus)
+- **Quality Rubrics**: Appropriate evaluation criteria for the project type
+
+---
+
+## Complexity Tiers
+
+| Tier | Description | Typical Technique |
+|------|-------------|-------------------|
+| 1 | Simple - direct execution, few steps, clear requirements | direct or ulw |
+| 2 | Moderate - planning needed, multiple components | ulw+ralph or ultrathink+ulw |
+| 3 | Complex - full orchestration, many interdependencies | triple (ultrathink+ulw+ralph) |
+
+---
+
+## Technique Descriptions
+
+### Direct
+- No special orchestration
+- Execute task directly with available tools
+- Best for simple, well-defined tasks
+
+### ULW (Ultrawork)
+- **Parallel agents** for context gathering
+- **TDD workflow** (RED -> GREEN -> REFACTOR)
+- Track ALL steps with TODO items
+- Announce: "ULTRAWORK MODE ENABLED!"
+
+### Ultrathink
+- **Deep reasoning** before any implementation
+- Consider edge cases and failure modes
+- Plan implementation sequence
+- Validate reasoning at checkpoints
+
+### Ralph Loop
+- **Persistent execution** until FULLY complete
+- Output <promise>DONE</promise> ONLY when finished
+- Try different approaches if stuck
+- Bounded by max iterations
+
+### Triple (Full Orchestration)
+Combines ALL techniques:
+1. Ultrathink first (plan deeply)
+2. Ultrawork execution (parallel + TDD)
+3. Ralph persistence (complete or die trying)
+
+---
+
+## Budget Escalation
+
+The system uses adaptive budget escalation:
+- **Start cheap** (Haiku) for most tasks
+- **Escalate on failure** (2+ consecutive failures)
+- **Escalate on quality issues** (score < 0.6)
+- **Escalate on stuck patterns** (repeated identical outputs)
+
+| Tier | Model | Max Iterations | Timeout |
+|------|-------|----------------|---------|
+| cheap | Haiku 4.5 | 3 | 30s |
+| moderate | Sonnet 4.5 | 5 | 60s |
+| expensive | Sonnet+Opus | 10 | 180s |
+| maximum | Opus 4.5 | 25 | 600s |
+
+---
+
+## Domain-Specific Behavior
+
+| Domain Signal | Effect |
+|---------------|--------|
+| crypto-trading | Always use triple, max caution |
+| security-sensitive | Add ultrathink, higher quality threshold |
+| real-time | Add ultrathink for latency considerations |
+| ui-heavy | Add ulw for parallel exploration |
+| data-aggregation | Add ralph for persistence |
+| performance-critical | Add ultrathink for analysis |
+
+---
+
+## Quality Rubrics (LLM-as-Judge)
+
+When tests are unavailable, the system uses LLM-as-judge evaluation with 6 rubrics:
+1. **Code Architecture** - Separation of concerns, dependencies, extensibility
+2. **API Design** - Consistency, discoverability, error handling
+3. **Error Handling** - Coverage, recovery, logging, user feedback
+4. **Security Posture** - Input validation, secrets, auth, data protection
+5. **Documentation** - Completeness, accuracy, clarity, examples
+6. **UX/UI Coherence** - Visual consistency, interactions, accessibility
+
+Rubric weights vary by project type (e.g., games weight UX higher, APIs weight security higher).
+
+---
+
+## Execution
+
+When the user invokes /auto with a task, the system will:
+1. Classify the task automatically
+2. Select the optimal technique combination
+3. Configure the budget tier
+4. Inject technique-specific instructions
+5. Begin execution with full orchestration
+
+**The classification and routing is automatic.** Simply describe your task and the system handles the rest.
+
+---
+
+## Task Input
+
+The user's task will be provided below. Execute according to the auto-router's selected technique and configuration.
+`,
+}
+
 export function createBuiltinSkills(): BuiltinSkill[] {
-  return [playwrightSkill, frontendUiUxSkill, gitMasterSkill]
+  return [playwrightSkill, frontendUiUxSkill, gitMasterSkill, autoSkill]
 }
