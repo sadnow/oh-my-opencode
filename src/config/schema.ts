@@ -33,6 +33,7 @@ export const BuiltinSkillNameSchema = z.enum([
   "playwright",
   "frontend-ui-ux",
   "git-master",
+  "auto",
 ])
 
 export const OverridableAgentNameSchema = z.enum([
@@ -87,6 +88,7 @@ export const HookNameSchema = z.enum([
   "prometheus-md-only",
   "start-work",
   "sisyphus-orchestrator",
+  "auto-router",
 ])
 
 export const BuiltinCommandNameSchema = z.enum([
@@ -274,6 +276,23 @@ export const SkillsConfigSchema = z.union([
   }).partial()),
 ])
 
+export const CompletionJudgeConfigSchema = z.object({
+  /** Enable completion criteria judge (default: true - uses fallback models if primary fails) */
+  enabled: z.boolean().default(true),
+  /** Minimum confidence required to pass (default: 0.8) */
+  min_confidence: z.number().min(0).max(1).default(0.8),
+  /** Primary model to use for judge (default: github-copilot/gpt-4o-mini - free via Copilot) */
+  model: z.string().default("github-copilot/gpt-4o-mini"),
+  /** Fallback models to try if primary fails (in order) */
+  fallback_models: z.array(z.string()).default([
+    "google/antigravity-gemini-3-flash",  // Free via Antigravity OAuth (AI Studio)
+    "openai/gpt-4o-mini",
+    "opencode/glm-4.7-free",
+  ]),
+  /** Timeout in milliseconds (default: 30000) */
+  timeout_ms: z.number().min(1000).max(120000).default(30000),
+})
+
 export const RalphLoopConfigSchema = z.object({
   /** Enable ralph loop functionality (default: false - opt-in feature) */
   enabled: z.boolean().default(false),
@@ -281,6 +300,8 @@ export const RalphLoopConfigSchema = z.object({
   default_max_iterations: z.number().min(1).max(1000).default(100),
   /** Custom state file directory relative to project root (default: .opencode/) */
   state_dir: z.string().optional(),
+  /** Completion criteria judge configuration */
+  completion_judge: CompletionJudgeConfigSchema.optional(),
 })
 
 export const BackgroundTaskConfigSchema = z.object({
@@ -299,6 +320,70 @@ export const GitMasterConfigSchema = z.object({
   commit_footer: z.boolean().default(true),
   /** Add "Co-authored-by: Sisyphus" trailer to commit messages (default: true) */
   include_co_authored_by: z.boolean().default(true),
+})
+
+export const BudgetTierSchema = z.enum(["cheap", "moderate", "expensive", "maximum"])
+
+export const TechniqueComboSchema = z.enum([
+  "direct",
+  "ulw",
+  "ultrathink",
+  "ralph",
+  "ulw+ralph",
+  "ultrathink+ulw",
+  "ultrathink+ralph",
+  "triple",
+])
+
+export const ProjectTypeSchema = z.enum([
+  "game",
+  "web-app",
+  "cli",
+  "api-server",
+  "bot",
+  "indexer-crawler",
+  "data-pipeline",
+  "static-site",
+  "library",
+  "monorepo",
+  "unknown",
+])
+
+/** Parallel agent configuration schema */
+export const ParallelAgentConfigSchema = z.object({
+  /** Enable parallel agent spawning (default: true) */
+  enabled: z.boolean().default(true),
+  /** Maximum concurrent parallel agents (default: 2, max: 3) */
+  max_concurrent: z.number().min(1).max(3).default(2),
+  /** Agents to spawn for Tier 3 tasks (default: ["explore", "librarian"]) */
+  agents_for_tier3: z.array(z.string()).default(["explore", "librarian"]),
+})
+
+export const AutoRouterConfigSchema = z.object({
+  /** Enable auto-router functionality (default: true) */
+  enabled: z.boolean().default(true),
+  /** Default budget tier to start with (default: "cheap") */
+  default_budget: BudgetTierSchema.default("cheap"),
+  /** Enable automatic budget escalation on failures (default: true) */
+  auto_escalate: z.boolean().default(true),
+  /** Maximum number of escalations allowed (default: 3) */
+  max_escalations: z.number().min(0).max(10).default(3),
+  /** Enable LLM-as-judge quality evaluation (default: true) */
+  enable_judge: z.boolean().default(true),
+  /** Quality threshold for passing (0.0-1.0, default: 0.7) */
+  quality_threshold: z.number().min(0).max(1).default(0.7),
+  /** Override automatic project type detection */
+  project_type_override: ProjectTypeSchema.optional(),
+  /** Override automatic technique selection */
+  technique_override: TechniqueComboSchema.optional(),
+  /** Override automatic budget selection */
+  budget_override: BudgetTierSchema.optional(),
+  /** Enable full autonomy mode - run without interruption (default: true) */
+  full_autonomy: z.boolean().default(true),
+  /** Enable wizard mode for interactive configuration (default: false) */
+  wizard_mode: z.boolean().default(false),
+  /** Parallel agent spawning configuration (v3.5.0) */
+  parallel_agents: ParallelAgentConfigSchema.optional(),
 })
 
 export const OhMyOpenCodeConfigSchema = z.object({
@@ -320,6 +405,7 @@ export const OhMyOpenCodeConfigSchema = z.object({
   background_task: BackgroundTaskConfigSchema.optional(),
   notification: NotificationConfigSchema.optional(),
   git_master: GitMasterConfigSchema.optional(),
+  auto_router: AutoRouterConfigSchema.optional(),
 })
 
 export type OhMyOpenCodeConfig = z.infer<typeof OhMyOpenCodeConfigSchema>
@@ -337,10 +423,15 @@ export type DynamicContextPruningConfig = z.infer<typeof DynamicContextPruningCo
 export type SkillsConfig = z.infer<typeof SkillsConfigSchema>
 export type SkillDefinition = z.infer<typeof SkillDefinitionSchema>
 export type RalphLoopConfig = z.infer<typeof RalphLoopConfigSchema>
+export type CompletionJudgeConfig = z.infer<typeof CompletionJudgeConfigSchema>
 export type NotificationConfig = z.infer<typeof NotificationConfigSchema>
 export type CategoryConfig = z.infer<typeof CategoryConfigSchema>
 export type CategoriesConfig = z.infer<typeof CategoriesConfigSchema>
 export type BuiltinCategoryName = z.infer<typeof BuiltinCategoryNameSchema>
 export type GitMasterConfig = z.infer<typeof GitMasterConfigSchema>
+export type AutoRouterConfig = z.infer<typeof AutoRouterConfigSchema>
+export type BudgetTier = z.infer<typeof BudgetTierSchema>
+export type TechniqueCombo = z.infer<typeof TechniqueComboSchema>
+export type ProjectType = z.infer<typeof ProjectTypeSchema>
 
 export { AnyMcpNameSchema, type AnyMcpName, McpNameSchema, type McpName } from "../mcp/types"
