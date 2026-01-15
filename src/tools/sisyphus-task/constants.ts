@@ -185,31 +185,31 @@ The more explicit your prompt, the better the results.
 
 export const DEFAULT_CATEGORIES: Record<string, CategoryConfig> = {
   "visual-engineering": {
-    model: "google/gemini-3-pro-preview",
+    model: "google/antigravity-gemini-3-flash",  // Free via Antigravity OAuth (AI Studio)
     temperature: 0.7,
   },
   ultrabrain: {
-    model: "openai/gpt-5.2",
+    model: "openai/gpt-5.2",                     // Most capable (paid via OpenAI API)
     temperature: 0.1,
   },
   artistry: {
-    model: "google/gemini-3-pro-preview",
+    model: "google/antigravity-gemini-3-flash",  // Free via Antigravity OAuth (AI Studio)
     temperature: 0.9,
   },
   quick: {
-    model: "anthropic/claude-haiku-4-5",
+    model: "github-copilot/gpt-4o-mini",         // Free via Copilot CLI
     temperature: 0.3,
   },
   "most-capable": {
-    model: "anthropic/claude-opus-4-5",
+    model: "openai/gpt-5.2",                     // Most capable (paid via OpenAI API)
     temperature: 0.1,
   },
   writing: {
-    model: "google/gemini-3-flash-preview",
+    model: "google/antigravity-gemini-3-flash",  // Free via Antigravity OAuth (AI Studio)
     temperature: 0.5,
   },
   general: {
-    model: "anthropic/claude-sonnet-4-5",
+    model: "google/antigravity-gemini-3-flash",  // Free via Antigravity OAuth (AI Studio)
     temperature: 0.3,
   },
 }

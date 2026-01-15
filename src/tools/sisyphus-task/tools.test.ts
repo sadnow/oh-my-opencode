@@ -32,13 +32,13 @@ function resolveCategoryConfig(
 
 describe("sisyphus-task", () => {
   describe("DEFAULT_CATEGORIES", () => {
-    test("visual-engineering category has gemini model", () => {
+    test("visual-engineering category has antigravity gemini model", () => {
       // #given
       const category = DEFAULT_CATEGORIES["visual-engineering"]
 
-      // #when / #then
+      // #when / #then - uses antigravity model for stable quota routing
       expect(category).toBeDefined()
-      expect(category.model).toBe("google/gemini-3-pro-preview")
+      expect(category.model).toBe("google/antigravity-gemini-3-flash")
       expect(category.temperature).toBe(0.7)
     })
 
@@ -127,9 +127,9 @@ describe("sisyphus-task", () => {
       // #when
       const result = resolveCategoryConfig(categoryName)
 
-      // #then
+      // #then - uses antigravity model for stable quota routing
       expect(result).not.toBeNull()
-      expect(result!.config.model).toBe("google/gemini-3-pro-preview")
+      expect(result!.config.model).toBe("google/antigravity-gemini-3-flash")
       expect(result!.promptAppend).toContain("VISUAL/UI")
     })
 

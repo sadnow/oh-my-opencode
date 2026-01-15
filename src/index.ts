@@ -25,6 +25,7 @@ import {
   createThinkingBlockValidatorHook,
   createRalphLoopHook,
   createAutoSlashCommandHook,
+  createAutoRouterHook,
   createEditErrorRecoveryHook,
   createTaskResumeInfoHook,
   createStartWorkHook,
@@ -190,10 +191,175 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
     ? createThinkingBlockValidatorHook()
     : null;
 
+  /**
+   * Check if an error message indicates a credential/authorization problem
+   */
+  function isCredentialError(msg: string): boolean {
+    return msg.includes("credential") ||
+           msg.includes("authorized") ||
+           msg.includes("Credential") ||
+           msg.includes("API key") ||
+           msg.includes("authentication") ||
+           msg.includes("401") ||
+           msg.includes("403")
+  }
+
+  /**
+   * Try to invoke a model and get a response
+   * Returns the response text, or throws if it fails
+   */
+  async function tryModelInvocation(
+    prompt: string,
+    providerID: string,
+    modelID: string
+  ): Promise<string> {
+    // Create temporary session for judge
+    const createResult = await ctx.client.session.create({
+      body: {
+        title: "Completion Judge (temp)",
+      },
+      query: {
+        directory: ctx.directory,
+      },
+    })
+
+    if (createResult.error) {
+      throw new Error(`Failed to create judge session: ${createResult.error}`)
+    }
+
+    const judgeSessionID = createResult.data.id
+    log("[llm-invoker] Created judge session", { judgeSessionID, provider: providerID, model: modelID })
+
+    try {
+      // Prompt the judge session
+      await ctx.client.session.prompt({
+        path: { id: judgeSessionID },
+        body: {
+          model: { providerID, modelID },
+          parts: [{ type: "text", text: prompt }],
+        },
+      })
+
+      // Poll for completion (max 30 seconds)
+      const POLL_INTERVAL_MS = 500
+      const MAX_POLL_TIME_MS = 30000
+      const pollStart = Date.now()
+      let responseText = ""
+
+      while (Date.now() - pollStart < MAX_POLL_TIME_MS) {
+        await new Promise(resolve => setTimeout(resolve, POLL_INTERVAL_MS))
+
+        // Check session status
+        const statusResult = await ctx.client.session.status()
+        const allStatuses = (statusResult.data ?? {}) as Record<string, { type: string }>
+        const sessionStatus = allStatuses[judgeSessionID]
+
+        if (sessionStatus?.type === "idle") {
+          // Session complete - get messages
+          const messagesResult = await ctx.client.session.messages({
+            path: { id: judgeSessionID },
+          })
+
+          type Message = {
+            info?: { role?: string }
+            parts?: Array<{ type?: string; text?: string }>
+          }
+          const messages = ((messagesResult as { data?: unknown }).data ?? []) as Message[]
+          const assistantMsgs = messages.filter(m => m.info?.role === "assistant")
+          const lastMsg = assistantMsgs[assistantMsgs.length - 1]
+
+          if (lastMsg?.parts) {
+            responseText = lastMsg.parts
+              .filter(p => p.type === "text")
+              .map(p => p.text ?? "")
+              .join("\n")
+          }
+          break
+        }
+      }
+
+      log("[llm-invoker] Got judge response", { judgeSessionID, responseLength: responseText.length })
+      return responseText
+    } finally {
+      // Clean up: delete the temporary session
+      try {
+        await ctx.client.session.delete({
+          path: { id: judgeSessionID },
+        })
+        log("[llm-invoker] Deleted judge session", { judgeSessionID })
+      } catch (deleteErr) {
+        log("[llm-invoker] Failed to delete judge session", { judgeSessionID, error: String(deleteErr) })
+      }
+    }
+  }
+
+  /**
+   * LLM Invoker for completion criteria judge
+   * Creates a temporary session, prompts it, polls for response, and cleans up
+   * Uses fallback models if primary model fails (credential errors, etc.)
+   */
+  async function createLlmInvoker(): Promise<((prompt: string, model: string) => Promise<string>) | undefined> {
+    // Only create invoker if completion judge is enabled
+    const judgeConfig = pluginConfig.ralph_loop?.completion_judge
+    const judgeEnabled = judgeConfig?.enabled ?? true
+    if (!judgeEnabled) {
+      return undefined
+    }
+
+    // Get fallback models from config
+    const fallbackModels = judgeConfig?.fallback_models ?? [
+      "github-copilot/gpt-4o-mini",
+      "google/gemini-2.5-flash",
+      "opencode/glm-4.7-free",
+    ]
+
+    return async (prompt: string, requestedModel: string): Promise<string> => {
+      // Build list of models to try: requested model first, then fallbacks
+      const modelsToTry = [requestedModel, ...fallbackModels]
+      // Deduplicate while preserving order
+      const uniqueModels = [...new Set(modelsToTry)]
+
+      for (const model of uniqueModels) {
+        // Parse model string (e.g., "anthropic/claude-haiku-4-5")
+        const [providerID, modelID] = model.split("/")
+        if (!providerID || !modelID) {
+          log("[llm-invoker] Invalid model format, skipping", { model })
+          continue
+        }
+
+        try {
+          const response = await tryModelInvocation(prompt, providerID, modelID)
+          log("[llm-invoker] Success with model", { model })
+          return response
+        } catch (error) {
+          const errorMsg = error instanceof Error ? error.message : String(error)
+
+          if (isCredentialError(errorMsg)) {
+            log("[llm-invoker] Credential error, trying fallback", { model, error: errorMsg })
+            continue // Try next model
+          }
+
+          // For other errors, also try fallback but log differently
+          log("[llm-invoker] Model error, trying fallback", { model, error: errorMsg })
+          continue
+        }
+      }
+
+      // All models failed - return empty string (judge will default to pass)
+      log("[llm-invoker] All fallback models exhausted, defaulting to pass")
+      return ""
+    }
+  }
+
+  // Initialize LLM invoker for ralph-loop completion judge
+  const llmInvokerPromise = createLlmInvoker()
+
   const ralphLoop = isHookEnabled("ralph-loop")
     ? createRalphLoopHook(ctx, {
         config: pluginConfig.ralph_loop,
         checkSessionExists: async (sessionId) => sessionExists(sessionId),
+        llmInvoker: await llmInvokerPromise,
+        completionJudgeConfig: pluginConfig.ralph_loop?.completion_judge,
       })
     : null;
 
@@ -293,6 +459,17 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
     ? createAutoSlashCommandHook({ skills: mergedSkills })
     : null;
 
+  // Auto-router hook for intelligent task routing
+  // Handles /auto command: classifies tasks, switches models, starts ralph-loop
+  // v3.5.0: Now supports parallel agent spawning via backgroundManager
+  const autoRouter = isHookEnabled("auto-router")
+    ? createAutoRouterHook(ctx, {
+        config: pluginConfig.auto_router,
+        directory: ctx.directory,
+        backgroundManager,  // Enable parallel agent spawning
+      })
+    : null;
+
   const configHandler = createConfigHandler({
     ctx,
     pluginConfig,
@@ -327,8 +504,22 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
       await keywordDetector?.["chat.message"]?.(input, output);
       await claudeCodeHooks["chat.message"]?.(input, output);
       await contextInjector["chat.message"]?.(input, output);
+      // Auto-router must run BEFORE autoSlashCommand to intercept /auto
+      await autoRouter?.["chat.message"]?.(input, output);
       await autoSlashCommand?.["chat.message"]?.(input, output);
       await startWork?.["chat.message"]?.(input, output);
+
+      // v3.4.0: Auto-start ralph-loop when auto-router determines it's needed
+      if (autoRouter && ralphLoop) {
+        const routerState = autoRouter.getSessionState(input.sessionID);
+        if (routerState?.ralphLoopEnabled && routerState.taskDescription) {
+          // Start ralph-loop with the task from auto-router
+          const budgetConfig = routerState.escalationManager.getCurrentTier();
+          ralphLoop.startLoop(input.sessionID, routerState.taskDescription, {
+            maxIterations: budgetConfig.maxIterations,
+          });
+        }
+      }
 
       if (ralphLoop) {
         const parts = (
@@ -384,6 +575,11 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
       }
     },
 
+    // Note: OpenCode's chat.params API doesn't support model switching
+    // Model selection is determined by agent config/variant, not dynamically
+    // The auto-router's classification and ralph-loop still work without runtime model switching
+    // The injected prompt specifies the recommended model, but actual model used is per session config
+
     "experimental.chat.messages.transform": async (
       input: Record<string, never>,
       output: { messages: Array<{ info: unknown; parts: unknown[] }> }
@@ -418,6 +614,7 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
       await agentUsageReminder?.event(input);
       await interactiveBashSession?.event(input);
       await ralphLoop?.event(input);
+      await autoRouter?.event(input);
       await sisyphusOrchestrator?.handler(input);
 
       const { event } = input;
