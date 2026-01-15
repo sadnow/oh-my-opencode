@@ -1,0 +1,53 @@
+{
+  "$schema": "https://raw.githubusercontent.com/code-yeongyu/oh-my-opencode/master/assets/oh-my-opencode.schema.json",
+  "_comment": "Tier 1: Simple Games - Snake, Pong, Tic-Tac-Toe. Estimated 5-15 iterations, <$5 cost",
+  "_complexity": {
+    "mechanics_count": "3-5",
+    "state_machines": "1-2",
+    "files_expected": "2-5",
+    "estimated_iterations": "5-15",
+    "estimated_cost": "$1-5"
+  },
+  "agents": {
+    "Sisyphus": {
+      "model": "google/antigravity-gemini-3-flash",
+      "description": "Main work - Antigravity Flash handles simple games easily"
+    },
+    "Sisyphus-Junior": {
+      "model": "github-copilot/gpt-4o-mini",
+      "description": "Subtasks - GPT-4o-mini for speed"
+    },
+    "explore": {
+      "model": "opencode/grok-code"
+    },
+    "oracle": {
+      "model": "github-copilot/gpt-4o-mini",
+      "description": "Simple analysis - GPT-4o-mini sufficient"
+    },
+    "frontend-ui-ux-engineer": {
+      "model": "google/antigravity-gemini-3-flash",
+      "description": "Simple UI - Antigravity Flash can handle"
+    }
+  },
+  "categories": {
+    "quick": {
+      "model": "github-copilot/gpt-4o-mini",
+      "temperature": 0.3
+    },
+    "general": {
+      "model": "google/antigravity-gemini-3-flash",
+      "temperature": 0.5
+    }
+  },
+  "ralph_loop": {
+    "enabled": true,
+    "default_max_iterations": 15
+  },
+  "background_task": {
+    "defaultConcurrency": 3,
+    "modelConcurrency": {
+      "google/antigravity-gemini-3-flash": 2,
+      "github-copilot/gpt-4o-mini": 5
+    }
+  }
+}

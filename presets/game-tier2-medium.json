@@ -1,0 +1,65 @@
+{
+  "$schema": "https://raw.githubusercontent.com/code-yeongyu/oh-my-opencode/master/assets/oh-my-opencode.schema.json",
+  "_comment": "Tier 2: Medium Games - Flappy Bird, Breakout, Tetris. Estimated 15-30 iterations, $5-20 cost",
+  "_complexity": {
+    "mechanics_count": "5-10",
+    "state_machines": "2-4",
+    "files_expected": "5-15",
+    "estimated_iterations": "15-30",
+    "estimated_cost": "$5-20"
+  },
+  "agents": {
+    "Sisyphus": {
+      "model": "openai/gpt-5.2",
+      "description": "Main work - GPT-5.2 for reliability"
+    },
+    "Sisyphus-Junior": {
+      "model": "google/antigravity-gemini-3-flash",
+      "description": "Parallel subtasks"
+    },
+    "Prometheus (Planner)": {
+      "model": "openai/gpt-5.2",
+      "description": "Planning - GPT-5.2 for medium complexity"
+    },
+    "explore": {
+      "model": "opencode/grok-code"
+    },
+    "oracle": {
+      "model": "openai/gpt-5.2",
+      "description": "Analysis - GPT-5.2 for game logic"
+    },
+    "frontend-ui-ux-engineer": {
+      "model": "google/antigravity-gemini-3-flash",
+      "description": "UI work - Antigravity Flash for polish"
+    },
+    "Momus (Plan Reviewer)": {
+      "model": "openai/gpt-5.2",
+      "description": "Review - GPT-5.2 catches issues"
+    }
+  },
+  "categories": {
+    "quick": {
+      "model": "github-copilot/gpt-4o-mini",
+      "temperature": 0.3
+    },
+    "general": {
+      "model": "google/antigravity-gemini-3-flash",
+      "temperature": 0.5
+    },
+    "most-capable": {
+      "model": "openai/gpt-5.2",
+      "temperature": 0.6
+    }
+  },
+  "ralph_loop": {
+    "enabled": true,
+    "default_max_iterations": 30
+  },
+  "background_task": {
+    "defaultConcurrency": 5,
+    "modelConcurrency": {
+      "openai/gpt-5.2": 4,
+      "google/antigravity-gemini-3-flash": 6
+    }
+  }
+}

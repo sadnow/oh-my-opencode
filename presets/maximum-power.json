@@ -1,0 +1,83 @@
+{
+  "$schema": "https://raw.githubusercontent.com/code-yeongyu/oh-my-opencode/master/assets/oh-my-opencode.schema.json",
+  "agents": {
+    "Sisyphus": {
+      "model": "openai/gpt-5.2",
+      "description": "Main orchestrator - GPT-5.2 for maximum capability"
+    },
+    "Sisyphus-Junior": {
+      "model": "openai/gpt-5.2",
+      "description": "Subtasks - GPT-5.2 for parallel reliability"
+    },
+    "Prometheus (Planner)": {
+      "model": "openai/gpt-5.2",
+      "description": "Planning - GPT-5.2 for deep architecture"
+    },
+    "Metis (Plan Consultant)": {
+      "model": "openai/gpt-5.2",
+      "description": "Plan consultation - GPT-5.2 for edge cases"
+    },
+    "Momus (Plan Reviewer)": {
+      "model": "openai/gpt-5.2",
+      "description": "Plan review - GPT-5.2 for thoroughness"
+    },
+    "explore": {
+      "model": "google/antigravity-gemini-3-flash",
+      "description": "Codebase exploration"
+    },
+    "librarian": {
+      "model": "google/antigravity-gemini-3-flash",
+      "description": "Documentation analysis"
+    },
+    "oracle": {
+      "model": "openai/gpt-5.2",
+      "description": "Deep analysis - GPT-5.2 required"
+    },
+    "frontend-ui-ux-engineer": {
+      "model": "google/antigravity-gemini-3-flash",
+      "description": "UI/UX - Antigravity Flash for quality"
+    },
+    "document-writer": {
+      "model": "google/antigravity-gemini-3-flash",
+      "description": "Documentation"
+    },
+    "multimodal-looker": {
+      "model": "google/antigravity-gemini-3-flash",
+      "description": "Visual analysis - Antigravity for accuracy"
+    }
+  },
+  "categories": {
+    "quick": {
+      "model": "google/antigravity-gemini-3-flash",
+      "temperature": 0.3
+    },
+    "general": {
+      "model": "openai/gpt-5.2",
+      "temperature": 0.5
+    },
+    "ultrabrain": {
+      "model": "openai/gpt-5.2",
+      "temperature": 0.7
+    },
+    "most-capable": {
+      "model": "openai/gpt-5.2",
+      "temperature": 0.7
+    }
+  },
+  "ralph_loop": {
+    "enabled": true,
+    "default_max_iterations": 50
+  },
+  "background_task": {
+    "defaultConcurrency": 8,
+    "modelConcurrency": {
+      "openai/gpt-5.2": 3,
+      "google/antigravity-gemini-3-flash": 6,
+      "github-copilot/gpt-4o-mini": 10
+    }
+  },
+  "experimental": {
+    "preemptive_compaction": true,
+    "preemptive_compaction_threshold": 0.85
+  }
+}

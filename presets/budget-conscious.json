@@ -1,0 +1,71 @@
+{
+  "$schema": "https://raw.githubusercontent.com/code-yeongyu/oh-my-opencode/master/assets/oh-my-opencode.schema.json",
+  "agents": {
+    "Sisyphus": {
+      "model": "google/antigravity-gemini-3-flash",
+      "description": "Main orchestrator - Antigravity Flash for cost efficiency"
+    },
+    "Sisyphus-Junior": {
+      "model": "github-copilot/gpt-4o-mini",
+      "description": "Junior tasks - GPT-4o-mini for speed and cost"
+    },
+    "explore": {
+      "model": "opencode/grok-code",
+      "description": "Exploration - Free Grok for fast search"
+    },
+    "librarian": {
+      "model": "opencode/glm-4.7-free",
+      "description": "Documentation lookup - Free GLM sufficient"
+    },
+    "oracle": {
+      "model": "google/antigravity-gemini-3-flash",
+      "description": "Deep analysis - Antigravity Flash for quality"
+    },
+    "Momus (Plan Reviewer)": {
+      "model": "openai/gpt-5.2",
+      "description": "Final review ONLY - GPT-5.2 catches edge cases"
+    },
+    "frontend-ui-ux-engineer": {
+      "model": "google/antigravity-gemini-3-flash",
+      "description": "UI work - Antigravity Flash handles well"
+    },
+    "document-writer": {
+      "model": "google/antigravity-gemini-3-flash",
+      "description": "Documentation - Antigravity writes well"
+    },
+    "multimodal-looker": {
+      "model": "google/antigravity-gemini-3-flash",
+      "description": "Visual analysis - Antigravity for accuracy"
+    }
+  },
+  "categories": {
+    "quick": {
+      "model": "github-copilot/gpt-4o-mini",
+      "temperature": 0.3
+    },
+    "general": {
+      "model": "google/antigravity-gemini-3-flash",
+      "temperature": 0.5
+    },
+    "most-capable": {
+      "model": "openai/gpt-5.2",
+      "temperature": 0.7
+    }
+  },
+  "ralph_loop": {
+    "enabled": true,
+    "default_max_iterations": 15
+  },
+  "background_task": {
+    "defaultConcurrency": 3,
+    "modelConcurrency": {
+      "openai/gpt-5.2": 1,
+      "google/antigravity-gemini-3-flash": 3,
+      "github-copilot/gpt-4o-mini": 5
+    }
+  },
+  "experimental": {
+    "preemptive_compaction": true,
+    "preemptive_compaction_threshold": 0.75
+  }
+}
