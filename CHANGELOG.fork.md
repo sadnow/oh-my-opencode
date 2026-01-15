@@ -9,6 +9,54 @@ For upstream changes, see the [original repository](https://github.com/code-yeon
 
 ---
 
+## [v3.6.3] - 2026-01-15
+
+### Task Intent Preservation
+
+Fixed critical bug where `/auto "play through entire game with playwright"` would switch to Vercel deployment instead of continuing playwright testing.
+
+**Root Causes Addressed:**
+1. Ralph loop threshold too restrictive for testing tasks
+2. Project artifacts (vercel.json, DEPLOY.md) contaminated classification
+3. "Next step: deploy" in docs overrode user's explicit testing request
+4. No preservation of task intent across classification phases
+
+**New Features:**
+
+#### Task Intent Detection (`src/features/auto-router/classifier.ts`)
+- `extractTaskIntent()` - Extracts user intent from prompt ONLY (not project artifacts)
+- `filterDomainSignalsByIntent()` - Removes infrastructure signals when testing intent detected
+- `containsIgnorableArtifactSignals()` - Filters "next step", "recommended", "future work" noise
+- Intent types: `test`, `deploy`, `build`, `fix`, `explore`, `refactor`, `unknown`
+
+#### Flexible /auto Command Parsing (`src/hooks/auto-router/constants.ts`)
+- `parseAutoCommand()` - Supports quotes, unquoted, and multiline prompts
+- No longer requires quotes around task description
+- Handles `--options` after task description
+
+#### Ralph Loop Threshold Changes (`src/features/auto-router/wizard.ts`)
+- Testing intents (`test`, `play`, `verify`, `validate`, `e2e`) always enable ralph loop
+- Browser automation tools (`playwright`, `puppeteer`, `cypress`) always enable ralph loop
+- More aggressive persistence for interactive tasks
+
+### Known Limitations
+
+- **Session context not fully implemented**: `sessionContext` variable is updated but not read between commands - sequential `/auto` commands don't truly preserve context yet. Planned for v3.6.4.
+
+### Added
+- `TaskIntent` type in `src/hooks/auto-router/types.ts`
+- `TASK_INTENT_KEYWORDS` constant with 25+ intent keywords
+- `EXPLICIT_TOOL_KEYWORDS` constant with 15+ tool names
+- `IGNORED_PROJECT_ARTIFACT_SIGNALS` constant
+- 44 new tests for intent preservation and command parsing
+
+### Tests
+- **Total tests**: 1212 passing
+- **New tests added**: 44 (task intent, parseAutoCommand, session context)
+- All TypeScript type checks passing
+
+---
+
 ## [v3.2.1-stable-baseline] - 2026-01-15
 
 ### Incident: OpenCode AVX CPU Crash
