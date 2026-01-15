@@ -6,6 +6,61 @@ For upstream changes, see the [original repository](https://github.com/code-yeon
 
 ---
 
+## [v3.5.1] - 2026-01-15
+
+### Added
+
+#### Per-Provider Concurrent Agent Rate Limiting
+
+We throttle ourselves out of caution and respect for providers offering free or cheap services.
+
+**Policy:**
+- Each provider gets **2 concurrent agents maximum**:
+  - 1 free model agent (if provider offers free models)
+  - 1 paid model agent
+- With 3 providers configured → **6 concurrent agents maximum**
+- If a provider only offers paid models, both slots can be used for paid agents
+
+**Example with 3 providers:**
+
+| Provider | Free Agent | Paid Agent | Total |
+|----------|------------|------------|-------|
+| github-copilot | gpt-4o-mini | claude-sonnet-4 | 2 |
+| google | gemini-flash | gemini-pro | 2 |
+| opencode | glm-4.7-free | grok-code | 2 |
+| **Total** | 3 | 3 | **6** |
+
+**Rationale:**
+- Respects provider rate limits
+- Avoids overwhelming free tier services
+- Ensures fair usage across providers
+- Allows budget escalation within each provider's allocation
+- Conservative approach to maintain good standing with providers
+
+**New exports:**
+```typescript
+import {
+  AGENTS_PER_PROVIDER,          // 2
+  FREE_AGENTS_PER_PROVIDER,     // 1
+  PAID_AGENTS_PER_PROVIDER,     // 1
+  calculateMaxConcurrentAgents, // (providerCount) => max agents
+  getProviderAgentAllocation,   // (providerId, hasFreeModels) => allocation
+} from "./constants"
+```
+
+#### Claude Models via Copilot-CLI (Refactored)
+
+Updated budget tiers to access Claude models through `github-copilot` provider instead of direct Anthropic API:
+
+| Tier | Model |
+|------|-------|
+| expensive | `github-copilot/claude-sonnet-4` |
+| maximum | `github-copilot/claude-opus-4-5` |
+
+Direct Anthropic API access is blocked for OpenCode as of Jan 2026.
+
+---
+
 ## [v3.5.0] - 2026-01-14
 
 ### Fixed

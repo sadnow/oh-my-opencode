@@ -709,9 +709,84 @@ export function getAgentForBudgetTier(tier: BudgetTier): string {
 export const DEFAULT_PARALLEL_AGENTS = ["explore", "librarian"] as const
 
 /**
+ * Per-Provider Concurrent Agent Limits
+ *
+ * We throttle ourselves out of caution and respect for providers offering
+ * free or cheap services. Each provider gets a maximum of 2 concurrent agents:
+ * - 1 free model agent (if the provider offers free models)
+ * - 1 paid model agent
+ *
+ * This means with 3 providers configured, the auto-router can deploy up to
+ * 6 concurrent agents (2 per provider). If a provider only offers paid models,
+ * both slots can be used for paid agents.
+ *
+ * Example with 3 providers (github-copilot, google, opencode):
+ * - github-copilot: 1 free (gpt-4o-mini) + 1 paid (claude-sonnet-4) = 2 agents
+ * - google: 1 free (gemini-flash) + 1 paid (gemini-pro) = 2 agents
+ * - opencode: 1 free (glm-4.7-free) + 1 paid (grok-code) = 2 agents
+ * - Total: 6 concurrent agents maximum
+ *
+ * This conservative approach:
+ * - Respects provider rate limits
+ * - Avoids overwhelming free tier services
+ * - Ensures fair usage across providers
+ * - Allows budget escalation within each provider
+ */
+export const AGENTS_PER_PROVIDER = 2
+export const FREE_AGENTS_PER_PROVIDER = 1
+export const PAID_AGENTS_PER_PROVIDER = 1
+
+/**
  * Maximum concurrent parallel agents (conservative for rate limits)
+ * @deprecated Use calculateMaxConcurrentAgents() with provider count instead
  */
 export const DEFAULT_MAX_PARALLEL_AGENTS = 2
+
+/**
+ * Calculate maximum concurrent agents based on configured providers
+ * @param providerCount Number of enabled providers (e.g., github-copilot, google, opencode)
+ * @returns Maximum concurrent agents allowed
+ */
+export function calculateMaxConcurrentAgents(providerCount: number): number {
+  return Math.max(AGENTS_PER_PROVIDER, providerCount * AGENTS_PER_PROVIDER)
+}
+
+/**
+ * Provider agent allocation configuration
+ */
+export interface ProviderAgentAllocation {
+  providerId: string
+  freeAgents: number
+  paidAgents: number
+  totalAgents: number
+}
+
+/**
+ * Get agent allocation for a provider based on its model offerings
+ * @param providerId The provider ID (e.g., "github-copilot", "google")
+ * @param hasFreeModels Whether the provider offers free models
+ * @returns Agent allocation for this provider
+ */
+export function getProviderAgentAllocation(
+  providerId: string,
+  hasFreeModels: boolean
+): ProviderAgentAllocation {
+  if (hasFreeModels) {
+    return {
+      providerId,
+      freeAgents: FREE_AGENTS_PER_PROVIDER,
+      paidAgents: PAID_AGENTS_PER_PROVIDER,
+      totalAgents: AGENTS_PER_PROVIDER,
+    }
+  }
+  // Provider only has paid models - both slots can be paid
+  return {
+    providerId,
+    freeAgents: 0,
+    paidAgents: AGENTS_PER_PROVIDER,
+    totalAgents: AGENTS_PER_PROVIDER,
+  }
+}
 
 /**
  * Parallel agent configuration
@@ -720,6 +795,8 @@ export interface ParallelAgentConfig {
   enabled: boolean
   maxConcurrent: number
   agentsForTier3: readonly string[]
+  /** Per-provider allocation (optional, uses defaults if not specified) */
+  providerAllocations?: ProviderAgentAllocation[]
 }
 
 export const DEFAULT_PARALLEL_AGENT_CONFIG: ParallelAgentConfig = {
