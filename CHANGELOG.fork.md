@@ -9,6 +9,41 @@ For upstream changes, see the [original repository](https://github.com/code-yeon
 
 ---
 
+## [v3.6.4] - 2026-01-15
+
+### Full Session Context Preservation
+
+Implements true session context preservation across sequential `/auto` commands. This completes the work started in v3.6.3.
+
+**What's Fixed:**
+- Session context is now stored per-session (not module-scope)
+- Context flows through `createAutoRouter` → `classifyTaskWithIntent`
+- Intent and tools merge properly between commands
+- `PRESERVED CONTEXT` section injected in prompts
+
+**New Functions:**
+- `mergeIntents()` - Intelligently inherits intents when current command is vague
+- `IntentAwareClassification` - Renamed from `EnhancedClassification` to avoid conflict
+
+**Behavior:**
+- Required tools **accumulate** across commands (playwright + cypress = both)
+- Explicit intents override preserved intents
+- Different sessions remain isolated
+- Iteration count increments, createdAt preserved
+
+### Tests
+- **Total tests**: 1218 passing (+6 new)
+- New tests: session context preservation, tool accumulation, iteration tracking
+
+### OpenCode Version Note
+
+**Important**: OpenCode 1.1.22 has AVX issues with the baseline binary. Use 1.1.19:
+```powershell
+npm install -g opencode-ai@1.1.19
+```
+
+---
+
 ## [v3.6.3] - 2026-01-15
 
 ### Task Intent Preservation
