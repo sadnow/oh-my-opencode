@@ -1,8 +1,16 @@
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, sep } from "node:path";
 import { findProjectRoot, findRuleFiles } from "./finder";
+
+// Helper for cross-platform path segment checking
+const pathContains = (p: string, segments: string): boolean => {
+  // Normalize both to use the current platform's separator
+  const normalizedPath = p.replace(/[\\/]/g, sep);
+  const normalizedSegments = segments.replace(/[\\/]/g, sep);
+  return normalizedPath.includes(normalizedSegments);
+};
 
 describe("findRuleFiles", () => {
   const TEST_DIR = join(tmpdir(), `rules-injector-test-${Date.now()}`);
@@ -185,7 +193,7 @@ describe("findRuleFiles", () => {
 
       // #then should find claude rules
       const paths = candidates.map((c) => c.path);
-      expect(paths.some((p) => p.includes(".claude/rules/"))).toBe(true);
+      expect(paths.some((p) => pathContains(p, ".claude/rules/"))).toBe(true);
     });
 
     it("should still discover .cursor/rules/ files", () => {
@@ -202,7 +210,7 @@ describe("findRuleFiles", () => {
 
       // #then should find cursor rules
       const paths = candidates.map((c) => c.path);
-      expect(paths.some((p) => p.includes(".cursor/rules/"))).toBe(true);
+      expect(paths.some((p) => pathContains(p, ".cursor/rules/"))).toBe(true);
     });
 
     it("should discover .mdc files in rule directories", () => {
@@ -252,9 +260,9 @@ describe("findRuleFiles", () => {
       // #then should find all rules
       expect(candidates.length).toBeGreaterThanOrEqual(4);
       const paths = candidates.map((c) => c.path);
-      expect(paths.some((p) => p.includes(".claude/rules/"))).toBe(true);
-      expect(paths.some((p) => p.includes(".cursor/rules/"))).toBe(true);
-      expect(paths.some((p) => p.includes(".github/instructions/"))).toBe(
+      expect(paths.some((p) => pathContains(p, ".claude/rules/"))).toBe(true);
+      expect(paths.some((p) => pathContains(p, ".cursor/rules/"))).toBe(true);
+      expect(paths.some((p) => pathContains(p, ".github/instructions/"))).toBe(
         true
       );
       expect(paths.some((p) => p.includes("copilot-instructions.md"))).toBe(

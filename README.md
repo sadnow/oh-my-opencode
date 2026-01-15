@@ -71,11 +71,11 @@ Yes, technically possible. But I cannot recommend using it.
 
 ---
 
-## 🍴 Fork Notice
+## 🍴 oh-my-autocode
 
-> **This is [sadnow/oh-my-opencode](https://github.com/sadnow/oh-my-opencode)**, a fork adding **Technique Orchestration** via the `/auto` command.
+> **This is [oh-my-autocode](https://github.com/sadnow/oh-my-opencode)**, a fork adding **Intelligent Task Orchestration** via the `/auto` command.
 >
-> See [upstream](https://github.com/code-yeongyu/oh-my-opencode) for the original project.
+> See [upstream oh-my-opencode](https://github.com/code-yeongyu/oh-my-opencode) for the original project.
 
 ### Fork-Specific Features
 
@@ -1300,6 +1300,32 @@ If this sounds arrogant and you have a better answer, please contribute. You're 
 I have no affiliation with any project or model mentioned here. This is purely personal experimentation and preference.
 
 99% of this project was built using OpenCode. I tested for functionality—I don't really know how to write proper TypeScript. **But I personally reviewed and largely rewrote this doc, so read with confidence.**
+
+## Troubleshooting
+
+### OpenCode crashes on startup: "CPU lacks AVX support"
+
+If you see this error when running `opencode`:
+```
+CPU lacks AVX support. Please consider upgrading to a newer CPU.
+panic(main thread): Illegal instruction at address 0x7FF7...
+```
+
+**Quick Fix (Windows PowerShell):**
+```powershell
+[System.Environment]::SetEnvironmentVariable(
+  'OPENCODE_BIN_PATH',
+  'C:\Users\YOUR_USERNAME\AppData\Roaming\npm\node_modules\opencode-ai\node_modules\opencode-windows-x64-baseline\bin\opencode.exe',
+  'User'
+)
+```
+Replace `YOUR_USERNAME` with your Windows username. **Restart your terminal after setting.**
+
+**Why this happens:** OpenCode ships two Windows binaries - one optimized for modern CPUs (requires AVX) and a baseline version for older CPUs. The launcher may pick the wrong one.
+
+See [docs/TROUBLESHOOTING.md](./docs/TROUBLESHOOTING.md) for detailed troubleshooting guides.
+
+---
 
 ## Warnings
 

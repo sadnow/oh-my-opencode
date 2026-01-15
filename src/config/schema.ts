@@ -90,6 +90,7 @@ export const HookNameSchema = z.enum([
   "start-work",
   "sisyphus-orchestrator",
   "auto-router",
+  "meta-development-guard",
 ])
 
 export const BuiltinCommandNameSchema = z.enum([
@@ -360,6 +361,23 @@ export const ParallelAgentConfigSchema = z.object({
   agents_for_tier3: z.array(z.string()).default(["explore", "librarian"]),
 })
 
+export const MetaDevelopmentConfigSchema = z.object({
+  /** Enable meta-development mode - allows modifying plugin source code (default: false) */
+  enabled: z.boolean().default(false),
+  /** Allow self-modification of critical plugin paths without confirmation (default: false) */
+  allow_self_modification: z.boolean().default(false),
+  /** Enable audit logging for all config and code changes (default: true) */
+  audit_logging: z.boolean().default(true),
+  /** Protected paths that require extra confirmation when editing */
+  protected_paths: z.array(z.string()).default([
+    "src/hooks/auto-router/",
+    "src/hooks/ralph-loop/",
+    "src/features/auto-router/",
+    "src/index.ts",
+    "package.json",
+  ]),
+})
+
 export const AutoRouterConfigSchema = z.object({
   /** Enable auto-router functionality (default: true) */
   enabled: z.boolean().default(true),
@@ -383,6 +401,8 @@ export const AutoRouterConfigSchema = z.object({
   full_autonomy: z.boolean().default(true),
   /** Enable wizard mode for interactive configuration (default: false) */
   wizard_mode: z.boolean().default(false),
+  /** Show detailed classification, routing, and model selection information (default: false) */
+  verbose: z.boolean().default(false),
   /** Parallel agent spawning configuration (v3.5.0) */
   parallel_agents: ParallelAgentConfigSchema.optional(),
 })
@@ -407,6 +427,8 @@ export const OhMyOpenCodeConfigSchema = z.object({
   notification: NotificationConfigSchema.optional(),
   git_master: GitMasterConfigSchema.optional(),
   auto_router: AutoRouterConfigSchema.optional(),
+  /** Meta-development guardrails for self-modification (default: disabled) */
+  meta_development: MetaDevelopmentConfigSchema.optional(),
 })
 
 export type OhMyOpenCodeConfig = z.infer<typeof OhMyOpenCodeConfigSchema>
@@ -431,6 +453,7 @@ export type CategoriesConfig = z.infer<typeof CategoriesConfigSchema>
 export type BuiltinCategoryName = z.infer<typeof BuiltinCategoryNameSchema>
 export type GitMasterConfig = z.infer<typeof GitMasterConfigSchema>
 export type AutoRouterConfig = z.infer<typeof AutoRouterConfigSchema>
+export type MetaDevelopmentConfig = z.infer<typeof MetaDevelopmentConfigSchema>
 export type BudgetTier = z.infer<typeof BudgetTierSchema>
 export type TechniqueCombo = z.infer<typeof TechniqueComboSchema>
 export type ProjectType = z.infer<typeof ProjectTypeSchema>

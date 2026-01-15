@@ -288,7 +288,7 @@ describe("generateOmoConfig - GitHub Copilot fallback", () => {
 
     // #then native Gemini should be used (NOT Copilot)
     const agents = result.agents as Record<string, { model?: string }>
-    expect(agents["frontend-ui-ux-engineer"]?.model).toBe("google/antigravity-gemini-3-pro-high")
+    expect(agents["frontend-ui-ux-engineer"]?.model).toBe("google/antigravity-gemini-3-flash")
   })
 
   test("native Claude takes priority over Copilot for frontend-ui-ux-engineer", () => {

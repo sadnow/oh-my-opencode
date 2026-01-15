@@ -69,5 +69,7 @@ export interface AutoRouterHookOptions {
     }
     full_autonomy?: boolean
     wizard_mode?: boolean
+    /** Show detailed classification and routing information (v3.6.2) */
+    verbose?: boolean
   }
 }

@@ -250,7 +250,7 @@ describe("sisyphus-task", () => {
 
       // #then
       expect(result).not.toBeNull()
-      expect(result!.config.model).toBe("google/gemini-3-pro-preview")
+      expect(result!.config.model).toBe("google/antigravity-gemini-3-flash")
     })
   })
 

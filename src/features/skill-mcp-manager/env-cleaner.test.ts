@@ -144,14 +144,16 @@ describe("createCleanMcpEnvironment", () => {
   describe("undefined value handling", () => {
     it("skips undefined values from process.env", () => {
       // #given - process.env can have undefined values in TypeScript
-      const envWithUndefined = { ...process.env, UNDEFINED_VAR: undefined }
-      Object.assign(process.env, envWithUndefined)
+      // Note: In Node.js, assigning undefined to process.env converts it to string "undefined"
+      // So we test by deleting the key and checking it doesn't appear in result
+      const testKey = "TEST_UNDEFINED_KEY_" + Date.now()
+      delete process.env[testKey]
 
       // #when
       const cleanEnv = createCleanMcpEnvironment()
 
-      // #then - should not throw and should not include undefined values
-      expect(cleanEnv.UNDEFINED_VAR).toBeUndefined()
+      // #then - should not throw and should not include non-existent keys
+      expect(cleanEnv[testKey]).toBeUndefined()
       expect(Object.values(cleanEnv).every((v) => v !== undefined)).toBe(true)
     })
   })

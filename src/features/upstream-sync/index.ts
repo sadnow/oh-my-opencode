@@ -29,8 +29,8 @@ export const FORK_BASE_VERSION = {
   lastSyncDate: "2026-01-15",
 } as const
 
-/** Fork-specific version */
-export const FORK_VERSION = "v3.6.0-fork"
+/** Fork-specific version - oh-my-autocode */
+export const FORK_VERSION = "v3.6.1-autocode"
 
 // ============================================================================
 // Types

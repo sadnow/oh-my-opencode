@@ -16,7 +16,9 @@ import {
 import type { RuleFileCandidate } from "./types";
 
 function isGitHubInstructionsDir(dir: string): boolean {
-  return dir.includes(".github/instructions") || dir.endsWith(".github/instructions");
+  // Normalize path separators for cross-platform compatibility
+  const normalizedDir = dir.replace(/\\/g, "/");
+  return normalizedDir.includes(".github/instructions") || normalizedDir.endsWith(".github/instructions");
 }
 
 function isValidRuleFile(fileName: string, dir: string): boolean {

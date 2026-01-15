@@ -1,8 +1,48 @@
-# Changelog (Fork: sadnow/oh-my-opencode)
+# Changelog: oh-my-autocode
+
+> **oh-my-autocode** is a fork of [oh-my-opencode](https://github.com/code-yeongyu/oh-my-opencode)
+> adding intelligent task orchestration via the `/auto` command.
 
 All notable changes specific to this fork are documented here.
 
 For upstream changes, see the [original repository](https://github.com/code-yeongyu/oh-my-opencode).
+
+---
+
+## [v3.2.1-stable-baseline] - 2026-01-15
+
+### Incident: OpenCode AVX CPU Crash
+
+**Issue:** OpenCode would crash immediately on startup with "CPU lacks AVX support" error on Windows systems with older CPUs.
+
+**Root Cause:** OpenCode ships two Windows binaries:
+- `opencode-windows-x64` - Requires AVX CPU instructions (modern CPUs)
+- `opencode-windows-x64-baseline` - Works on older CPUs (SSE4.2 only)
+
+The launcher script (`bin/opencode`) searches for packages starting with `opencode-windows-x64`. Both binaries match this pattern. The first match wins, which depends on filesystem ordering - essentially random.
+
+**Fix:** Set environment variable to force the baseline binary:
+```powershell
+[System.Environment]::SetEnvironmentVariable(
+  'OPENCODE_BIN_PATH',
+  'C:\Users\YOUR_USERNAME\AppData\Roaming\npm\node_modules\opencode-ai\node_modules\opencode-windows-x64-baseline\bin\opencode.exe',
+  'User'
+)
+```
+
+**Affected versions:** All opencode-ai versions (1.1.x) are affected on non-AVX CPUs.
+
+**Documentation:**
+- Added `docs/TROUBLESHOOTING.md` with comprehensive troubleshooting guides
+- Added troubleshooting section to README.md
+- Created GitHub issue for upstream fix
+
+### Added
+- `docs/TROUBLESHOOTING.md` - Comprehensive troubleshooting guide
+- Troubleshooting section in README.md
+- Data sanitization module (`src/shared/sanitize.ts`) - Auto-redacts API keys and credentials from logs
+- Verbose notification formatting (`src/shared/notifications.ts`) - Enhanced /auto toast messages
+- Meta-development guard hook (`src/hooks/meta-development-guard/`) - Protection for plugin self-modification
 
 ---
 

@@ -6,6 +6,15 @@
 import type { PluginInput } from "@opencode-ai/plugin"
 import { log } from "../../shared/logger"
 import {
+  formatClassificationToast,
+  formatClassificationDetailsToast,
+  formatEscalationToast,
+  formatMagicKeywordToast,
+  formatModelSelectionToast,
+  formatParallelAgentToast,
+  toSimpleToast,
+} from "../../shared/notifications"
+import {
   createAutoRouter,
   getRoutingSummary,
   createEscalationManager,
@@ -433,30 +442,104 @@ Use \`background_output\` tool to check their progress before proceeding.`
       }
 
       // Show toast notification (include magic keyword info and warnings if any)
-      let toastMessage = `Technique: ${finalTechnique} | Budget: ${finalBudget}`
-      if (ralphLoopEnabled) {
-        toastMessage += ` | 🔄 Ralph Loop`
-      }
-      if (parallelAgentsLaunched > 0) {
-        toastMessage += ` | 🚀 ${parallelAgentsLaunched} agents`
-      }
-      if (cmdOptions.magicKeyword) {
-        toastMessage = `[${cmdOptions.magicKeyword}] ${toastMessage}`
-      }
-      if (cmdOptions.warnings.length > 0) {
-        toastMessage += `\n⚠️ ${cmdOptions.warnings[0]}`
-      }
+      const isVerbose = config.verbose === true
+      const modelConfig = BUDGET_TIERS[finalBudget]
 
-      await ctx.client.tui
-        .showToast({
-          body: {
-            title: "Auto-Router Active",
-            message: toastMessage,
-            variant: cmdOptions.warnings.length > 0 ? "warning" : "info",
-            duration: 5000,
-          },
-        })
-        .catch(err => log(`[${HOOK_NAME}] Toast failed`, { error: err?.message || String(err) }))
+      if (isVerbose) {
+        // Verbose mode: Show detailed classification toast
+        const classificationToast = formatClassificationToast(
+          result.classification,
+          finalTechnique,
+          finalBudget,
+          modelConfig.models.primary,
+          config.quality_threshold ?? 0.7
+        )
+        const simple = toSimpleToast(classificationToast)
+        await ctx.client.tui
+          .showToast({
+            body: {
+              title: simple.title,
+              message: simple.message,
+              variant: classificationToast.variant,
+              duration: classificationToast.duration,
+            },
+          })
+          .catch(err => log(`[${HOOK_NAME}] Toast failed`, { error: err?.message || String(err) }))
+
+        // Show additional details toast
+        const detailsToast = formatClassificationDetailsToast(result.classification)
+        const detailsSimple = toSimpleToast(detailsToast)
+        await ctx.client.tui
+          .showToast({
+            body: {
+              title: detailsSimple.title,
+              message: detailsSimple.message,
+              variant: detailsToast.variant,
+              duration: detailsToast.duration,
+            },
+          })
+          .catch(err => log(`[${HOOK_NAME}] Details toast failed`, { error: err?.message || String(err) }))
+
+        // Show magic keyword toast if applicable
+        if (cmdOptions.magicKeyword) {
+          const magicToast = formatMagicKeywordToast(cmdOptions.magicKeyword, finalTechnique, finalBudget)
+          const magicSimple = toSimpleToast(magicToast)
+          await ctx.client.tui
+            .showToast({
+              body: {
+                title: magicSimple.title,
+                message: magicSimple.message,
+                variant: magicToast.variant,
+                duration: magicToast.duration,
+              },
+            })
+            .catch(err => log(`[${HOOK_NAME}] Magic keyword toast failed`, { error: err?.message || String(err) }))
+        }
+
+        // Show parallel agents toast if applicable
+        if (parallelAgentsLaunched > 0) {
+          const agentsToSpawn = config.parallel_agents?.agents_for_tier3 ?? [...DEFAULT_PARALLEL_AGENT_CONFIG.agentsForTier3]
+          const launchedAgents = agentsToSpawn.slice(0, parallelAgentsLaunched)
+          const parallelToast = formatParallelAgentToast(parallelAgentsLaunched, launchedAgents)
+          const parallelSimple = toSimpleToast(parallelToast)
+          await ctx.client.tui
+            .showToast({
+              body: {
+                title: parallelSimple.title,
+                message: parallelSimple.message,
+                variant: parallelToast.variant,
+                duration: parallelToast.duration,
+              },
+            })
+            .catch(err => log(`[${HOOK_NAME}] Parallel agents toast failed`, { error: err?.message || String(err) }))
+        }
+      } else {
+        // Standard mode: Single concise toast
+        let toastMessage = `Technique: ${finalTechnique} | Budget: ${finalBudget}`
+        if (ralphLoopEnabled) {
+          toastMessage += ` | Ralph Loop`
+        }
+        if (parallelAgentsLaunched > 0) {
+          toastMessage += ` | ${parallelAgentsLaunched} agents`
+        }
+        if (cmdOptions.magicKeyword) {
+          toastMessage = `[${cmdOptions.magicKeyword}] ${toastMessage}`
+        }
+        if (cmdOptions.warnings.length > 0) {
+          toastMessage += `\n${cmdOptions.warnings[0]}`
+        }
+
+        await ctx.client.tui
+          .showToast({
+            body: {
+              title: "Auto-Router Active",
+              message: toastMessage,
+              variant: cmdOptions.warnings.length > 0 ? "warning" : "info",
+              duration: 5000,
+            },
+          })
+          .catch(err => log(`[${HOOK_NAME}] Toast failed`, { error: err?.message || String(err) }))
+      }
 
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : String(err)
@@ -541,25 +624,69 @@ ${AUTO_ROUTER_TAG_CLOSE}`
         if (decision.shouldEscalate && decision.toTier) {
           sessionState.escalationManager.escalate(decision.toTier)
 
-          const newBudget = BUDGET_TIERS[decision.toTier]
+          const newBudgetConfig = BUDGET_TIERS[decision.toTier]
+          const escalationCount = sessionState.escalationManager.getEscalationCount()
+          const maxEscalations = config.max_escalations ?? 3
 
           log(`[${HOOK_NAME}] Escalating budget`, {
             sessionID,
             fromTier: decision.fromTier,
             toTier: decision.toTier,
             reason: decision.reason,
+            escalationCount,
           })
 
-          await ctx.client.tui
-            .showToast({
-              body: {
-                title: "Auto-Router: Budget Escalated",
-                message: `${decision.fromTier} → ${decision.toTier}: ${decision.reason}`,
-                variant: "warning",
-                duration: 5000,
-              },
-            })
-            .catch(err => log(`[${HOOK_NAME}] Toast failed`, { error: err?.message || String(err) }))
+          // Verbose mode: Show detailed escalation toast
+          const isVerbose = config.verbose === true
+          if (isVerbose && decision.fromTier) {
+            const escalationToast = formatEscalationToast(
+              decision.fromTier,
+              decision.toTier,
+              decision.reason ?? "consecutive failures",
+              escalationCount,
+              maxEscalations,
+              newBudgetConfig.models.primary,
+              undefined, // quality score not available here
+              config.quality_threshold ?? 0.7
+            )
+            const simple = toSimpleToast(escalationToast)
+            await ctx.client.tui
+              .showToast({
+                body: {
+                  title: simple.title,
+                  message: simple.message,
+                  variant: escalationToast.variant,
+                  duration: escalationToast.duration,
+                },
+              })
+              .catch(err => log(`[${HOOK_NAME}] Escalation toast failed`, { error: err?.message || String(err) }))
+
+            // Also show model selection toast in verbose mode
+            const modelToast = formatModelSelectionToast(newBudgetConfig.models.primary, decision.toTier)
+            const modelSimple = toSimpleToast(modelToast)
+            await ctx.client.tui
+              .showToast({
+                body: {
+                  title: modelSimple.title,
+                  message: modelSimple.message,
+                  variant: modelToast.variant,
+                  duration: modelToast.duration,
+                },
+              })
+              .catch(err => log(`[${HOOK_NAME}] Model toast failed`, { error: err?.message || String(err) }))
+          } else {
+            // Standard mode: Simple escalation toast
+            await ctx.client.tui
+              .showToast({
+                body: {
+                  title: `Budget Escalated (${escalationCount}/${maxEscalations})`,
+                  message: `${decision.fromTier} → ${decision.toTier}: ${decision.reason}`,
+                  variant: "warning",
+                  duration: 5000,
+                },
+              })
+              .catch(err => log(`[${HOOK_NAME}] Toast failed`, { error: err?.message || String(err) }))
+          }
         }
       }
     }

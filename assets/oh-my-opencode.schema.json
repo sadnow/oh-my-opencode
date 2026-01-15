@@ -82,7 +82,8 @@
           "prometheus-md-only",
           "start-work",
           "sisyphus-orchestrator",
-          "auto-router"
+          "auto-router",
+          "meta-development-guard"
         ]
       }
     },
@@ -2551,6 +2552,10 @@
           "default": false,
           "type": "boolean"
         },
+        "verbose": {
+          "default": false,
+          "type": "boolean"
+        },
         "parallel_agents": {
           "type": "object",
           "properties": {
@@ -2574,6 +2579,36 @@
                 "type": "string"
               }
             }
+          }
+        }
+      }
+    },
+    "meta_development": {
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "default": false,
+          "type": "boolean"
+        },
+        "allow_self_modification": {
+          "default": false,
+          "type": "boolean"
+        },
+        "audit_logging": {
+          "default": true,
+          "type": "boolean"
+        },
+        "protected_paths": {
+          "default": [
+            "src/hooks/auto-router/",
+            "src/hooks/ralph-loop/",
+            "src/features/auto-router/",
+            "src/index.ts",
+            "package.json"
+          ],
+          "type": "array",
+          "items": {
+            "type": "string"
           }
         }
       }
