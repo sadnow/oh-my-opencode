@@ -20,7 +20,11 @@ import {
   COMPLEXITY_INTEGRATION_KEYWORDS,
   COMPLEXITY_RESEARCH_KEYWORDS,
   COMPLEXITY_ARCHITECTURE_KEYWORDS,
+  TASK_INTENT_KEYWORDS,
+  EXPLICIT_TOOL_KEYWORDS,
+  IGNORED_PROJECT_ARTIFACT_SIGNALS,
 } from "./constants"
+import type { TaskIntent } from "../../hooks/auto-router/types"
 import {
   detectProjectType,
   buildProjectContext,
@@ -488,4 +492,189 @@ function countExternalServices(text: string): number {
   ]
   const lowerText = text.toLowerCase()
   return services.filter((s) => lowerText.includes(s)).length
+}
+
+// ============================================================================
+// Task Intent Detection (v3.6.3)
+// ============================================================================
+
+/**
+ * Result of task intent analysis from USER PROMPT ONLY
+ */
+export interface TaskIntentResult {
+  /** Primary detected intent */
+  primaryIntent: TaskIntent
+  /** All detected intents */
+  intents: TaskIntent[]
+  /** Tools explicitly requested by user */
+  requiredTools: string[]
+  /** Confidence score 0-1 */
+  confidence: number
+}
+
+/**
+ * Extract task intent from USER PROMPT ONLY (not project artifacts).
+ *
+ * CRITICAL: This function analyzes the user's actual request to determine
+ * what they want to DO, not what the project contains. Project files should
+ * NOT influence this detection.
+ *
+ * Example:
+ * - User: "play through the game with playwright"
+ * - Result: { primaryIntent: "test", intents: ["test"], requiredTools: ["playwright"] }
+ *
+ * This ensures that even if the project has vercel.json or DEPLOY.md saying
+ * "Next step: deploy", the user's actual intent is preserved.
+ */
+export function extractTaskIntent(userPrompt: string): TaskIntentResult {
+  const lowerPrompt = userPrompt.toLowerCase()
+  const intents: TaskIntent[] = []
+  const requiredTools: string[] = []
+
+  // Check for each intent category
+  for (const [intentKey, keywords] of Object.entries(TASK_INTENT_KEYWORDS)) {
+    if (keywords.some(keyword => lowerPrompt.includes(keyword))) {
+      // Map keyword categories to TaskIntent types
+      const intentMap: Record<string, TaskIntent> = {
+        test: "test",
+        playwright: "test",  // Playwright implies testing
+        cypress: "test",     // Cypress implies testing
+        puppeteer: "test",   // Puppeteer implies testing
+        deploy: "deploy",
+        build: "build",
+        fix: "fix",
+        explore: "explore",
+        refactor: "refactor",
+      }
+      const intent = intentMap[intentKey]
+      if (intent && !intents.includes(intent)) {
+        intents.push(intent)
+      }
+    }
+  }
+
+  // Extract explicitly mentioned tools
+  for (const tool of EXPLICIT_TOOL_KEYWORDS) {
+    if (lowerPrompt.includes(tool.toLowerCase())) {
+      requiredTools.push(tool)
+    }
+  }
+
+  // Determine primary intent (first detected, or unknown if none)
+  const primaryIntent = intents[0] ?? "unknown"
+
+  // Calculate confidence based on keyword matches
+  const totalMatches = intents.length + requiredTools.length
+  const confidence = Math.min(1, totalMatches * 0.25)
+
+  return {
+    primaryIntent,
+    intents,
+    requiredTools,
+    confidence,
+  }
+}
+
+/**
+ * Filter domain signals to remove those from project artifacts that
+ * might distract from the user's actual intent.
+ *
+ * For example, if the user says "play through the game with playwright"
+ * but the project has a vercel.json file, we should NOT return "infrastructure"
+ * as a domain signal because the user didn't ask for deployment.
+ *
+ * @param domainSignals - Original domain signals detected
+ * @param taskIntent - Detected task intent from user prompt
+ * @param requiredTools - Tools explicitly requested by user
+ * @returns Filtered domain signals that align with user intent
+ */
+export function filterDomainSignalsByIntent(
+  domainSignals: DomainSignal[],
+  taskIntent: TaskIntent,
+  requiredTools: string[]
+): DomainSignal[] {
+  // If user explicitly requests testing/playing, prioritize testing signals
+  const isTestingTask = taskIntent === "test" ||
+    requiredTools.some(tool =>
+      ["playwright", "cypress", "puppeteer", "selenium", "jest", "vitest"].includes(tool.toLowerCase())
+    )
+
+  if (isTestingTask) {
+    // For testing tasks, remove infrastructure signals UNLESS user explicitly asked for deploy
+    return domainSignals.filter(signal => {
+      // Keep testing signals
+      if (signal === "testing") return true
+      // Remove infrastructure signals that might come from project files
+      if (signal === "infrastructure") return false
+      // Keep other signals
+      return true
+    })
+  }
+
+  return domainSignals
+}
+
+/**
+ * Check if a text contains "next step" type suggestions that should be ignored.
+ *
+ * Project documentation often contains suggestions like:
+ * - "Next step: deploy to Vercel"
+ * - "TODO: add authentication"
+ * - "Consider adding caching"
+ *
+ * These should NOT influence task classification because they're suggestions
+ * in docs, not the user's actual request.
+ */
+export function containsIgnorableArtifactSignals(text: string): boolean {
+  const lowerText = text.toLowerCase()
+  return IGNORED_PROJECT_ARTIFACT_SIGNALS.some(signal =>
+    lowerText.includes(signal)
+  )
+}
+
+/**
+ * Enhanced classification that separates user prompt analysis from project context.
+ *
+ * This is the v3.6.3 fix for the "playwright task switching to vercel" bug.
+ * It ensures that:
+ * 1. Task intent is detected from USER PROMPT only
+ * 2. Required tools are preserved regardless of project context
+ * 3. Domain signals from project files don't override user intent
+ */
+export interface EnhancedClassification extends TaskClassification {
+  /** Task intent detected from user prompt */
+  taskIntent: TaskIntent
+  /** Tools explicitly requested by user */
+  requiredTools: string[]
+  /** Original domain signals (may include project artifacts) */
+  rawDomainSignals: DomainSignal[]
+}
+
+/**
+ * Enhanced version of classifyTask that preserves user intent.
+ */
+export async function classifyTaskWithIntent(
+  taskDescription: string,
+  directory: string
+): Promise<EnhancedClassification> {
+  // Get base classification
+  const baseClassification = await classifyTask(taskDescription, directory)
+
+  // Extract task intent from user prompt ONLY
+  const intentResult = extractTaskIntent(taskDescription)
+
+  // Filter domain signals based on intent
+  const filteredDomainSignals = filterDomainSignalsByIntent(
+    baseClassification.domainSignals,
+    intentResult.primaryIntent,
+    intentResult.requiredTools
+  )
+
+  return {
+    ...baseClassification,
+    taskIntent: intentResult.primaryIntent,
+    requiredTools: intentResult.requiredTools,
+    rawDomainSignals: baseClassification.domainSignals,
+    domainSignals: filteredDomainSignals,
+  }
 }

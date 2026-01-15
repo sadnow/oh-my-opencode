@@ -8,6 +8,36 @@ import type {
   TaskClassification,
 } from "../../features/auto-router/types"
 
+/**
+ * Task intent categories - what the user wants to DO (not just complexity)
+ * These override project artifact signals when present in user prompt
+ */
+export type TaskIntent =
+  | "test"      // test, play, verify, check, validate, e2e
+  | "deploy"    // deploy, publish, release, ship
+  | "build"     // build, create, make, implement
+  | "fix"       // fix, debug, repair, resolve
+  | "explore"   // explore, investigate, understand, learn
+  | "refactor"  // refactor, clean, optimize, improve
+  | "unknown"   // no clear intent detected
+
+/**
+ * Session context preserved between /auto commands
+ * Prevents loss of focus when running sequential tasks
+ */
+export interface AutoRouterSessionContext {
+  /** Previous task description for context */
+  previousTask?: string
+  /** Detected domain from previous task */
+  previousDomain?: string
+  /** Preserved task intents from user prompts (NOT project artifacts) */
+  preservedIntents: TaskIntent[]
+  /** Tools explicitly requested by user (playwright, cypress, etc.) */
+  requiredTools: string[]
+  /** Timestamp of last /auto command */
+  lastCommandAt?: string
+}
+
 export interface AutoRouterState {
   active: boolean
   sessionId: string
@@ -20,6 +50,10 @@ export interface AutoRouterState {
   consecutiveFailures: number
   startedAt: string
   lastAttemptAt?: string
+  /** v3.6.3: Detected task intent from USER PROMPT only */
+  taskIntent?: TaskIntent
+  /** v3.6.3: Required tools explicitly mentioned by user */
+  requiredTools?: string[]
 }
 
 export interface AutoRouterHookInput {

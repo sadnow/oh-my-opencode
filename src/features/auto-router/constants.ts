@@ -230,6 +230,71 @@ export const COMPLEXITY_ARCHITECTURE_KEYWORDS = [
 ]
 
 // ============================================================================
+// Task Intent Keywords (v3.6.3)
+// ============================================================================
+
+/**
+ * Task intent keywords detected from USER PROMPT ONLY (not project artifacts).
+ * These force specific behaviors and prevent the model from getting distracted
+ * by "Next Step" suggestions in project documentation.
+ *
+ * Key insight: When user says "play through the game with playwright",
+ * the intents are ["test", "play"] and required tools are ["playwright"].
+ * These MUST be preserved even if project contains vercel.json or DEPLOY.md.
+ */
+export const TASK_INTENT_KEYWORDS = {
+  /** Testing intents - should enable ralph loop for persistence */
+  test: ["test", "play", "play through", "verify", "check", "validate", "e2e", "end-to-end"],
+
+  /** Tool-specific intents - MUST be preserved regardless of project context */
+  playwright: ["playwright", "browser automation"],
+  cypress: ["cypress"],
+  puppeteer: ["puppeteer"],
+
+  /** Deployment intents - only if user explicitly requests */
+  deploy: ["deploy", "publish", "release", "ship", "go live"],
+
+  /** Build intents */
+  build: ["build", "create", "make", "implement", "add", "write"],
+
+  /** Fix intents */
+  fix: ["fix", "debug", "repair", "resolve", "patch", "correct"],
+
+  /** Exploration intents */
+  explore: ["explore", "investigate", "understand", "learn", "research", "analyze"],
+
+  /** Refactoring intents */
+  refactor: ["refactor", "clean", "optimize", "improve", "restructure"],
+} as const
+
+/**
+ * Tools that when explicitly mentioned in user prompt MUST be used.
+ * These override any suggestions from project artifacts.
+ */
+export const EXPLICIT_TOOL_KEYWORDS = [
+  "playwright", "puppeteer", "cypress", "selenium", "webdriver",
+  "jest", "vitest", "mocha", "pytest", "junit",
+  "webpack", "vite", "esbuild", "rollup", "parcel",
+  "docker", "kubernetes", "terraform",
+] as const
+
+/**
+ * Keywords in project files that should NOT influence task classification.
+ * These are often "suggestions" in docs that distract from user's actual intent.
+ */
+export const IGNORED_PROJECT_ARTIFACT_SIGNALS = [
+  "next step",
+  "next steps",
+  "todo",
+  "future work",
+  "recommended",
+  "optional",
+  "consider",
+  "might want to",
+  "could also",
+] as const
+
+// ============================================================================
 // Technique Selection Matrix
 // ============================================================================
 

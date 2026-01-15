@@ -536,19 +536,40 @@ export function finalizeWizard(state: WizardState): WizardResult {
  * - Complexity Tier 2+ with novel content
  * - Complexity Tier 3 (always needs persistence for complex multi-step tasks)
  * - Domain signals indicate high-risk (crypto-trading, security-sensitive)
+ * - Task intent is "test", "play", or "verify" (v3.6.3 - interactive tasks need persistence)
+ * - Required tools like "playwright" are specified (browser automation needs persistence)
  *
  * Ralph loop is NOT needed when:
  * - Simple Tier 1 tasks (should complete in 1-2 iterations)
  * - Tier 2 with known/familiar patterns (predictable execution)
+ * - UNLESS overridden by task intent (see above)
  */
 export function shouldEnableRalphLoop(
   complexityTier: ComplexityTier,
   noveltyLevel: "known" | "familiar" | "novel",
   domainSignals: string[] = [],
-  fullAutonomy: boolean = true
+  fullAutonomy: boolean = true,
+  /** v3.6.3: Task intent from user prompt (test, play, verify, etc.) */
+  taskIntent?: string,
+  /** v3.6.3: Tools explicitly requested by user (playwright, cypress, etc.) */
+  requiredTools: string[] = []
 ): boolean {
   // If not in full autonomy mode, don't auto-enable ralph
   if (!fullAutonomy) return false
+
+  // v3.6.3: Interactive/testing tasks ALWAYS need persistence
+  // These tasks require multiple iterations to complete (play through game, run e2e tests)
+  const interactiveIntents = ["test", "play", "verify", "validate", "e2e"]
+  if (taskIntent && interactiveIntents.includes(taskIntent.toLowerCase())) {
+    return true
+  }
+
+  // v3.6.3: Browser automation tools ALWAYS need persistence
+  // Playwright/Cypress/Puppeteer tasks are inherently multi-step
+  const browserAutomationTools = ["playwright", "puppeteer", "cypress", "selenium", "webdriver"]
+  if (requiredTools.some(tool => browserAutomationTools.includes(tool.toLowerCase()))) {
+    return true
+  }
 
   // High-risk domains always benefit from persistence
   if (domainSignals.includes("crypto-trading") || domainSignals.includes("security-sensitive")) {
