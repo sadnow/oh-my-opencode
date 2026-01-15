@@ -1,102 +1,95 @@
 import { describe, expect, it, mock, beforeEach } from "bun:test"
-import { AUTO_COMMAND_PATTERN, AUTO_ROUTER_TAG_OPEN } from "./constants"
+import { AUTO_COMMAND_PATTERN, AUTO_ROUTER_TAG_OPEN, parseAutoCommand } from "./constants"
 import { createAutoRouterHook } from "./index"
 
 describe("auto-router hook", () => {
-  describe("AUTO_COMMAND_PATTERN regex", () => {
+  describe("parseAutoCommand", () => {
     it("should match /auto with quoted task", () => {
       // #given a quoted /auto command
       const text = '/auto "Fix the bug in authentication"'
 
-      // #when matching
-      const match = text.match(AUTO_COMMAND_PATTERN)
+      // #when parsing
+      const result = parseAutoCommand(text)
 
       // #then should capture task description
-      expect(match).not.toBeNull()
-      expect(match?.[1]).toBe("Fix the bug in authentication")
+      expect(result).toBe("Fix the bug in authentication")
     })
 
     it("should match /auto with single-quoted task", () => {
       // #given a single-quoted /auto command
       const text = "/auto 'Create a new feature'"
 
-      // #when matching
-      const match = text.match(AUTO_COMMAND_PATTERN)
+      // #when parsing
+      const result = parseAutoCommand(text)
 
       // #then should capture task description
-      expect(match).not.toBeNull()
-      expect(match?.[1]).toBe("Create a new feature")
+      expect(result).toBe("Create a new feature")
     })
 
     it("should match /auto with unquoted task", () => {
       // #given an unquoted /auto command
       const text = "/auto Fix the README typo"
 
-      // #when matching
-      const match = text.match(AUTO_COMMAND_PATTERN)
+      // #when parsing
+      const result = parseAutoCommand(text)
 
       // #then should capture task description
-      expect(match).not.toBeNull()
-      expect(match?.[1]).toBe("Fix the README typo")
+      expect(result).toBe("Fix the README typo")
     })
 
     it("should match /auto with options", () => {
       // #given /auto with --budget option
       const text = '/auto "Complex task" --budget=expensive'
 
-      // #when matching
-      const match = text.match(AUTO_COMMAND_PATTERN)
+      // #when parsing
+      const result = parseAutoCommand(text)
 
       // #then should capture task description (options are after capture)
-      expect(match).not.toBeNull()
-      expect(match?.[1]).toBe("Complex task")
+      expect(result).toBe("Complex task")
     })
 
     it("should be case-insensitive", () => {
       // #given uppercase /AUTO command
       const text = '/AUTO "Test task"'
 
-      // #when matching
-      const match = text.match(AUTO_COMMAND_PATTERN)
+      // #when parsing
+      const result = parseAutoCommand(text)
 
       // #then should still match
-      expect(match).not.toBeNull()
-      expect(match?.[1]).toBe("Test task")
+      expect(result).toBe("Test task")
     })
 
-    it("should match /auto with whitespace but hook rejects empty task", () => {
+    it("should return null for /auto with only whitespace", () => {
       // #given /auto with only whitespace
       const text = "/auto   "
 
-      // #when matching with regex
-      const match = text.match(AUTO_COMMAND_PATTERN)
+      // #when parsing
+      const result = parseAutoCommand(text)
 
-      // #then regex matches (captures whitespace)
-      // But the hook's detectAutoCommand trims and rejects empty tasks
-      expect(match).not.toBeNull()
-      expect(match?.[1]?.trim()).toBe("") // Trimmed capture is empty
+      // #then should return null (empty task rejected)
+      expect(result).toBeNull()
     })
 
     it("should NOT match if not at start of string", () => {
       // #given /auto in middle of text
       const text = 'Please run /auto "task"'
 
-      // #when matching
-      const match = text.match(AUTO_COMMAND_PATTERN)
+      // #when parsing
+      const result = parseAutoCommand(text)
 
-      // #then should not match (^ anchor)
-      expect(match).toBeNull()
+      // #then should not match (requires /auto at start)
+      expect(result).toBeNull()
     })
 
     it("should NOT match /automate or similar", () => {
       // #given command that starts with /auto but has more chars
       const text = '/automate "something"'
 
-      // #when matching
-      const match = text.match(AUTO_COMMAND_PATTERN)
+      // #when parsing
+      const result = parseAutoCommand(text)
 
       // #then should not match (/auto requires space after)
-      expect(match).toBeNull()
+      expect(result).toBeNull()
     })
 
     it("should match /auto with long complex task", () => {

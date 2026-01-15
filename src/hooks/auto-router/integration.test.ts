@@ -10,7 +10,7 @@
 import { describe, expect, it, mock, beforeEach } from "bun:test"
 import { createAutoRouterHook } from "./index"
 import { createAutoSlashCommandHook } from "../auto-slash-command"
-import { AUTO_ROUTER_TAG_OPEN } from "./constants"
+import { AUTO_ROUTER_TAG_OPEN, parseAutoCommand } from "./constants"
 import { AUTO_SLASH_COMMAND_TAG_OPEN } from "../auto-slash-command/constants"
 import {
   createAutoRouter,
@@ -457,5 +457,404 @@ describe("End-to-End Integration", () => {
     // Verbose should provide additional info
     expect(verboseToast.lines.length).toBeGreaterThan(0)
     expect(verboseToast.lines.some(l => l.includes("Project"))).toBe(true)
+  })
+})
+
+// ============================================================================
+// TASK INTENT PRESERVATION TESTS (v3.6.3)
+// ============================================================================
+
+import { extractTaskIntent, filterDomainSignalsByIntent, containsIgnorableArtifactSignals } from "../../features/auto-router/classifier"
+import type { DomainSignal } from "../../features/auto-router/types"
+
+describe("Task Intent Preservation (v3.6.3)", () => {
+  describe("extractTaskIntent", () => {
+    it("should detect 'test' intent from play/test keywords", () => {
+      const result = extractTaskIntent("play through the entire game with playwright")
+
+      expect(result.primaryIntent).toBe("test")
+      expect(result.intents).toContain("test")
+      expect(result.requiredTools).toContain("playwright")
+    })
+
+    it("should detect playwright as required tool", () => {
+      const result = extractTaskIntent("test the game using playwright")
+
+      expect(result.requiredTools).toContain("playwright")
+    })
+
+    it("should detect cypress as required tool", () => {
+      const result = extractTaskIntent("run e2e tests with cypress")
+
+      expect(result.requiredTools).toContain("cypress")
+      expect(result.primaryIntent).toBe("test")
+    })
+
+    it("should detect puppeteer as required tool", () => {
+      const result = extractTaskIntent("automate the browser with puppeteer")
+
+      expect(result.requiredTools).toContain("puppeteer")
+    })
+
+    it("should detect deploy intent only when explicitly requested", () => {
+      const result = extractTaskIntent("deploy the application to production")
+
+      expect(result.primaryIntent).toBe("deploy")
+      expect(result.intents).toContain("deploy")
+    })
+
+    it("should NOT detect deploy intent from 'test'/'play' prompts", () => {
+      const result = extractTaskIntent("play through the game and verify it works")
+
+      expect(result.primaryIntent).toBe("test")
+      expect(result.intents).not.toContain("deploy")
+    })
+
+    it("should detect build intent", () => {
+      const result = extractTaskIntent("create a new authentication system")
+
+      expect(result.primaryIntent).toBe("build")
+    })
+
+    it("should detect fix intent", () => {
+      const result = extractTaskIntent("fix the login bug in the auth module")
+
+      expect(result.primaryIntent).toBe("fix")
+    })
+
+    it("should return unknown for ambiguous prompts", () => {
+      const result = extractTaskIntent("the application needs attention")
+
+      expect(result.primaryIntent).toBe("unknown")
+    })
+
+    it("should handle multiple intents but return primary", () => {
+      // "play" triggers "test", "fix" triggers "fix"
+      const result = extractTaskIntent("play through the game and fix any bugs")
+
+      // Primary should be the first detected (test from "play")
+      expect(result.primaryIntent).toBe("test")
+      expect(result.intents.length).toBeGreaterThan(1)
+    })
+  })
+
+  describe("filterDomainSignalsByIntent", () => {
+    it("should remove infrastructure signals for testing tasks", () => {
+      const domainSignals: DomainSignal[] = ["testing", "infrastructure", "ui-heavy"]
+
+      const filtered = filterDomainSignalsByIntent(domainSignals, "test", ["playwright"])
+
+      expect(filtered).toContain("testing")
+      expect(filtered).not.toContain("infrastructure")
+      expect(filtered).toContain("ui-heavy")
+    })
+
+    it("should keep all signals for deploy tasks", () => {
+      const domainSignals: DomainSignal[] = ["testing", "infrastructure", "ui-heavy"]
+
+      const filtered = filterDomainSignalsByIntent(domainSignals, "deploy", [])
+
+      expect(filtered).toContain("infrastructure")
+    })
+
+    it("should filter based on playwright tool even without test intent", () => {
+      const domainSignals: DomainSignal[] = ["infrastructure", "testing"]
+
+      const filtered = filterDomainSignalsByIntent(domainSignals, "unknown", ["playwright"])
+
+      expect(filtered).not.toContain("infrastructure")
+    })
+  })
+
+  describe("containsIgnorableArtifactSignals", () => {
+    it("should detect 'next step' in documentation", () => {
+      const text = "## Next Steps\n\nDeploy to Vercel and test on mobile"
+
+      expect(containsIgnorableArtifactSignals(text)).toBe(true)
+    })
+
+    it("should detect 'todo' suggestions", () => {
+      const text = "TODO: Add authentication before deploying"
+
+      expect(containsIgnorableArtifactSignals(text)).toBe(true)
+    })
+
+    it("should detect 'recommended' suggestions", () => {
+      const text = "It's recommended to deploy to Vercel for best performance"
+
+      expect(containsIgnorableArtifactSignals(text)).toBe(true)
+    })
+
+    it("should NOT flag normal task descriptions", () => {
+      const text = "Fix the login bug and add unit tests"
+
+      expect(containsIgnorableArtifactSignals(text)).toBe(false)
+    })
+  })
+
+  describe("shouldEnableRalphLoop with task intent (v3.6.3)", () => {
+    it("should enable ralph loop for 'test' intent even at tier 1", () => {
+      const result = shouldEnableRalphLoop(
+        1,       // Tier 1 (simple)
+        "familiar",
+        [],
+        true,
+        "test",  // Task intent: testing
+        []
+      )
+
+      expect(result).toBe(true)
+    })
+
+    it("should enable ralph loop for playwright tool even at tier 1", () => {
+      const result = shouldEnableRalphLoop(
+        1,       // Tier 1 (simple)
+        "known",
+        [],
+        true,
+        "unknown",
+        ["playwright"]  // Required tool
+      )
+
+      expect(result).toBe(true)
+    })
+
+    it("should enable ralph loop for cypress tool", () => {
+      const result = shouldEnableRalphLoop(1, "familiar", [], true, "unknown", ["cypress"])
+
+      expect(result).toBe(true)
+    })
+
+    it("should enable ralph loop for puppeteer tool", () => {
+      const result = shouldEnableRalphLoop(1, "known", [], true, "unknown", ["puppeteer"])
+
+      expect(result).toBe(true)
+    })
+
+    it("should NOT enable ralph loop for simple build tasks without intent/tools", () => {
+      const result = shouldEnableRalphLoop(1, "known", [], true, "build", [])
+
+      expect(result).toBe(false)
+    })
+
+    it("should enable ralph loop for 'play' intent", () => {
+      const result = shouldEnableRalphLoop(1, "familiar", [], true, "play", [])
+
+      // "play" should be treated as testing intent
+      // Note: The function checks for lowercase and includes "test", "play", etc.
+      expect(result).toBe(true)
+    })
+
+    it("should enable ralph loop for 'verify' intent", () => {
+      const result = shouldEnableRalphLoop(1, "familiar", [], true, "verify", [])
+
+      expect(result).toBe(true)
+    })
+
+    it("should enable ralph loop for 'e2e' intent", () => {
+      const result = shouldEnableRalphLoop(1, "familiar", [], true, "e2e", [])
+
+      expect(result).toBe(true)
+    })
+  })
+})
+
+// ============================================================================
+// SESSION CONTEXT PRESERVATION TESTS (v3.6.3)
+// ============================================================================
+
+describe("Session Context Preservation (v3.6.3)", () => {
+  const mockCtx = {
+    directory: "/test/project",
+    client: {
+      tui: {
+        showToast: mock(() => Promise.resolve()),
+      },
+    },
+  } as any
+
+  it("should store task intent in session state", async () => {
+    // #given auto-router hook
+    const autoRouter = createAutoRouterHook(mockCtx)
+
+    // #when processing a playwright task
+    const input = { sessionID: "intent-test", messageID: "msg-1" }
+    const textPart = { type: "text", text: '/auto "play through the game with playwright"' }
+    const output = { parts: [textPart] }
+    await autoRouter["chat.message"](input as any, output as any)
+
+    // #then session state should contain task intent
+    const state = autoRouter.getSessionState("intent-test")
+    expect(state?.taskIntent).toBe("test")
+    expect(state?.requiredTools).toContain("playwright")
+    expect(state?.ralphLoopEnabled).toBe(true)
+  })
+
+  it("should enable ralph loop for playwright tasks", async () => {
+    // #given auto-router hook
+    const autoRouter = createAutoRouterHook(mockCtx)
+
+    // #when processing a playwright task
+    const input = { sessionID: "ralph-playwright-test", messageID: "msg-1" }
+    const textPart = { type: "text", text: '/auto "test with playwright"' }
+    const output = { parts: [textPart] }
+    await autoRouter["chat.message"](input as any, output as any)
+
+    // #then ralph loop should be enabled
+    expect(autoRouter.isRalphLoopEnabled("ralph-playwright-test")).toBe(true)
+  })
+
+  it("should inject required tools warning in prompt", async () => {
+    // #given auto-router hook
+    const autoRouter = createAutoRouterHook(mockCtx)
+
+    // #when processing a playwright task
+    const input = { sessionID: "inject-test", messageID: "msg-1" }
+    const textPart = { type: "text", text: '/auto "run e2e tests with playwright"' }
+    const output = { parts: [textPart] }
+    await autoRouter["chat.message"](input as any, output as any)
+
+    // #then prompt should contain required tools warning
+    expect(textPart.text).toContain("REQUIRED TOOLS")
+    expect(textPart.text).toContain("playwright")
+    expect(textPart.text).toContain("DO NOT IGNORE")
+  })
+
+  it("should inject testing intent warning in prompt", async () => {
+    // #given auto-router hook
+    const autoRouter = createAutoRouterHook(mockCtx)
+
+    // #when processing a test task
+    const input = { sessionID: "intent-inject-test", messageID: "msg-1" }
+    const textPart = { type: "text", text: '/auto "play through the game and verify it works"' }
+    const output = { parts: [textPart] }
+    await autoRouter["chat.message"](input as any, output as any)
+
+    // #then prompt should contain testing intent warning
+    expect(textPart.text).toContain("TASK INTENT: TESTING")
+    expect(textPart.text).toContain("Do NOT deploy")
+    expect(textPart.text).toContain("Ignore deployment suggestions")
+  })
+})
+
+// ============================================================================
+// PARSE AUTO COMMAND TESTS (v3.6.3)
+// ============================================================================
+
+describe("parseAutoCommand", () => {
+  describe("quoted strings", () => {
+    it("should parse double-quoted task", () => {
+      const result = parseAutoCommand('/auto "fix the bug"')
+      expect(result).toBe("fix the bug")
+    })
+
+    it("should parse single-quoted task", () => {
+      const result = parseAutoCommand("/auto 'fix the bug'")
+      expect(result).toBe("fix the bug")
+    })
+
+    it("should handle quotes with special characters inside", () => {
+      const result = parseAutoCommand('/auto "fix the \\"nested\\" quotes"')
+      // Note: This captures up to the first unescaped quote
+      expect(result).toBeTruthy()
+    })
+
+    it("should handle empty quotes", () => {
+      const result = parseAutoCommand('/auto ""')
+      expect(result).toBe(null) // Empty task should return null
+    })
+  })
+
+  describe("unquoted strings", () => {
+    it("should parse unquoted task", () => {
+      const result = parseAutoCommand("/auto fix the login bug")
+      expect(result).toBe("fix the login bug")
+    })
+
+    it("should trim whitespace", () => {
+      const result = parseAutoCommand("/auto   fix the bug   ")
+      expect(result).toBe("fix the bug")
+    })
+
+    it("should handle single word", () => {
+      const result = parseAutoCommand("/auto deploy")
+      expect(result).toBe("deploy")
+    })
+  })
+
+  describe("multiline support", () => {
+    it("should capture multiline task description", () => {
+      const result = parseAutoCommand(`/auto implement the feature:
+- Step 1: Create component
+- Step 2: Add tests
+- Step 3: Deploy`)
+
+      expect(result).toContain("implement the feature")
+      expect(result).toContain("Step 1")
+      expect(result).toContain("Step 2")
+      expect(result).toContain("Step 3")
+    })
+
+    it("should handle newlines in middle of text", () => {
+      const result = parseAutoCommand("/auto first line\nsecond line\nthird line")
+      expect(result).toContain("first line")
+      expect(result).toContain("second line")
+      expect(result).toContain("third line")
+    })
+  })
+
+  describe("with options", () => {
+    it("should stop at --budget option", () => {
+      const result = parseAutoCommand("/auto fix the bug --budget=expensive")
+      expect(result).toBe("fix the bug")
+    })
+
+    it("should stop at --force-technique option", () => {
+      const result = parseAutoCommand("/auto fix the bug --force-technique=triple")
+      expect(result).toBe("fix the bug")
+    })
+
+    it("should handle quoted task with options", () => {
+      const result = parseAutoCommand('/auto "fix the bug" --budget=moderate')
+      expect(result).toBe("fix the bug")
+    })
+
+    it("should handle multiline with options", () => {
+      const result = parseAutoCommand(`/auto implement this:
+- feature A
+- feature B --budget=expensive`)
+      // Should NOT include --budget as part of task
+      expect(result).not.toContain("--budget")
+    })
+  })
+
+  describe("edge cases", () => {
+    it("should return null for non /auto commands", () => {
+      expect(parseAutoCommand("/commit message")).toBe(null)
+      expect(parseAutoCommand("just some text")).toBe(null)
+      expect(parseAutoCommand("/automate something")).toBe(null)
+    })
+
+    it("should return null for /auto without task", () => {
+      expect(parseAutoCommand("/auto")).toBe(null)
+      expect(parseAutoCommand("/auto ")).toBe(null)
+      expect(parseAutoCommand("/auto   ")).toBe(null)
+    })
+
+    it("should be case insensitive for /auto", () => {
+      expect(parseAutoCommand("/AUTO fix bug")).toBe("fix bug")
+      expect(parseAutoCommand("/Auto fix bug")).toBe("fix bug")
+      expect(parseAutoCommand("/aUtO fix bug")).toBe("fix bug")
+    })
+
+    it("should handle task with hyphens (not options)", () => {
+      const result = parseAutoCommand("/auto fix the e2e-tests")
+      expect(result).toBe("fix the e2e-tests")
+    })
+
+    it("should handle URLs in task", () => {
+      const result = parseAutoCommand("/auto check https://example.com/api")
+      expect(result).toBe("check https://example.com/api")
+    })
   })
 })
