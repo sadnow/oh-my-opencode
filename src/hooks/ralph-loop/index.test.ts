@@ -426,7 +426,7 @@ describe("ralph-loop", () => {
 
       // #then - loop completed, no continuation
       expect(promptCalls.length).toBe(0)
-      expect(toastCalls.some((t) => t.title === "Ralph Loop Complete!")).toBe(true)
+      expect(toastCalls.some((t) => t.title === "Ralph Loop Complete! ✅")).toBe(true)
       expect(hook.getState()).toBeNull()
     })
 
@@ -451,7 +451,7 @@ describe("ralph-loop", () => {
 
       // #then - loop completed via API detection, no continuation
       expect(promptCalls.length).toBe(0)
-      expect(toastCalls.some((t) => t.title === "Ralph Loop Complete!")).toBe(true)
+      expect(toastCalls.some((t) => t.title === "Ralph Loop Complete! ✅")).toBe(true)
       expect(hook.getState()).toBeNull()
 
       // #then - messages API was called with correct session ID
@@ -587,7 +587,7 @@ describe("ralph-loop", () => {
 
       // #then - loop should complete (last message has completion promise)
       expect(promptCalls.length).toBe(0)
-      expect(toastCalls.some((t) => t.title === "Ralph Loop Complete!")).toBe(true)
+      expect(toastCalls.some((t) => t.title === "Ralph Loop Complete! ✅")).toBe(true)
       expect(hook.getState()).toBeNull()
     })
 

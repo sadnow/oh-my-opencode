@@ -1,4 +1,6 @@
 import { existsSync, readFileSync } from "node:fs"
+import { exec } from "node:child_process"
+import { promisify } from "node:util"
 import type { PluginInput } from "@opencode-ai/plugin"
 import { log } from "../../shared/logger"
 import { readState, writeState, clearState, incrementIteration } from "./storage"
@@ -9,6 +11,9 @@ import {
 } from "./constants"
 import type { RalphLoopState, RalphLoopOptions } from "./types"
 import { getTranscriptPath as getDefaultTranscriptPath } from "../claude-code-hooks/transcript"
+import { verifyCompletionCriteria, judgePassed } from "./completion-judge"
+
+const execAsync = promisify(exec)
 
 export * from "./types"
 export * from "./constants"
@@ -35,12 +40,127 @@ Your previous attempt did not output the completion promise. Continue working on
 
 IMPORTANT:
 - Review your progress so far
-- Continue from where you left off  
+- Continue from where you left off
 - When FULLY complete, output: <promise>{{PROMISE}}</promise>
 - Do not stop until the task is truly done
 
 Original task:
 {{PROMPT}}`
+
+const VERIFICATION_FAILED_PROMPT = `[RALPH LOOP - VERIFICATION FAILED]
+
+You claimed completion with <promise>DONE</promise>, but verification checks FAILED:
+
+{{ERRORS}}
+
+You are NOT done. Fix these issues and try again.
+When actually complete, output: <promise>{{PROMISE}}</promise>
+
+This is iteration {{ITERATION}}/{{MAX}}.
+
+Original task:
+{{PROMPT}}`
+
+const JUDGE_FAILED_PROMPT = `[RALPH LOOP - COMPLETION JUDGE REJECTED]
+
+A verification judge analyzed your completion claim and found it INCOMPLETE.
+
+## Unmet Requirements:
+{{UNMET}}
+
+## Contradictions Found:
+{{CONTRADICTIONS}}
+
+## Judge's Reasoning:
+{{REASONING}}
+
+---
+
+You are NOT done. Address ALL unmet requirements and remove any contradictory language.
+Do not claim completion until ALL original requirements are fulfilled.
+
+When ACTUALLY complete, output: <promise>{{PROMISE}}</promise>
+
+This is iteration {{ITERATION}}/{{MAX}}.
+
+Original task:
+{{PROMPT}}`
+
+interface VerificationResult {
+  passed: boolean
+  errors: string[]
+}
+
+async function runVerificationChecks(directory: string): Promise<VerificationResult> {
+  const errors: string[] = []
+
+  // Check 1: TypeScript compilation (if tsconfig exists)
+  const hasTsConfig = existsSync(`${directory}/tsconfig.json`)
+  if (hasTsConfig) {
+    try {
+      await execAsync("npx tsc --noEmit", { cwd: directory, timeout: 60000 })
+    } catch (err: unknown) {
+      const error = err as { stdout?: string; stderr?: string }
+      const output = error.stdout || error.stderr || "TypeScript compilation failed"
+      const errorCount = (output.match(/error TS/g) || []).length
+      errors.push(`TypeScript: ${errorCount} error(s)\n${output.slice(0, 500)}`)
+    }
+  }
+
+  // Check 2: Build command (try common ones)
+  const hasPackageJson = existsSync(`${directory}/package.json`)
+  if (hasPackageJson) {
+    let buildPassed = false
+    const buildCommands = ["npm run build", "bun run build"]
+
+    for (const cmd of buildCommands) {
+      try {
+        await execAsync(cmd, { cwd: directory, timeout: 120000 })
+        buildPassed = true
+        break
+      } catch {
+        // Try next
+      }
+    }
+
+    if (!buildPassed) {
+      // Only error if there's a build script
+      try {
+        const pkgJson = JSON.parse(readFileSync(`${directory}/package.json`, "utf-8"))
+        if (pkgJson.scripts?.build) {
+          errors.push("Build: Failed to run build command")
+        }
+      } catch {
+        // Ignore package.json read errors
+      }
+    }
+  }
+
+  // Check 3: Look for obvious runtime errors (index.html/js must exist for web projects)
+  const hasIndexHtml = existsSync(`${directory}/index.html`) || existsSync(`${directory}/public/index.html`)
+  const hasSrcIndex = existsSync(`${directory}/src/index.ts`) ||
+                      existsSync(`${directory}/src/index.js`) ||
+                      existsSync(`${directory}/src/main.ts`) ||
+                      existsSync(`${directory}/src/main.js`)
+
+  if (!hasIndexHtml && !hasSrcIndex && hasPackageJson) {
+    // Web project without entry point
+    try {
+      const pkgJson = JSON.parse(readFileSync(`${directory}/package.json`, "utf-8"))
+      if (pkgJson.scripts?.dev || pkgJson.scripts?.start) {
+        // It's meant to be runnable but has no entry
+        errors.push("Entry Point: No index.html or src/index.ts found")
+      }
+    } catch {
+      // Ignore
+    }
+  }
+
+  return {
+    passed: errors.length === 0,
+    errors,
+  }
+}
 
 export interface RalphLoopHook {
   event: (input: { event: { type: string; properties?: unknown } }) => Promise<void>
@@ -65,6 +185,43 @@ export function createRalphLoopHook(
   const getTranscriptPath = options?.getTranscriptPath ?? getDefaultTranscriptPath
   const apiTimeout = options?.apiTimeout ?? DEFAULT_API_TIMEOUT
   const checkSessionExists = options?.checkSessionExists
+  const llmInvoker = options?.llmInvoker
+  const completionJudgeConfig = options?.completionJudgeConfig
+
+  /**
+   * Get the last assistant message from a session for judge evaluation
+   */
+  async function getLastAssistantMessage(sessionID: string): Promise<string> {
+    try {
+      const response = await Promise.race([
+        ctx.client.session.messages({
+          path: { id: sessionID },
+          query: { directory: ctx.directory },
+        }),
+        new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error("API timeout")), apiTimeout)
+        ),
+      ])
+
+      const messages = (response as { data?: unknown[] }).data ?? []
+      if (!Array.isArray(messages)) return ""
+
+      const assistantMessages = (messages as OpenCodeSessionMessage[]).filter(
+        (msg) => msg.info?.role === "assistant"
+      )
+      const lastAssistant = assistantMessages[assistantMessages.length - 1]
+      if (!lastAssistant?.parts) return ""
+
+      // Extract all text content from the last assistant message
+      return lastAssistant.parts
+        .filter((p) => p.type === "text")
+        .map((p) => p.text ?? "")
+        .join("\n")
+    } catch (err) {
+      log(`[${HOOK_NAME}] Failed to get last assistant message`, { sessionID, error: String(err) })
+      return ""
+    }
+  }
 
   function getSessionState(sessionID: string): SessionState {
     let state = sessions.get(sessionID)
@@ -229,24 +386,221 @@ export function createRalphLoopHook(
         : await detectCompletionInSessionMessages(sessionID, state.completion_promise)
 
       if (completionDetectedViaTranscript || completionDetectedViaApi) {
-        log(`[${HOOK_NAME}] Completion detected!`, {
+        log(`[${HOOK_NAME}] Completion promise detected, running verification...`, {
           sessionID,
           iteration: state.iteration,
           promise: state.completion_promise,
           detectedVia: completionDetectedViaTranscript ? "transcript_file" : "session_messages_api",
+        })
+
+        // MANDATORY VERIFICATION: Don't trust "DONE" - verify it actually works!
+        const verification = await runVerificationChecks(ctx.directory)
+
+        if (!verification.passed) {
+          log(`[${HOOK_NAME}] Verification FAILED - rejecting completion claim`, {
+            sessionID,
+            iteration: state.iteration,
+            errors: verification.errors,
+          })
+
+          // Check if we've hit max iterations
+          if (state.iteration >= state.max_iterations) {
+            log(`[${HOOK_NAME}] Max iterations reached with verification failures`, {
+              sessionID,
+              errors: verification.errors,
+            })
+            clearState(ctx.directory, stateDir)
+
+            await ctx.client.tui
+              .showToast({
+                body: {
+                  title: "Ralph Loop Stopped (Verification Failed)",
+                  message: `Max iterations reached. Errors: ${verification.errors.join("; ").slice(0, 100)}`,
+                  variant: "error",
+                  duration: 10000,
+                },
+              })
+              .catch(err => log("[ralph-loop] Toast failed", { error: err?.message || String(err) }))
+
+            return
+          }
+
+          // Increment iteration and continue with verification failure prompt
+          const newState = incrementIteration(ctx.directory, stateDir)
+          if (!newState) {
+            log(`[${HOOK_NAME}] Failed to increment iteration after verification failure`, { sessionID })
+            return
+          }
+
+          const errorList = verification.errors.map(e => `- ${e}`).join("\n")
+          const verificationFailedPrompt = VERIFICATION_FAILED_PROMPT
+            .replace("{{ERRORS}}", errorList)
+            .replace("{{ITERATION}}", String(newState.iteration))
+            .replace("{{MAX}}", String(newState.max_iterations))
+            .replace("{{PROMISE}}", newState.completion_promise)
+            .replace("{{PROMPT}}", newState.prompt)
+
+          await ctx.client.tui
+            .showToast({
+              body: {
+                title: "Ralph Loop - Verification Failed!",
+                message: `Claimed done but checks failed. Iteration ${newState.iteration}/${newState.max_iterations}`,
+                variant: "error",
+                duration: 5000,
+              },
+            })
+            .catch(err => log("[ralph-loop] Toast failed", { error: err?.message || String(err) }))
+
+          try {
+            await ctx.client.session.prompt({
+              path: { id: sessionID },
+              body: {
+                parts: [{ type: "text", text: verificationFailedPrompt }],
+              },
+              query: { directory: ctx.directory },
+            })
+          } catch (err) {
+            log(`[${HOOK_NAME}] Failed to inject verification failure prompt`, {
+              sessionID,
+              error: String(err),
+            })
+          }
+
+          return
+        }
+
+        // Verification PASSED - now run completion criteria judge
+        log(`[${HOOK_NAME}] Verification PASSED - running completion judge...`, {
+          sessionID,
+          iteration: state.iteration,
+          promise: state.completion_promise,
+        })
+
+        // Run completion criteria judge if LLM invoker is available
+        if (llmInvoker) {
+          const lastMessage = await getLastAssistantMessage(sessionID)
+
+          if (lastMessage) {
+            const judgeResult = await verifyCompletionCriteria(
+              state.prompt,
+              lastMessage,
+              llmInvoker,
+              completionJudgeConfig
+            )
+
+            const minConfidence = completionJudgeConfig?.min_confidence ?? 0.8
+            if (!judgePassed(judgeResult, minConfidence)) {
+              // Judge REJECTED completion - continue loop
+              log(`[${HOOK_NAME}] Completion judge REJECTED - continuing loop`, {
+                sessionID,
+                iteration: state.iteration,
+                isComplete: judgeResult.isComplete,
+                confidence: judgeResult.confidence,
+                unmetCriteria: judgeResult.unmetCriteria,
+                contradictions: judgeResult.contradictions,
+              })
+
+              // Check max iterations
+              if (state.iteration >= state.max_iterations) {
+                log(`[${HOOK_NAME}] Max iterations reached with judge rejection`, {
+                  sessionID,
+                  judgeResult,
+                })
+                clearState(ctx.directory, stateDir)
+
+                await ctx.client.tui
+                  .showToast({
+                    body: {
+                      title: "Ralph Loop Stopped (Judge Rejected)",
+                      message: `Max iterations. Unmet: ${judgeResult.unmetCriteria.slice(0, 2).join(", ")}`,
+                      variant: "error",
+                      duration: 10000,
+                    },
+                  })
+                  .catch(err => log("[ralph-loop] Toast failed", { error: err?.message || String(err) }))
+
+                return
+              }
+
+              // Increment iteration and continue with judge feedback
+              const newState = incrementIteration(ctx.directory, stateDir)
+              if (!newState) {
+                log(`[${HOOK_NAME}] Failed to increment iteration after judge rejection`, { sessionID })
+                return
+              }
+
+              const unmetList = judgeResult.unmetCriteria.length > 0
+                ? judgeResult.unmetCriteria.map(c => `- ${c}`).join("\n")
+                : "- (none explicitly identified)"
+              const contradictionList = judgeResult.contradictions.length > 0
+                ? judgeResult.contradictions.map(c => `- "${c}"`).join("\n")
+                : "- (none found)"
+
+              const judgeFailedPrompt = JUDGE_FAILED_PROMPT
+                .replace("{{UNMET}}", unmetList)
+                .replace("{{CONTRADICTIONS}}", contradictionList)
+                .replace("{{REASONING}}", judgeResult.reasoning)
+                .replace("{{ITERATION}}", String(newState.iteration))
+                .replace("{{MAX}}", String(newState.max_iterations))
+                .replace("{{PROMISE}}", newState.completion_promise)
+                .replace("{{PROMPT}}", newState.prompt)
+
+              await ctx.client.tui
+                .showToast({
+                  body: {
+                    title: "Ralph Loop - Judge Rejected!",
+                    message: `Requirements not met. Iteration ${newState.iteration}/${newState.max_iterations}`,
+                    variant: "warning",
+                    duration: 5000,
+                  },
+                })
+                .catch(err => log("[ralph-loop] Toast failed", { error: err?.message || String(err) }))
+
+              try {
+                await ctx.client.session.prompt({
+                  path: { id: sessionID },
+                  body: {
+                    parts: [{ type: "text", text: judgeFailedPrompt }],
+                  },
+                  query: { directory: ctx.directory },
+                })
+              } catch (err) {
+                log(`[${HOOK_NAME}] Failed to inject judge failure prompt`, {
+                  sessionID,
+                  error: String(err),
+                })
+              }
+
+              return
+            }
+
+            // Judge APPROVED - now we can truly complete!
+            log(`[${HOOK_NAME}] Completion judge APPROVED`, {
+              sessionID,
+              confidence: judgeResult.confidence,
+              reasoning: judgeResult.reasoning,
+            })
+          }
+        }
+
+        // All checks passed - task truly complete!
+        log(`[${HOOK_NAME}] Task truly complete!`, {
+          sessionID,
+          iteration: state.iteration,
+          promise: state.completion_promise,
         })
         clearState(ctx.directory, stateDir)
 
         await ctx.client.tui
           .showToast({
             body: {
-              title: "Ralph Loop Complete!",
-              message: `Task completed after ${state.iteration} iteration(s)`,
+              title: "Ralph Loop Complete! ✅",
+              message: `Task verified and completed after ${state.iteration} iteration(s)`,
               variant: "success",
               duration: 5000,
             },
           })
-          .catch(() => {})
+          .catch(err => log("[ralph-loop] Toast failed", { error: err?.message || String(err) }))
 
         return
       }
@@ -268,7 +622,7 @@ export function createRalphLoopHook(
               duration: 5000,
             },
           })
-          .catch(() => {})
+          .catch(err => log("[ralph-loop] Toast failed", { error: err?.message || String(err) }))
 
         return
       }
@@ -299,7 +653,7 @@ export function createRalphLoopHook(
             duration: 2000,
           },
         })
-        .catch(() => {})
+        .catch(err => log("[ralph-loop] Toast failed", { error: err?.message || String(err) }))
 
       try {
         await ctx.client.session.prompt({
