@@ -279,29 +279,26 @@ export function generateOmoConfig(installConfig: InstallConfig): Record<string, 
 
   // Gemini models use `antigravity-` prefix for explicit Antigravity quota routing
   // @see ANTIGRAVITY_PROVIDER_CONFIG comments for rationale
+  // NOTE: Anthropic OAuth is disabled - use alternative providers
   if (installConfig.hasGemini) {
     agents["explore"] = { model: "google/antigravity-gemini-3-flash" }
-  } else if (installConfig.hasClaude && installConfig.isMax20) {
-    agents["explore"] = { model: "anthropic/claude-haiku-4-5" }
   } else {
-    agents["explore"] = { model: "opencode/glm-4.7-free" }
+    agents["explore"] = { model: "opencode/grok-code" }  // Free exploration model
   }
 
   if (!installConfig.hasChatGPT) {
     const oracleFallback = installConfig.hasCopilot
       ? "github-copilot/gpt-5.2"
-      : installConfig.hasClaude
-        ? "anthropic/claude-opus-4-5"
-        : "opencode/glm-4.7-free"
+      : "opencode/glm-4.7-free"
     agents["oracle"] = { model: oracleFallback }
   }
 
   if (installConfig.hasGemini) {
-    agents["frontend-ui-ux-engineer"] = { model: "google/antigravity-gemini-3-pro-high" }
+    agents["frontend-ui-ux-engineer"] = { model: "google/antigravity-gemini-3-flash" }  // Flash only (Pro disabled)
     agents["document-writer"] = { model: "google/antigravity-gemini-3-flash" }
     agents["multimodal-looker"] = { model: "google/antigravity-gemini-3-flash" }
   } else {
-    const fallbackModel = installConfig.hasClaude ? "anthropic/claude-opus-4-5" : "opencode/glm-4.7-free"
+    const fallbackModel = installConfig.hasCopilot ? "github-copilot/gpt-4o-mini" : "opencode/glm-4.7-free"
     agents["frontend-ui-ux-engineer"] = { model: fallbackModel }
     agents["document-writer"] = { model: fallbackModel }
     agents["multimodal-looker"] = { model: fallbackModel }
@@ -311,12 +308,12 @@ export function generateOmoConfig(installConfig: InstallConfig): Record<string, 
     config.agents = agents
   }
 
-  // Categories: override model for Antigravity auth (gemini-3-pro-preview → gemini-3-pro-high)
+  // Categories: override model for Antigravity auth (stable quota routing via antigravity- prefix)
   if (installConfig.hasGemini) {
     config.categories = {
-      "visual-engineering": { model: "google/gemini-3-pro-high" },
-      artistry: { model: "google/gemini-3-pro-high" },
-      writing: { model: "google/gemini-3-flash-high" },
+      "visual-engineering": { model: "google/antigravity-gemini-3-flash" },
+      artistry: { model: "google/antigravity-gemini-3-flash" },
+      writing: { model: "google/antigravity-gemini-3-flash" },
     }
   }
 

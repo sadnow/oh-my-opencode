@@ -26,6 +26,7 @@ program
   .option("--claude <value>", "Claude subscription: no, yes, max20")
   .option("--chatgpt <value>", "ChatGPT subscription: no, yes")
   .option("--gemini <value>", "Gemini integration: no, yes")
+  .option("--copilot <value>", "GitHub Copilot: no, yes")
   .option("--skip-auth", "Skip authentication setup hints")
   .addHelpText("after", `
 Examples:
@@ -44,6 +45,7 @@ Model Providers:
       claude: options.claude,
       chatgpt: options.chatgpt,
       gemini: options.gemini,
+      copilot: options.copilot,
       skipAuth: options.skipAuth ?? false,
     }
     const exitCode = await install(args)
