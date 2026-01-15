@@ -756,6 +756,41 @@ When agents thrive, you thrive. But I want to help you directly too.
   - `ultrawork` / `ulw`: Maximum performance mode with parallel agent orchestration
   - `search` / `find` / `찾아` / `検索`: Maximized search effort with parallel explore and librarian agents
   - `analyze` / `investigate` / `분석` / `調査`: Deep analysis mode with multi-phase expert consultation
+- **Auto Router** (`/auto` command): Intelligent task routing that goes beyond simple model selection. **Unique feature in the ecosystem.**
+  - Analyzes your task and automatically selects the optimal technique combination
+  - 10 execution techniques: `direct`, `ulw`, `ultrathink`, `ralph`, and 7 combinations (`ulw+ralph`, `ultrathink+ulw`, etc.)
+  - 4-tier adaptive budget system: `cheap` → `moderate` → `expensive` → `maximum`
+  - Automatic escalation when failures or quality issues detected
+  - Project-type awareness (web-app, api-server, game, cli, library, etc.)
+  - LLM-as-judge quality rubrics for evaluation
+  - Domain-specific handling (crypto-trading, security-sensitive, real-time, etc.)
+  - Development presets auto-applied based on project context
+  - Analytics tracking for learning technique effectiveness
+
+  **Usage:**
+  ```
+  /auto "fix the typo in README"                    # Simple → direct technique
+  /auto "implement user auth with JWT"              # Moderate → ulw+ralph
+  /auto "refactor payment system for PCI compliance" # Complex → triple technique
+  /auto "task" --budget=expensive                   # Budget override
+  /auto "task" --force-technique=ultrathink         # Technique override
+  /auto ultrawork: build a REST API                 # Magic keyword shortcut
+  /auto deepthink: design complex algorithm         # Extended thinking mode
+  /auto fullsend: critical security refactor        # Maximum capability mode
+  ```
+
+  Configure in `oh-my-opencode.json`:
+  ```json
+  {
+    "auto_router": {
+      "enabled": true,
+      "defaultBudget": "cheap",
+      "maxEscalations": 3,
+      "enableJudge": false,
+      "qualityThreshold": 0.7
+    }
+  }
+  ```
 - **Todo Continuation Enforcer**: Makes agents finish all TODOs before stopping. Kills the chronic LLM habit of quitting halfway.
 - **Comment Checker**: LLMs love comments. Too many comments. This reminds them to cut the noise. Smartly ignores valid patterns (BDD, directives, docstrings) and demands justification for the rest. Clean code wins.
 - **Think Mode**: Auto-detects when extended thinking is needed and switches modes. Catches phrases like "think deeply" or "ultrathink" and dynamically adjusts model settings for maximum reasoning.
@@ -1094,7 +1129,7 @@ Disable specific built-in hooks via `disabled_hooks` in `~/.config/opencode/oh-m
 }
 ```
 
-Available hooks: `todo-continuation-enforcer`, `context-window-monitor`, `session-recovery`, `session-notification`, `comment-checker`, `grep-output-truncator`, `tool-output-truncator`, `directory-agents-injector`, `directory-readme-injector`, `empty-task-response-detector`, `think-mode`, `anthropic-context-window-limit-recovery`, `rules-injector`, `background-notification`, `auto-update-checker`, `startup-toast`, `keyword-detector`, `agent-usage-reminder`, `non-interactive-env`, `interactive-bash-session`, `empty-message-sanitizer`, `compaction-context-injector`, `thinking-block-validator`, `claude-code-hooks`, `ralph-loop`, `preemptive-compaction`
+Available hooks: `todo-continuation-enforcer`, `context-window-monitor`, `session-recovery`, `session-notification`, `comment-checker`, `grep-output-truncator`, `tool-output-truncator`, `directory-agents-injector`, `directory-readme-injector`, `empty-task-response-detector`, `think-mode`, `anthropic-context-window-limit-recovery`, `rules-injector`, `background-notification`, `auto-update-checker`, `startup-toast`, `keyword-detector`, `agent-usage-reminder`, `non-interactive-env`, `interactive-bash-session`, `empty-message-sanitizer`, `compaction-context-injector`, `thinking-block-validator`, `claude-code-hooks`, `ralph-loop`, `preemptive-compaction`, `auto-router`
 
 **Note on `auto-update-checker` and `startup-toast`**: The `startup-toast` hook is a sub-feature of `auto-update-checker`. To disable only the startup toast notification while keeping update checking enabled, add `"startup-toast"` to `disabled_hooks`. To disable all update checking features (including the toast), add `"auto-update-checker"` to `disabled_hooks`.
 
