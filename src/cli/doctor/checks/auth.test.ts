@@ -3,14 +3,14 @@ import * as auth from "./auth"
 
 describe("auth check", () => {
   describe("getAuthProviderInfo", () => {
-    it("returns anthropic as always available", () => {
-      // #given anthropic provider
+    it("returns anthropic as blocked (not available)", () => {
+      // #given anthropic provider (blocked since Jan 2026)
       // #when getting info
       const info = auth.getAuthProviderInfo("anthropic")
 
-      // #then should show plugin installed (builtin)
+      // #then should show plugin NOT installed (blocked)
       expect(info.id).toBe("anthropic")
-      expect(info.pluginInstalled).toBe(true)
+      expect(info.pluginInstalled).toBe(false) // Anthropic API blocked for OpenCode
     })
 
     it("returns correct name for each provider", () => {

@@ -38,7 +38,7 @@ export const CHECK_NAMES: Record<string, string> = {
   [CHECK_IDS.OPENCODE_INSTALLATION]: "OpenCode Installation",
   [CHECK_IDS.PLUGIN_REGISTRATION]: "Plugin Registration",
   [CHECK_IDS.CONFIG_VALIDATION]: "Configuration Validity",
-  [CHECK_IDS.AUTH_ANTHROPIC]: "Anthropic (Claude) Auth",
+  [CHECK_IDS.AUTH_ANTHROPIC]: "Anthropic (Claude) - BLOCKED",
   [CHECK_IDS.AUTH_OPENAI]: "OpenAI (ChatGPT) Auth",
   [CHECK_IDS.AUTH_GOOGLE]: "Google (Gemini) Auth",
   [CHECK_IDS.DEP_AST_GREP_CLI]: "AST-Grep CLI",

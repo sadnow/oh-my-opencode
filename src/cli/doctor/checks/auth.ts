@@ -10,7 +10,9 @@ const OPENCODE_JSON = join(OPENCODE_CONFIG_DIR, "opencode.json")
 const OPENCODE_JSONC = join(OPENCODE_CONFIG_DIR, "opencode.jsonc")
 
 const AUTH_PLUGINS: Record<AuthProviderId, { plugin: string; name: string }> = {
-  anthropic: { plugin: "builtin", name: "Anthropic (Claude)" },
+  // NOTE: Direct Anthropic API access is blocked for OpenCode as of Jan 2026.
+  // Claude models can still be accessed via github-copilot or amazon-bedrock providers.
+  anthropic: { plugin: "blocked", name: "Anthropic (Claude) - BLOCKED" },
   openai: { plugin: "opencode-openai-codex-auth", name: "OpenAI (ChatGPT)" },
   google: { plugin: "opencode-antigravity-auth", name: "Google (Gemini)" },
 }
@@ -77,7 +79,17 @@ export async function checkAuthProvider(providerId: AuthProviderId): Promise<Che
 }
 
 export async function checkAnthropicAuth(): Promise<CheckResult> {
-  return checkAuthProvider("anthropic")
+  // Direct Anthropic API access is blocked for OpenCode as of Jan 2026
+  // Return skip status with explanation
+  return {
+    name: CHECK_NAMES[CHECK_IDS.AUTH_ANTHROPIC],
+    status: "skip",
+    message: "Direct Anthropic API blocked for OpenCode",
+    details: [
+      "Anthropic blocked OpenCode OAuth access in Jan 2026.",
+      "Use Claude via: github-copilot/claude-* or amazon-bedrock/anthropic.*",
+    ],
+  }
 }
 
 export async function checkOpenAIAuth(): Promise<CheckResult> {
