@@ -78,6 +78,7 @@
           "claude-code-hooks",
           "auto-slash-command",
           "edit-error-recovery",
+          "sisyphus-task-retry",
           "prometheus-md-only",
           "start-work",
           "sisyphus-orchestrator",
@@ -2183,7 +2184,6 @@
                 "todowrite",
                 "todoread",
                 "lsp_rename",
-                "lsp_code_action_resolve",
                 "session_read",
                 "session_write",
                 "session_search"

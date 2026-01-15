@@ -31,3 +31,4 @@ export { createTaskResumeInfoHook } from "./task-resume-info";
 export { createStartWorkHook } from "./start-work";
 export { createSisyphusOrchestratorHook } from "./sisyphus-orchestrator";
 export { createAutoRouterHook, type AutoRouterHook } from "./auto-router";
+export { createSisyphusTaskRetryHook } from "./sisyphus-task-retry";

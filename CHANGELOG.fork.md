@@ -6,6 +6,34 @@ For upstream changes, see the [original repository](https://github.com/code-yeon
 
 ---
 
+## [v3.6.0] - 2026-01-15
+
+### Merged from Upstream v3.0.0-beta.8
+
+Synced with 99 commits from upstream, bringing in major improvements while preserving all fork features.
+
+#### Upstream Features Incorporated
+- **Bun single-file executable distribution** - Standalone binaries for all platforms
+- **Windows/PowerShell support** - Cross-platform shell environment detection
+- **Background agent concurrency hardening** - Fixed race conditions and task leaks
+- **LSP tools consolidation** - Merged duplicate tools into unified interface
+- **Sisyphus-task-retry hook** - New automatic retry mechanism
+- **HTTP MCP transport support** - Enhanced MCP connectivity
+
+#### Fork Features Preserved
+- All auto-router functionality (`/auto` command)
+- Completion-judge integration for ralph-loop
+- Free-tier model preferences
+- Upstream sync notifications
+- Per-provider rate limiting
+
+### Conflict Resolutions
+- `src/hooks/ralph-loop/index.ts` - Merged completion-judge with upstream's message storage
+- `src/cli/config-manager.ts` - Combined multi-provider fallback with free-tier preferences
+- `src/hooks/index.ts` - Added both auto-router and sisyphus-task-retry exports
+
+---
+
 ## [v3.5.1] - 2026-01-15
 
 ### Added

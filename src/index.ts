@@ -27,6 +27,7 @@ import {
   createAutoSlashCommandHook,
   createAutoRouterHook,
   createEditErrorRecoveryHook,
+  createSisyphusTaskRetryHook,
   createTaskResumeInfoHook,
   createStartWorkHook,
   createSisyphusOrchestratorHook,
@@ -73,7 +74,7 @@ import { BackgroundManager } from "./features/background-agent";
 import { SkillMcpManager } from "./features/skill-mcp-manager";
 import { initTaskToastManager } from "./features/task-toast-manager";
 import { type HookName } from "./config";
-import { log, detectExternalNotificationPlugin, getNotificationConflictWarning } from "./shared";
+import { log, detectExternalNotificationPlugin, getNotificationConflictWarning, resetMessageCursor } from "./shared";
 import { loadPluginConfig } from "./plugin-config";
 import { createModelCacheState, getModelLimit } from "./plugin-state";
 import { createConfigHandler } from "./plugin-handlers";
@@ -373,6 +374,10 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
     ? createEditErrorRecoveryHook(ctx)
     : null;
 
+  const sisyphusTaskRetry = isHookEnabled("sisyphus-task-retry")
+    ? createSisyphusTaskRetryHook(ctx)
+    : null;
+
   const startWork = isHookEnabled("start-work")
     ? createStartWorkHook(ctx)
     : null;
@@ -643,6 +648,7 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
         }
         if (sessionInfo?.id) {
           clearSessionAgent(sessionInfo.id);
+          resetMessageCursor(sessionInfo.id);
           firstMessageVariantGate.clear(sessionInfo.id);
           await skillMcpManager.disconnectSession(sessionInfo.id);
           await lspManager.cleanupTempDirectoryClients();
@@ -751,8 +757,9 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
       await emptyTaskResponseDetector?.["tool.execute.after"](input, output);
       await agentUsageReminder?.["tool.execute.after"](input, output);
       await interactiveBashSession?.["tool.execute.after"](input, output);
-      await editErrorRecovery?.["tool.execute.after"](input, output);
-      await sisyphusOrchestrator?.["tool.execute.after"]?.(input, output);
+await editErrorRecovery?.["tool.execute.after"](input, output);
+        await sisyphusTaskRetry?.["tool.execute.after"](input, output);
+        await sisyphusOrchestrator?.["tool.execute.after"]?.(input, output);
       await taskResumeInfo["tool.execute.after"](input, output);
     },
   };

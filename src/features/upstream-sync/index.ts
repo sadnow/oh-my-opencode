@@ -22,15 +22,15 @@ export const UPSTREAM_CONFIG = {
 /** Current fork version - update when syncing with upstream */
 export const FORK_BASE_VERSION = {
   /** The upstream tag this fork is based on */
-  basedOnTag: "v3.0.0-beta.7",
+  basedOnTag: "v3.0.0-beta.8",
   /** The upstream commit hash this fork diverged from */
-  basedOnCommit: "325ce1212b52d978a0af9f9a708aa2fa23fcaddf",
+  basedOnCommit: "837176d9478a923ded1a131cb50fc040fa31020e",
   /** Last sync date */
-  lastSyncDate: "2026-01-10",
+  lastSyncDate: "2026-01-15",
 } as const
 
 /** Fork-specific version */
-export const FORK_VERSION = "v3.5.1-fork"
+export const FORK_VERSION = "v3.6.0-fork"
 
 // ============================================================================
 // Types

@@ -1,7 +1,7 @@
 # TOOLS KNOWLEDGE BASE
 
 ## OVERVIEW
-Custom tools extending agent capabilities: LSP (11 tools), AST-aware search/replace, background tasks, and multimodal analysis.
+Custom tools extending agent capabilities: LSP (7 tools), AST-aware search/replace, background tasks, and multimodal analysis.
 
 ## STRUCTURE
 ```
@@ -20,17 +20,17 @@ tools/
 │   ├── tools.ts        # Tool implementations
 │   └── config.ts, types.ts, utils.ts
 ├── session-manager/    # OpenCode session history management
-├── sisyphus-task/      # Category-based delegation (583 lines)
+├── sisyphus-task/      # Category-based delegation (667 lines)
 ├── skill/              # Skill loading/execution
 ├── skill-mcp/          # Skill-embedded MCP invocation
 ├── slashcommand/       # Slash command execution
-└── index.ts            # builtinTools export (82 lines)
+└── index.ts            # builtinTools export (75 lines)
 ```
 
 ## TOOL CATEGORIES
 | Category | Tools | Purpose |
 |----------|-------|---------|
-| LSP | lsp_hover, lsp_goto_definition, lsp_find_references, lsp_diagnostics, lsp_rename, etc. | IDE-grade code intelligence (11 tools) |
+| LSP | lsp_goto_definition, lsp_find_references, lsp_symbols, lsp_diagnostics, lsp_rename, etc. | IDE-grade code intelligence (7 tools) |
 | AST | ast_grep_search, ast_grep_replace | Structural pattern matching/rewriting |
 | Search | grep, glob | Timeout-safe file and content search |
 | Session | session_list, session_read, session_search, session_info | History navigation and retrieval |
@@ -46,7 +46,7 @@ tools/
 ## LSP SPECIFICS
 - **Lifecycle**: Lazy initialization on first call; auto-shutdown on idle.
 - **Config**: Merges `opencode.json` and `oh-my-opencode.json`.
-- **Capability**: Supports full LSP spec including `codeAction/resolve` and `prepareRename`.
+- **Capability**: Supports full LSP spec including `rename` and `prepareRename`.
 
 ## AST-GREP SPECIFICS
 - **Precision**: Uses tree-sitter for structural matching (avoids regex pitfalls).

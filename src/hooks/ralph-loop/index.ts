@@ -1,7 +1,8 @@
-import { existsSync, readFileSync } from "node:fs"
+import type { PluginInput } from "@opencode-ai/plugin"
+import { existsSync, readFileSync, readdirSync } from "node:fs"
+import { join } from "node:path"
 import { exec } from "node:child_process"
 import { promisify } from "node:util"
-import type { PluginInput } from "@opencode-ai/plugin"
 import { log } from "../../shared/logger"
 import { readState, writeState, clearState, incrementIteration } from "./storage"
 import {
@@ -12,8 +13,20 @@ import {
 import type { RalphLoopState, RalphLoopOptions } from "./types"
 import { getTranscriptPath as getDefaultTranscriptPath } from "../claude-code-hooks/transcript"
 import { verifyCompletionCriteria, judgePassed } from "./completion-judge"
+import { findNearestMessageWithFields, MESSAGE_STORAGE } from "../../features/hook-message-injector"
 
 const execAsync = promisify(exec)
+
+function getMessageDir(sessionID: string): string | null {
+  if (!existsSync(MESSAGE_STORAGE)) return null
+  const directPath = join(MESSAGE_STORAGE, sessionID)
+  if (existsSync(directPath)) return directPath
+  for (const dir of readdirSync(MESSAGE_STORAGE)) {
+    const sessionPath = join(MESSAGE_STORAGE, dir, sessionID)
+    if (existsSync(sessionPath)) return sessionPath
+  }
+  return null
+}
 
 export * from "./types"
 export * from "./constants"
@@ -656,9 +669,36 @@ export function createRalphLoopHook(
         .catch(err => log("[ralph-loop] Toast failed", { error: err?.message || String(err) }))
 
       try {
+        let agent: string | undefined
+        let model: { providerID: string; modelID: string } | undefined
+
+        try {
+          const messagesResp = await ctx.client.session.messages({ path: { id: sessionID } })
+          const messages = (messagesResp.data ?? []) as Array<{
+            info?: { agent?: string; model?: { providerID: string; modelID: string } }
+          }>
+          for (let i = messages.length - 1; i >= 0; i--) {
+            const info = messages[i].info
+            if (info?.agent || info?.model) {
+              agent = info.agent
+              model = info.model
+              break
+            }
+          }
+        } catch {
+          const messageDir = getMessageDir(sessionID)
+          const currentMessage = messageDir ? findNearestMessageWithFields(messageDir) : null
+          agent = currentMessage?.agent
+          model = currentMessage?.model?.providerID && currentMessage?.model?.modelID
+            ? { providerID: currentMessage.model.providerID, modelID: currentMessage.model.modelID }
+            : undefined
+        }
+
         await ctx.client.session.prompt({
           path: { id: sessionID },
           body: {
+            ...(agent !== undefined ? { agent } : {}),
+            ...(model !== undefined ? { model } : {}),
             parts: [{ type: "text", text: continuationPrompt }],
           },
           query: { directory: ctx.directory },

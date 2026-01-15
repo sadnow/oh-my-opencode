@@ -1,5 +1,4 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync, statSync } from "node:fs"
-import { join } from "node:path"
 import {
   parseJsonc,
   getOpenCodeConfigPaths,
@@ -109,6 +108,47 @@ export async function fetchLatestVersion(packageName: string): Promise<string | 
   }
 }
 
+interface NpmDistTags {
+  latest?: string
+  beta?: string
+  next?: string
+  [tag: string]: string | undefined
+}
+
+const NPM_FETCH_TIMEOUT_MS = 5000
+
+export async function fetchNpmDistTags(packageName: string): Promise<NpmDistTags | null> {
+  try {
+    const res = await fetch(`https://registry.npmjs.org/-/package/${packageName}/dist-tags`, {
+      signal: AbortSignal.timeout(NPM_FETCH_TIMEOUT_MS),
+    })
+    if (!res.ok) return null
+    const data = await res.json() as NpmDistTags
+    return data
+  } catch {
+    return null
+  }
+}
+
+const PACKAGE_NAME = "oh-my-opencode"
+
+const PRIORITIZED_TAGS = ["latest", "beta", "next"] as const
+
+export async function getPluginNameWithVersion(currentVersion: string): Promise<string> {
+  const distTags = await fetchNpmDistTags(PACKAGE_NAME)
+
+  if (distTags) {
+    const allTags = new Set([...PRIORITIZED_TAGS, ...Object.keys(distTags)])
+    for (const tag of allTags) {
+      if (distTags[tag] === currentVersion) {
+        return `${PACKAGE_NAME}@${tag}`
+      }
+    }
+  }
+
+  return `${PACKAGE_NAME}@${currentVersion}`
+}
+
 type ConfigFormat = "json" | "jsonc" | "none"
 
 interface OpenCodeConfig {
@@ -179,7 +219,7 @@ function ensureConfigDir(): void {
   }
 }
 
-export function addPluginToOpenCodeConfig(): ConfigMergeResult {
+export async function addPluginToOpenCodeConfig(currentVersion: string): Promise<ConfigMergeResult> {
   try {
     ensureConfigDir()
   } catch (err) {
@@ -187,11 +227,11 @@ export function addPluginToOpenCodeConfig(): ConfigMergeResult {
   }
 
   const { format, path } = detectConfigFormat()
-  const pluginName = "oh-my-opencode"
+  const pluginEntry = await getPluginNameWithVersion(currentVersion)
 
   try {
     if (format === "none") {
-      const config: OpenCodeConfig = { plugin: [pluginName] }
+      const config: OpenCodeConfig = { plugin: [pluginEntry] }
       writeFileSync(path, JSON.stringify(config, null, 2) + "\n")
       return { success: true, configPath: path }
     }
@@ -203,11 +243,18 @@ export function addPluginToOpenCodeConfig(): ConfigMergeResult {
 
     const config = parseResult.config
     const plugins = config.plugin ?? []
-    if (plugins.some((p) => p.startsWith(pluginName))) {
-      return { success: true, configPath: path }
+    const existingIndex = plugins.findIndex((p) => p === PACKAGE_NAME || p.startsWith(`${PACKAGE_NAME}@`))
+
+    if (existingIndex !== -1) {
+      if (plugins[existingIndex] === pluginEntry) {
+        return { success: true, configPath: path }
+      }
+      plugins[existingIndex] = pluginEntry
+    } else {
+      plugins.push(pluginEntry)
     }
 
-    config.plugin = [...plugins, pluginName]
+    config.plugin = plugins
 
     if (format === "jsonc") {
       const content = readFileSync(path, "utf-8")
@@ -215,14 +262,11 @@ export function addPluginToOpenCodeConfig(): ConfigMergeResult {
       const match = content.match(pluginArrayRegex)
 
       if (match) {
-        const arrayContent = match[1].trim()
-        const newArrayContent = arrayContent
-          ? `${arrayContent},\n    "${pluginName}"`
-          : `"${pluginName}"`
-        const newContent = content.replace(pluginArrayRegex, `"plugin": [\n    ${newArrayContent}\n  ]`)
+        const formattedPlugins = plugins.map((p) => `"${p}"`).join(",\n    ")
+        const newContent = content.replace(pluginArrayRegex, `"plugin": [\n    ${formattedPlugins}\n  ]`)
         writeFileSync(path, newContent)
       } else {
-        const newContent = content.replace(/^(\s*\{)/, `$1\n  "plugin": ["${pluginName}"],`)
+        const newContent = content.replace(/^(\s*\{)/, `$1\n  "plugin": ["${pluginEntry}"],`)
         writeFileSync(path, newContent)
       }
     } else {
@@ -282,6 +326,11 @@ export function generateOmoConfig(installConfig: InstallConfig): Record<string, 
   // NOTE: Anthropic OAuth is disabled - use alternative providers
   if (installConfig.hasGemini) {
     agents["explore"] = { model: "google/antigravity-gemini-3-flash" }
+  } else if (installConfig.hasClaude && installConfig.isMax20) {
+    // NOTE: Anthropic OAuth is disabled in our fork - this path won't be hit
+    agents["explore"] = { model: "anthropic/claude-haiku-4-5" }
+  } else if (installConfig.hasCopilot) {
+    agents["explore"] = { model: "github-copilot/grok-code-fast-1" }
   } else {
     agents["explore"] = { model: "opencode/grok-code" }  // Free exploration model
   }
@@ -297,23 +346,38 @@ export function generateOmoConfig(installConfig: InstallConfig): Record<string, 
     agents["frontend-ui-ux-engineer"] = { model: "google/antigravity-gemini-3-flash" }  // Flash only (Pro disabled)
     agents["document-writer"] = { model: "google/antigravity-gemini-3-flash" }
     agents["multimodal-looker"] = { model: "google/antigravity-gemini-3-flash" }
+  } else if (installConfig.hasClaude) {
+    agents["frontend-ui-ux-engineer"] = { model: "anthropic/claude-opus-4-5" }
+    agents["document-writer"] = { model: "anthropic/claude-opus-4-5" }
+    agents["multimodal-looker"] = { model: "anthropic/claude-opus-4-5" }
+  } else if (installConfig.hasCopilot) {
+    agents["frontend-ui-ux-engineer"] = { model: "github-copilot/gemini-3-pro-preview" }
+    agents["document-writer"] = { model: "github-copilot/gemini-3-flash-preview" }
+    agents["multimodal-looker"] = { model: "github-copilot/gemini-3-flash-preview" }
   } else {
-    const fallbackModel = installConfig.hasCopilot ? "github-copilot/gpt-4o-mini" : "opencode/glm-4.7-free"
-    agents["frontend-ui-ux-engineer"] = { model: fallbackModel }
-    agents["document-writer"] = { model: fallbackModel }
-    agents["multimodal-looker"] = { model: fallbackModel }
+    // Free fallback when no providers available
+    agents["frontend-ui-ux-engineer"] = { model: "opencode/glm-4.7-free" }
+    agents["document-writer"] = { model: "opencode/glm-4.7-free" }
+    agents["multimodal-looker"] = { model: "opencode/glm-4.7-free" }
   }
 
   if (Object.keys(agents).length > 0) {
     config.agents = agents
   }
 
-  // Categories: override model for Antigravity auth (stable quota routing via antigravity- prefix)
+  // Categories: override model for Antigravity auth or GitHub Copilot fallback
+  // (stable quota routing via antigravity- prefix)
   if (installConfig.hasGemini) {
     config.categories = {
       "visual-engineering": { model: "google/antigravity-gemini-3-flash" },
       artistry: { model: "google/antigravity-gemini-3-flash" },
       writing: { model: "google/antigravity-gemini-3-flash" },
+    }
+  } else if (installConfig.hasCopilot) {
+    config.categories = {
+      "visual-engineering": { model: "github-copilot/gemini-3-pro-preview" },
+      artistry: { model: "github-copilot/gemini-3-pro-preview" },
+      writing: { model: "github-copilot/gemini-3-flash-preview" },
     }
   }
 
@@ -433,11 +497,7 @@ export async function addAuthPlugins(config: InstallConfig): Promise<ConfigMerge
       }
     }
 
-    if (config.hasChatGPT) {
-      if (!plugins.some((p) => p.startsWith("opencode-openai-codex-auth"))) {
-        plugins.push("opencode-openai-codex-auth")
-      }
-    }
+
 
     const newConfig = { ...(existingConfig ?? {}), plugin: plugins }
     writeFileSync(path, JSON.stringify(newConfig, null, 2) + "\n")
@@ -547,54 +607,7 @@ export const ANTIGRAVITY_PROVIDER_CONFIG = {
   },
 }
 
-const CODEX_PROVIDER_CONFIG = {
-  openai: {
-    name: "OpenAI",
-    options: {
-      reasoningEffort: "medium",
-      reasoningSummary: "auto",
-      textVerbosity: "medium",
-      include: ["reasoning.encrypted_content"],
-      store: false,
-    },
-    models: {
-      "gpt-5.2": {
-        name: "GPT 5.2 (OAuth)",
-        limit: { context: 272000, output: 128000 },
-        modalities: { input: ["text", "image"], output: ["text"] },
-        variants: {
-          none: { reasoningEffort: "none", reasoningSummary: "auto", textVerbosity: "medium" },
-          low: { reasoningEffort: "low", reasoningSummary: "auto", textVerbosity: "medium" },
-          medium: { reasoningEffort: "medium", reasoningSummary: "auto", textVerbosity: "medium" },
-          high: { reasoningEffort: "high", reasoningSummary: "detailed", textVerbosity: "medium" },
-          xhigh: { reasoningEffort: "xhigh", reasoningSummary: "detailed", textVerbosity: "medium" },
-        },
-      },
-      "gpt-5.2-codex": {
-        name: "GPT 5.2 Codex (OAuth)",
-        limit: { context: 272000, output: 128000 },
-        modalities: { input: ["text", "image"], output: ["text"] },
-        variants: {
-          low: { reasoningEffort: "low", reasoningSummary: "auto", textVerbosity: "medium" },
-          medium: { reasoningEffort: "medium", reasoningSummary: "auto", textVerbosity: "medium" },
-          high: { reasoningEffort: "high", reasoningSummary: "detailed", textVerbosity: "medium" },
-          xhigh: { reasoningEffort: "xhigh", reasoningSummary: "detailed", textVerbosity: "medium" },
-        },
-      },
-      "gpt-5.1-codex-max": {
-        name: "GPT 5.1 Codex Max (OAuth)",
-        limit: { context: 272000, output: 128000 },
-        modalities: { input: ["text", "image"], output: ["text"] },
-        variants: {
-          low: { reasoningEffort: "low", reasoningSummary: "detailed", textVerbosity: "medium" },
-          medium: { reasoningEffort: "medium", reasoningSummary: "detailed", textVerbosity: "medium" },
-          high: { reasoningEffort: "high", reasoningSummary: "detailed", textVerbosity: "medium" },
-          xhigh: { reasoningEffort: "xhigh", reasoningSummary: "detailed", textVerbosity: "medium" },
-        },
-      },
-    },
-  },
-}
+
 
 export function addProviderConfig(config: InstallConfig): ConfigMergeResult {
   try {
@@ -622,10 +635,6 @@ export function addProviderConfig(config: InstallConfig): ConfigMergeResult {
 
     if (config.hasGemini) {
       providers.google = ANTIGRAVITY_PROVIDER_CONFIG.google
-    }
-
-    if (config.hasChatGPT) {
-      providers.openai = CODEX_PROVIDER_CONFIG.openai
     }
 
     if (Object.keys(providers).length > 0) {
@@ -672,7 +681,6 @@ export function detectCurrentConfig(): DetectedConfig {
   }
 
   result.hasGemini = plugins.some((p) => p.startsWith("opencode-antigravity-auth"))
-  result.hasChatGPT = plugins.some((p) => p.startsWith("opencode-openai-codex-auth"))
 
   const omoConfigPath = getOmoConfig()
   if (!existsSync(omoConfigPath)) {
