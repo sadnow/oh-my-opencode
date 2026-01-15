@@ -79,7 +79,7 @@ function buildSisyphusJuniorPrompt(promptAppend?: string): string {
 const BLOCKED_TOOLS = ["task", "sisyphus_task"]
 
 export const SISYPHUS_JUNIOR_DEFAULTS = {
-  model: "anthropic/claude-sonnet-4-5",
+  model: "google/antigravity-gemini-3-flash",  // Free via Antigravity OAuth (AI Studio)
   temperature: 0.1,
 } as const
 

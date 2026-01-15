@@ -278,7 +278,7 @@ const metisRestrictions = createAgentToolRestrictions([
   "sisyphus_task",
 ])
 
-const DEFAULT_MODEL = "anthropic/claude-opus-4-5"
+const DEFAULT_MODEL = "openai/gpt-5.2"  // Most capable available (Anthropic OAuth disabled)
 
 export function createMetisAgent(model: string = DEFAULT_MODEL): AgentConfig {
   return {

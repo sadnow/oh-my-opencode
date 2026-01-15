@@ -2,7 +2,7 @@ import type { AgentConfig } from "@opencode-ai/sdk"
 import type { AgentPromptMetadata } from "./types"
 import { createAgentToolRestrictions } from "../shared/permission-compat"
 
-const DEFAULT_MODEL = "google/gemini-3-flash"
+const DEFAULT_MODEL = "google/antigravity-gemini-3-flash"  // Free via Antigravity OAuth (AI Studio)
 
 export const MULTIMODAL_LOOKER_PROMPT_METADATA: AgentPromptMetadata = {
   category: "utility",

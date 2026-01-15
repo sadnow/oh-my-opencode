@@ -1434,7 +1434,7 @@ function buildDynamicOrchestratorPrompt(ctx?: OrchestratorContext): string {
     .replace("{SKILLS_SECTION}", skillsSection)
 }
 
-const DEFAULT_MODEL = "anthropic/claude-sonnet-4-5"
+const DEFAULT_MODEL = "openai/gpt-5.2"  // Capable via OpenAI API (Anthropic OAuth disabled)
 
 export function createOrchestratorSisyphusAgent(ctx?: OrchestratorContext): AgentConfig {
   const restrictions = createAgentToolRestrictions([

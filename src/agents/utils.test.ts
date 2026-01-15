@@ -3,16 +3,16 @@ import { createBuiltinAgents } from "./utils"
 import type { AgentConfig } from "@opencode-ai/sdk"
 
 describe("createBuiltinAgents with model overrides", () => {
-  test("Sisyphus with default model has thinking config", () => {
+  test("Sisyphus with default model has reasoningEffort config", () => {
     // #given - no overrides
 
     // #when
     const agents = createBuiltinAgents()
 
-    // #then
-    expect(agents.Sisyphus.model).toBe("anthropic/claude-opus-4-5")
-    expect(agents.Sisyphus.thinking).toEqual({ type: "enabled", budgetTokens: 32000 })
-    expect(agents.Sisyphus.reasoningEffort).toBeUndefined()
+    // #then - default is now openai/gpt-5.2 (Anthropic OAuth disabled)
+    expect(agents.Sisyphus.model).toBe("openai/gpt-5.2")
+    expect(agents.Sisyphus.reasoningEffort).toBe("medium")
+    expect(agents.Sisyphus.thinking).toBeUndefined()
   })
 
   test("Sisyphus with GPT model override has reasoningEffort, no thinking", () => {
@@ -103,8 +103,8 @@ describe("buildAgent with category and skills", () => {
     // #when
     const agent = buildAgent(source["test-agent"])
 
-    // #then
-    expect(agent.model).toBe("google/gemini-3-pro-preview")
+    // #then - visual-engineering uses antigravity models now
+    expect(agent.model).toBe("google/antigravity-gemini-3-flash")
     expect(agent.temperature).toBe(0.7)
   })
 
