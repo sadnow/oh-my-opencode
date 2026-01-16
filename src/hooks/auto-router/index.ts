@@ -44,6 +44,17 @@ import {
   AUTO_COMMAND_PATTERN,
   parseAutoCommand,
 } from "./constants"
+import {
+  loadRateLimitState,
+  recordRateLimitHit,
+  recordSuccess,
+  isRateLimitError,
+  isProviderAvailable,
+  getModelWithFallback,
+  extractProvider,
+  getRateLimitSummary,
+  type RateLimitState,
+} from "../../features/auto-router/rate-limit-handler"
 import { BudgetTierSchema, TechniqueComboSchema, AutoRouterConfigSchema } from "../../config/schema"
 
 export * from "./types"
@@ -95,10 +106,16 @@ export interface AutoRouterHook {
     output: { message: { model?: { providerID: string; modelID: string } } },
     sessionID: string
   ) => Promise<void>
+  /** Handle chat errors, including rate limit detection */
+  "chat.error": (
+    input: { error: unknown; sessionID: string; model?: { providerID: string; modelID: string } }
+  ) => Promise<void>
   event: (input: { event: { type: string; properties?: unknown } }) => Promise<void>
   getSessionState: (sessionId: string) => SessionState | undefined
   /** Check if ralph-loop is enabled for a session */
   isRalphLoopEnabled: (sessionId: string) => boolean
+  /** Get current rate limit state summary */
+  getRateLimitSummary: () => string
 }
 
 /**
@@ -110,6 +127,13 @@ export function createAutoRouterHook(
 ): AutoRouterHook {
   const sessions = new Map<string, SessionState>()
   const processedCommands = new Map<string, number>() // key -> timestamp
+
+  // v3.6.6: Rate limit state (loaded from disk, persisted on changes)
+  let rateLimitState: RateLimitState = loadRateLimitState()
+  log(`[${HOOK_NAME}] Rate limit state loaded`, {
+    providers: Object.keys(rateLimitState.providers).length,
+    summary: getRateLimitSummary(rateLimitState),
+  })
 
   /**
    * v3.6.4: Helper to get or create session state with proper initialization.
@@ -862,6 +886,8 @@ ${AUTO_ROUTER_TAG_CLOSE}`
   /**
    * Chat params handler - switches model based on auto-router budget tier
    * This is the key integration that ACTUALLY changes the model being used
+   *
+   * v3.6.6: Now includes rate limit checking and automatic fallback
    */
   const chatParams = async (
     output: { message: { model?: { providerID: string; modelID: string } } },
@@ -879,25 +905,82 @@ ${AUTO_ROUTER_TAG_CLOSE}`
     // Get the model config for this tier
     const modelConfig = getBudgetTierModelConfig(currentTier)
 
+    // v3.6.6: Check rate limits and apply fallback if needed
+    const originalModel = `${modelConfig.providerID}/${modelConfig.modelID}`
+    const { model: finalModel, provider: finalProvider, didFallback } = getModelWithFallback(
+      rateLimitState,
+      originalModel
+    )
+
+    // Parse fallback result
+    const [fallbackProviderID, ...modelParts] = finalModel.split("/")
+    const fallbackModelID = modelParts.join("/")
+
     // ACTUALLY switch the model!
     output.message.model = {
-      providerID: modelConfig.providerID,
-      modelID: modelConfig.modelID,
+      providerID: fallbackProviderID,
+      modelID: fallbackModelID,
     }
 
-    log(`[${HOOK_NAME}] Model switched based on budget tier`, {
-      sessionID,
-      tier: currentTier,
-      providerID: modelConfig.providerID,
-      modelID: modelConfig.modelID,
-    })
+    if (didFallback) {
+      log(`[${HOOK_NAME}] Model switched with rate limit fallback`, {
+        sessionID,
+        tier: currentTier,
+        original: originalModel,
+        fallback: finalModel,
+        provider: finalProvider,
+      })
+    } else {
+      log(`[${HOOK_NAME}] Model switched based on budget tier`, {
+        sessionID,
+        tier: currentTier,
+        providerID: fallbackProviderID,
+        modelID: fallbackModelID,
+      })
+    }
+  }
+
+  /**
+   * v3.6.6: Chat error handler - detects rate limits and triggers circuit breaker
+   */
+  const chatError = async (
+    input: { error: unknown; sessionID: string; model?: { providerID: string; modelID: string } }
+  ): Promise<void> => {
+    const { error, sessionID, model } = input
+
+    // Check if this is a rate limit error
+    if (isRateLimitError(error)) {
+      const provider = model ? model.providerID : "unknown"
+      log(`[${HOOK_NAME}] Rate limit detected, triggering circuit breaker`, {
+        sessionID,
+        provider,
+        model: model ? `${model.providerID}/${model.modelID}` : "unknown",
+      })
+
+      // Record the rate limit hit (this persists to disk)
+      rateLimitState = recordRateLimitHit(rateLimitState, provider)
+
+      // Log the updated state
+      log(`[${HOOK_NAME}] Rate limit state updated`, {
+        summary: getRateLimitSummary(rateLimitState),
+      })
+    }
+  }
+
+  /**
+   * Record successful request (for circuit breaker half-open recovery)
+   */
+  const recordSuccessfulRequest = (provider: string): void => {
+    rateLimitState = recordSuccess(rateLimitState, provider)
   }
 
   return {
     "chat.message": chatMessage,
     "chat.params": chatParams,
+    "chat.error": chatError,
     event,
     getSessionState,
     isRalphLoopEnabled,
+    getRateLimitSummary: () => getRateLimitSummary(rateLimitState),
   }
 }

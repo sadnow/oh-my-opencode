@@ -9,6 +9,49 @@ For upstream changes, see the [original repository](https://github.com/code-yeon
 
 ---
 
+## [v3.6.6] - 2026-01-16
+
+### Rate Limit Protection & Provider Fallback
+
+Implements automatic rate limit detection and provider fallback to prevent hitting API rate limits (especially Claude Max accounts).
+
+**Problem Solved:**
+When using `/auto`, the system was hitting Anthropic's rate limits directly (429 errors with "3h 44m retry" messages) despite having budget tier configs for non-direct providers.
+
+**Solution:**
+- **Rate limit detection**: Detects 429 errors and `rate_limit_error` responses
+- **Circuit breaker pattern**: CLOSED → OPEN → HALF_OPEN → CLOSED
+- **Automatic fallback**: Routes to next available provider when rate limited
+- **Persistent state**: Survives restarts (`~/.opencode/rate-limit-state.json`)
+
+**Cooldown Periods:**
+- Anthropic: 5 minutes
+- Other providers: 1 minute
+
+**Provider Fallback Chain:**
+1. `github-copilot` (preferred)
+2. `google` (Antigravity)
+3. `opencode` (free models)
+4. `amazon-bedrock` (Bedrock Claude)
+
+**Blocked Providers:**
+- `anthropic` (direct API blocked since Jan 2026)
+
+**New Files:**
+- `src/features/auto-router/rate-limit-handler.ts` - Core rate limit handling
+- `src/features/auto-router/rate-limit-handler.test.ts` - 30 test cases
+
+**Hook Changes:**
+- Added `chat.error` handler to detect rate limits
+- Modified `chat.params` to apply fallback before model selection
+- Added `getRateLimitSummary()` for debugging
+
+### Tests
+- **New tests**: 30 rate limit handler tests
+- **Total tests**: 1248+ passing
+
+---
+
 ## [v3.6.5] - 2026-01-16
 
 ### Terminal Cleanup on Exit
