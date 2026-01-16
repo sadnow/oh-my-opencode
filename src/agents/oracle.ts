@@ -3,7 +3,7 @@ import type { AgentPromptMetadata } from "./types"
 import { isGptModel } from "./types"
 import { createAgentToolRestrictions } from "../shared/permission-compat"
 
-const DEFAULT_MODEL = "github-copilot/claude-sonnet-4"
+const DEFAULT_MODEL = "openai/gpt-5.2"
 
 export const ORACLE_PROMPT_METADATA: AgentPromptMetadata = {
   category: "advisor",

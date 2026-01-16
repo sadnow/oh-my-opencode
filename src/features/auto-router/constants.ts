@@ -383,9 +383,9 @@ export const BUDGET_TIERS: Record<BudgetTier, BudgetTierConfig> = {
   free: {
     name: "free",
     models: {
-      primary: "opencode/glm-4.7-free",       // Free GLM model (always available)
-      thinking: "opencode/grok-code",          // Free Grok for reasoning
-      judge: "opencode/glm-4.7-free",         // Free judge
+      primary: "opencode/grok-code",           // Free Grok model (always available)
+      thinking: "opencode/glm-4.7-free",       // Free GLM for reasoning
+      judge: "opencode/glm-4.7-free",          // Free judge
     },
     maxIterations: 3,   // Same as cheap tier; escalates to paid if quality issues
     timeoutMs: 120000,  // 2 minutes (free models may be slower)
@@ -393,10 +393,9 @@ export const BUDGET_TIERS: Record<BudgetTier, BudgetTierConfig> = {
   cheap: {
     name: "cheap",
     models: {
-      // Use OpenAI as primary (more reliable when Copilot credits exhausted)
-      primary: "openai/gpt-4o-mini",           // OpenAI API (requires key)
-      thinking: "opencode/grok-code",          // Free fallback for thinking
-      judge: "opencode/glm-4.7-free",         // Free judge
+      primary: "github-copilot/gpt-4o",        // GPT-4o via Copilot CLI
+      thinking: "github-copilot/gpt-4o-mini",  // GPT-4o-mini for thinking
+      judge: "opencode/glm-4.7-free",          // Free judge (save credits)
     },
     maxIterations: 3,   // Quick tasks: fail fast if not solving
     timeoutMs: 30000,   // 30 seconds
@@ -404,9 +403,9 @@ export const BUDGET_TIERS: Record<BudgetTier, BudgetTierConfig> = {
   moderate: {
     name: "moderate",
     models: {
-      primary: "google/antigravity-gemini-3-flash",      // Free via Antigravity OAuth (AI Studio)
-      thinking: "google/antigravity-gemini-3-pro-high",  // Thinking enabled, 1M context
-      judge: "opencode/glm-4.7-free",                   // Free judge (avoid copilot)
+      primary: "github-copilot/claude-sonnet-4",  // Claude Sonnet 4 via Copilot
+      thinking: "github-copilot/gpt-4o",          // GPT-4o for thinking
+      judge: "github-copilot/gpt-4o-mini",        // GPT-4o-mini as judge
     },
     maxIterations: 5,   // Standard tasks: moderate exploration
     timeoutMs: 60000,   // 1 minute
@@ -414,10 +413,9 @@ export const BUDGET_TIERS: Record<BudgetTier, BudgetTierConfig> = {
   expensive: {
     name: "expensive",
     models: {
-      // Use OpenAI gpt-4o when Copilot premium exhausted
-      primary: "openai/gpt-4o",                         // OpenAI GPT-4o (high capability)
-      thinking: "google/antigravity-gemini-3-pro-high", // Gemini for thinking (free)
-      judge: "google/antigravity-gemini-3-flash",       // Free judge via Antigravity
+      primary: "github-copilot/gpt-5.2",         // GPT-5.2 via Copilot (Dec 2025 release)
+      thinking: "github-copilot/claude-sonnet-4", // Claude Sonnet 4 for thinking
+      judge: "github-copilot/gpt-4o",            // GPT-4o as judge
     },
     maxIterations: 10,  // Complex tasks: extensive exploration
     timeoutMs: 180000,  // 3 minutes
@@ -425,10 +423,9 @@ export const BUDGET_TIERS: Record<BudgetTier, BudgetTierConfig> = {
   maximum: {
     name: "maximum",
     models: {
-      // Use OpenAI o1 for maximum capability when Copilot premium exhausted
-      primary: "openai/o1",                             // OpenAI o1 (highest reasoning)
-      thinking: "openai/gpt-4o",                        // GPT-4o for extended thinking
-      judge: "openai/gpt-4o",                           // GPT-4o as judge
+      primary: "github-copilot/claude-opus-4-5",  // Claude Opus 4.5 (highest capability)
+      thinking: "github-copilot/gpt-5.2",         // GPT-5.2 for extended thinking
+      judge: "github-copilot/claude-sonnet-4",    // Claude Sonnet 4 as judge
     },
     maxIterations: 25,  // Hardest tasks: exhaustive exploration
     timeoutMs: 600000,  // 10 minutes
@@ -980,8 +977,8 @@ export const AGENT_PROVIDER_MAPPINGS: AgentProviderMapping[] = [
   // Tier 3 agents (spawn only for complex tasks)
   {
     agentName: "oracle",
-    defaultModel: "github-copilot/claude-sonnet-4",
-    provider: "github-copilot",
+    defaultModel: "openai/gpt-5.2",
+    provider: "openai",
     costTier: "expensive",
     purpose: ["architecture", "analysis"],
     minTier: 3,
@@ -1163,6 +1160,9 @@ export const KNOWN_MODELS = new Set([
   // GitHub Copilot provider (free via Copilot CLI)
   "github-copilot/gpt-4o-mini",
   "github-copilot/gpt-4o",
+  "github-copilot/gpt-5",
+  "github-copilot/gpt-5.1",
+  "github-copilot/gpt-5.2",
   "github-copilot/claude-sonnet-4",
   "github-copilot/claude-opus-4-5",
   "github-copilot/gemini-2.0-flash",
@@ -1186,6 +1186,9 @@ export const KNOWN_MODELS = new Set([
   // OpenAI direct (requires API key)
   "openai/gpt-4o",
   "openai/gpt-4o-mini",
+  "openai/gpt-5",
+  "openai/gpt-5.1",
+  "openai/gpt-5.2",
   "openai/o1",
   "openai/o1-mini",
 ])

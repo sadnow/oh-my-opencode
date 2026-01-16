@@ -52,12 +52,12 @@ const STATE_DIR = join(homedir(), ".opencode")
 const STATE_FILE = join(STATE_DIR, "rate-limit-state.json")
 
 // Provider fallback chain (in order of preference)
-// Prioritize providers with available credits/access
+// Capability-first ordering: use best providers first, fall back to free/limited
 export const PROVIDER_FALLBACK_CHAIN: string[] = [
+  "github-copilot", // Primary - most models available via Copilot CLI
+  "openai",         // Direct API fallback (requires API key)
+  "google",         // Antigravity OAuth (AI Studio)
   "opencode",       // Free models always available
-  "google",         // AI Studio / Antigravity
-  "openai",         // Direct OpenAI API (if configured)
-  "github-copilot", // May have usage limits
   "amazon-bedrock", // Enterprise fallback
 ]
 
