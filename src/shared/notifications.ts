@@ -402,6 +402,79 @@ export function formatProviderStatusToast(
   }
 }
 
+/**
+ * Format model deployment toast - shows when an agent is spawned with specific model (v3.8.0)
+ */
+export function formatModelDeploymentToast(info: {
+  agent: string
+  model: string
+  provider: string
+  purpose: string
+  budgetTier: BudgetTier
+}): VerboseNotification {
+  const tierLabel = BUDGET_DISPLAY_NAMES[info.budgetTier] || info.budgetTier
+
+  return {
+    title: `Agent Deployed: ${info.agent}`,
+    lines: [
+      `Model: ${info.model}`,
+      `Provider: ${info.provider} | Tier: ${tierLabel}`,
+      `Purpose: ${info.purpose}`,
+    ],
+    variant: "info",
+    duration: 4000,
+  }
+}
+
+/**
+ * Format parallel agent deployment toast - shows when multiple agents are spawned (v3.8.0)
+ */
+export function formatParallelAgentDeploymentToast(info: {
+  agents: string[]
+  model: string
+  purpose: string
+}): VerboseNotification {
+  return {
+    title: `Parallel Agents: ${info.agents.length} Deployed`,
+    lines: [
+      `Agents: ${info.agents.join(", ")}`,
+      `Model: ${info.model}`,
+      `Purpose: ${info.purpose}`,
+    ],
+    variant: "info",
+    duration: 4000,
+  }
+}
+
+/**
+ * Format spending milestone toast - shows when spending crosses a $1 threshold (v3.8.0)
+ */
+export function formatSpendingMilestoneToast(info: {
+  totalSpent: number
+  currentIncrement: number
+  mainModel: string
+  breakdown: Record<string, number>
+}): VerboseNotification {
+  // Get top 2 contributors
+  const sorted = Object.entries(info.breakdown)
+    .sort(([, a], [, b]) => b - a)
+    .slice(0, 2)
+  const breakdownText = sorted
+    .map(([model, cost]) => `${model.split("/").pop()}: $${cost.toFixed(2)}`)
+    .join(" | ")
+
+  return {
+    title: `Spending: $${info.totalSpent.toFixed(0)}+ (est.)`,
+    lines: [
+      `This milestone: +$${info.currentIncrement.toFixed(2)}`,
+      `Top models: ${breakdownText}`,
+      `Note: Estimated based on avg token usage`,
+    ],
+    variant: "warning",
+    duration: 6000,
+  }
+}
+
 // ============================================================================
 // Helper Functions
 // ============================================================================

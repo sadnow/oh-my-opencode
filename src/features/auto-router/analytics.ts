@@ -684,3 +684,169 @@ export function importSubagentAnalytics(records: SubagentExecutionRecord[]): voi
   }
   log("[Analytics] Imported subagent execution history", { count: subagentExecutions.size })
 }
+
+// ============================================================================
+// Spending Tracker (v3.8.0)
+// ============================================================================
+
+// Average tokens per request for cost estimation
+// Based on typical coding assistant patterns
+const AVG_INPUT_TOKENS = 2000   // Average prompt size
+const AVG_OUTPUT_TOKENS = 1500  // Average response size
+
+/**
+ * Spending tracker state - tracks cumulative estimated costs
+ */
+interface SpendingState {
+  totalEstimatedCost: number
+  lastMilestoneNotified: number  // 0, 1, 2, 3... (dollars)
+  requestCount: number
+  costByModel: Record<string, number>
+  costByProvider: Record<string, number>
+  sessionStart: number
+}
+
+const spendingState: SpendingState = {
+  totalEstimatedCost: 0,
+  lastMilestoneNotified: 0,
+  requestCount: 0,
+  costByModel: {},
+  costByProvider: {},
+  sessionStart: Date.now(),
+}
+
+/**
+ * Record model usage and calculate estimated cost
+ * Call this each time a model is invoked
+ */
+export function recordModelUsage(model: string): number {
+  const rates = PROVIDER_COST_RATES[model] ?? { input: 0.50, output: 2.00 }
+  const estimatedCost = (AVG_INPUT_TOKENS * rates.input + AVG_OUTPUT_TOKENS * rates.output) / 1_000_000
+
+  spendingState.totalEstimatedCost += estimatedCost
+  spendingState.requestCount++
+  spendingState.costByModel[model] = (spendingState.costByModel[model] ?? 0) + estimatedCost
+
+  // Track by provider
+  const provider = model.split("/")[0] || "unknown"
+  spendingState.costByProvider[provider] = (spendingState.costByProvider[provider] ?? 0) + estimatedCost
+
+  log("[Spending] Model usage recorded", {
+    model,
+    estimatedCost: estimatedCost.toFixed(4),
+    totalEstimated: spendingState.totalEstimatedCost.toFixed(2),
+    requestCount: spendingState.requestCount,
+  })
+
+  return estimatedCost
+}
+
+/**
+ * Result of checking for spending milestone
+ */
+export interface SpendingMilestone {
+  reached: boolean
+  amount: number
+  mainContributor: string
+  breakdown: Record<string, number>
+}
+
+/**
+ * Check if we've hit a new $1 milestone
+ * Returns milestone info if threshold crossed, null otherwise
+ */
+export function checkSpendingMilestone(): SpendingMilestone | null {
+  const currentMilestone = Math.floor(spendingState.totalEstimatedCost)
+
+  if (currentMilestone > spendingState.lastMilestoneNotified) {
+    spendingState.lastMilestoneNotified = currentMilestone
+
+    // Find main contributing model
+    const mainModel = Object.entries(spendingState.costByModel)
+      .sort(([, a], [, b]) => b - a)[0]?.[0] ?? "unknown"
+
+    log("[Spending] Milestone reached", {
+      milestone: currentMilestone,
+      totalEstimated: spendingState.totalEstimatedCost.toFixed(2),
+      mainContributor: mainModel,
+    })
+
+    return {
+      reached: true,
+      amount: currentMilestone,
+      mainContributor: mainModel,
+      breakdown: { ...spendingState.costByModel },
+    }
+  }
+
+  return null
+}
+
+/**
+ * Get current spending summary
+ */
+export function getSpendingSummary(): {
+  totalEstimated: number
+  requestCount: number
+  byModel: Record<string, number>
+  byProvider: Record<string, number>
+  sessionDurationMinutes: number
+} {
+  return {
+    totalEstimated: spendingState.totalEstimatedCost,
+    requestCount: spendingState.requestCount,
+    byModel: { ...spendingState.costByModel },
+    byProvider: { ...spendingState.costByProvider },
+    sessionDurationMinutes: Math.round((Date.now() - spendingState.sessionStart) / 60000),
+  }
+}
+
+/**
+ * Format spending summary for console output
+ */
+export function formatSpendingSummary(): string {
+  const summary = getSpendingSummary()
+
+  let output = `
+========================================
+[AUTO-ROUTER] SPENDING SUMMARY (Estimated)
+========================================
+Total: $${summary.totalEstimated.toFixed(2)} (${summary.requestCount} requests)
+Session Duration: ${summary.sessionDurationMinutes} minutes
+----------------------------------------`
+
+  // Top models by cost
+  const sortedModels = Object.entries(summary.byModel)
+    .sort(([, a], [, b]) => b - a)
+    .slice(0, 5)
+
+  output += "\n\nTop Models by Cost:"
+  for (const [model, cost] of sortedModels) {
+    const modelShort = model.split("/").pop() || model
+    output += `\n  ${modelShort}: $${cost.toFixed(2)}`
+  }
+
+  // By provider
+  output += "\n\nBy Provider:"
+  for (const [provider, cost] of Object.entries(summary.byProvider)) {
+    output += `\n  ${provider}: $${cost.toFixed(2)}`
+  }
+
+  output += "\n\n(Note: Estimates based on avg token usage)"
+  output += "\n========================================"
+
+  return output
+}
+
+/**
+ * Reset spending tracker (e.g., for new session)
+ */
+export function resetSpendingTracker(): void {
+  spendingState.totalEstimatedCost = 0
+  spendingState.lastMilestoneNotified = 0
+  spendingState.requestCount = 0
+  spendingState.costByModel = {}
+  spendingState.costByProvider = {}
+  spendingState.sessionStart = Date.now()
+  log("[Spending] Tracker reset")
+}
