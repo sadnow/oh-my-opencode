@@ -895,56 +895,103 @@ export function getAgentForBudgetTier(tier: BudgetTier): string {
 }
 
 // ============================================================================
-// Parallel Agent Configuration
+// Parallel Agent Configuration (v3.8.0: Provider-Aware Scaling)
 // ============================================================================
-
-/**
- * Default agents to spawn for parallel exploration
- */
-export const DEFAULT_PARALLEL_AGENTS = ["explore", "librarian"] as const
 
 /**
  * Per-Provider Concurrent Agent Limits
  *
  * We throttle ourselves out of caution and respect for providers offering
- * free or cheap services. Each provider gets a maximum of 2 concurrent agents:
- * - 1 free model agent (if the provider offers free models)
- * - 1 paid model agent
+ * free or cheap services. Each provider gets a maximum of 2 concurrent agents.
  *
- * This means with 3 providers configured, the auto-router can deploy up to
- * 6 concurrent agents (2 per provider). If a provider only offers paid models,
- * both slots can be used for paid agents.
- *
- * Example with 3 providers (github-copilot, google, opencode):
- * - github-copilot: 1 free (gpt-4o-mini) + 1 paid (claude-sonnet-4) = 2 agents
- * - google: 1 free (gemini-flash) + 1 paid (gemini-pro) = 2 agents
- * - opencode: 1 free (glm-4.7-free) + 1 paid (grok-code) = 2 agents
- * - Total: 6 concurrent agents maximum
+ * With 4 providers (opencode, github-copilot, google, openai), max = 8 agents:
+ * - opencode: explore (grok-code) + librarian (glm-4.7-free) = 2 agents
+ * - github-copilot: oracle (gpt-5.2) + Sisyphus-Junior (claude-sonnet-4) = 2 agents
+ * - google: frontend-ui-ux-engineer (gemini-3-pro) + document-writer (gemini-flash) = 2 agents
+ * - openai: (reserved for direct API if configured) = 2 agents
  *
  * This conservative approach:
  * - Respects provider rate limits
  * - Avoids overwhelming free tier services
  * - Ensures fair usage across providers
- * - Allows budget escalation within each provider
+ * - Scales based on task complexity
  */
 export const AGENTS_PER_PROVIDER = 2
 export const FREE_AGENTS_PER_PROVIDER = 1
 export const PAID_AGENTS_PER_PROVIDER = 1
 
 /**
- * Maximum concurrent parallel agents (conservative for rate limits)
- * @deprecated Use calculateMaxConcurrentAgents() with provider count instead
+ * Agent definitions with their provider mappings and cost tiers.
+ * Used to intelligently select which agents to spawn based on available providers.
  */
-export const DEFAULT_MAX_PARALLEL_AGENTS = 2
+export interface AgentProviderMapping {
+  agentName: string
+  defaultModel: string
+  provider: string
+  costTier: "free" | "cheap" | "moderate" | "expensive"
+  /** Purpose categories for intelligent selection */
+  purpose: ("exploration" | "research" | "architecture" | "ui" | "documentation" | "analysis")[]
+  /** Complexity tier threshold - only spawn for tasks >= this tier */
+  minTier: 1 | 2 | 3
+}
 
 /**
- * Calculate maximum concurrent agents based on configured providers
- * @param providerCount Number of enabled providers (e.g., github-copilot, google, opencode)
- * @returns Maximum concurrent agents allowed
+ * Complete mapping of agents to their providers and models.
+ * Order matters - earlier agents are preferred when slots are limited.
  */
-export function calculateMaxConcurrentAgents(providerCount: number): number {
-  return Math.max(AGENTS_PER_PROVIDER, providerCount * AGENTS_PER_PROVIDER)
-}
+export const AGENT_PROVIDER_MAPPINGS: AgentProviderMapping[] = [
+  // Tier 1+ agents (spawn for any complex task)
+  {
+    agentName: "explore",
+    defaultModel: "opencode/grok-code",
+    provider: "opencode",
+    costTier: "free",
+    purpose: ["exploration"],
+    minTier: 1,
+  },
+  {
+    agentName: "librarian",
+    defaultModel: "opencode/glm-4.7-free",
+    provider: "opencode",
+    costTier: "free",
+    purpose: ["research", "documentation"],
+    minTier: 1,
+  },
+  // Tier 2+ agents (spawn for moderate/complex tasks)
+  {
+    agentName: "frontend-ui-ux-engineer",
+    defaultModel: "google/gemini-3-pro-preview",
+    provider: "google",
+    costTier: "moderate",
+    purpose: ["ui"],
+    minTier: 2,
+  },
+  {
+    agentName: "document-writer",
+    defaultModel: "google/gemini-3-flash",
+    provider: "google",
+    costTier: "cheap",
+    purpose: ["documentation"],
+    minTier: 2,
+  },
+  // Tier 3 agents (spawn only for complex tasks)
+  {
+    agentName: "oracle",
+    defaultModel: "github-copilot/claude-sonnet-4",
+    provider: "github-copilot",
+    costTier: "expensive",
+    purpose: ["architecture", "analysis"],
+    minTier: 3,
+  },
+  {
+    agentName: "multimodal-looker",
+    defaultModel: "google/gemini-3-flash",
+    provider: "google",
+    costTier: "cheap",
+    purpose: ["analysis"],
+    minTier: 3,
+  },
+]
 
 /**
  * Provider agent allocation configuration
@@ -958,9 +1005,6 @@ export interface ProviderAgentAllocation {
 
 /**
  * Get agent allocation for a provider based on its model offerings
- * @param providerId The provider ID (e.g., "github-copilot", "google")
- * @param hasFreeModels Whether the provider offers free models
- * @returns Agent allocation for this provider
  */
 export function getProviderAgentAllocation(
   providerId: string,
@@ -974,7 +1018,6 @@ export function getProviderAgentAllocation(
       totalAgents: AGENTS_PER_PROVIDER,
     }
   }
-  // Provider only has paid models - both slots can be paid
   return {
     providerId,
     freeAgents: 0,
@@ -982,6 +1025,111 @@ export function getProviderAgentAllocation(
     totalAgents: AGENTS_PER_PROVIDER,
   }
 }
+
+/**
+ * Calculate maximum concurrent agents based on configured providers
+ */
+export function calculateMaxConcurrentAgents(providerCount: number): number {
+  return Math.max(AGENTS_PER_PROVIDER, providerCount * AGENTS_PER_PROVIDER)
+}
+
+/**
+ * Select agents to spawn based on complexity tier, domain signals, and provider limits.
+ * Enforces 2-per-provider limit while maximizing coverage.
+ *
+ * @param complexityTier Task complexity (1-3)
+ * @param domainSignals Detected domain signals (e.g., "ui-heavy", "security-sensitive")
+ * @param availableProviders List of available provider IDs
+ * @returns Array of agent names to spawn
+ */
+export function selectAgentsForTask(
+  complexityTier: 1 | 2 | 3,
+  domainSignals: string[],
+  availableProviders: string[] = ["opencode", "google", "github-copilot", "openai"]
+): { agentName: string; model: string }[] {
+  const providerUsage: Record<string, number> = {}
+  const selectedAgents: { agentName: string; model: string }[] = []
+
+  // Initialize provider usage
+  for (const provider of availableProviders) {
+    providerUsage[provider] = 0
+  }
+
+  // Domain-to-purpose mapping for intelligent selection
+  const domainPurposeMap: Record<string, string[]> = {
+    "ui-heavy": ["ui"],
+    "backend-logic": ["architecture", "analysis"],
+    "security-sensitive": ["architecture", "analysis"],
+    "documentation": ["documentation", "research"],
+    "research-analysis": ["research", "analysis"],
+    "crypto-trading": ["architecture", "analysis"],
+    "performance-critical": ["analysis"],
+  }
+
+  // Determine relevant purposes based on domain signals
+  const relevantPurposes = new Set<string>(["exploration", "research"]) // Always include these
+  for (const signal of domainSignals) {
+    const purposes = domainPurposeMap[signal]
+    if (purposes) {
+      purposes.forEach(p => relevantPurposes.add(p))
+    }
+  }
+
+  // Sort agents by priority: relevant purposes first, then by minTier
+  const sortedAgents = [...AGENT_PROVIDER_MAPPINGS].sort((a, b) => {
+    const aRelevant = a.purpose.some(p => relevantPurposes.has(p)) ? 0 : 1
+    const bRelevant = b.purpose.some(p => relevantPurposes.has(p)) ? 0 : 1
+    if (aRelevant !== bRelevant) return aRelevant - bRelevant
+    return a.minTier - b.minTier
+  })
+
+  // Select agents respecting provider limits
+  for (const agent of sortedAgents) {
+    // Skip if agent requires higher tier than current task
+    if (agent.minTier > complexityTier) continue
+
+    // Skip if provider not available
+    if (!availableProviders.includes(agent.provider)) continue
+
+    // Skip if provider at limit (2 per provider)
+    if ((providerUsage[agent.provider] ?? 0) >= AGENTS_PER_PROVIDER) continue
+
+    // Select this agent
+    selectedAgents.push({
+      agentName: agent.agentName,
+      model: agent.defaultModel,
+    })
+    providerUsage[agent.provider] = (providerUsage[agent.provider] ?? 0) + 1
+  }
+
+  return selectedAgents
+}
+
+/**
+ * Get maximum agents to spawn based on complexity tier.
+ * - Tier 1: 2 agents (explore + librarian)
+ * - Tier 2: 4 agents (+ frontend + document-writer)
+ * - Tier 3: 8 agents (all available across providers)
+ */
+export function getMaxAgentsForTier(tier: 1 | 2 | 3): number {
+  switch (tier) {
+    case 1: return 2
+    case 2: return 4
+    case 3: return 8
+  }
+}
+
+/**
+ * Legacy: Default agents to spawn (for backwards compatibility)
+ * @deprecated Use selectAgentsForTask() instead
+ */
+export const DEFAULT_PARALLEL_AGENTS = ["explore", "librarian"] as const
+
+/**
+ * Legacy: Maximum concurrent parallel agents
+ * @deprecated Use getMaxAgentsForTier() instead
+ */
+export const DEFAULT_MAX_PARALLEL_AGENTS = 2
 
 /**
  * Parallel agent configuration
@@ -1035,7 +1183,6 @@ export const KNOWN_MODELS = new Set([
   // OpenAI direct (requires API key)
   "openai/gpt-4o",
   "openai/gpt-4o-mini",
-  "openai/gpt-5.2",
   "openai/o1",
   "openai/o1-mini",
 ])

@@ -14,7 +14,7 @@ import {
   categorizeTools,
 } from "./sisyphus-prompt-builder"
 
-const DEFAULT_MODEL = "openai/gpt-5.2"  // Most capable available (Anthropic OAuth disabled)
+const DEFAULT_MODEL = "github-copilot/claude-sonnet-4"  // Via GitHub Copilot CLI
 
 const SISYPHUS_ROLE_SECTION = `<Role>
 You are "Sisyphus" - Powerful AI Agent with orchestration capabilities from OhMyOpenCode.

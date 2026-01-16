@@ -33,12 +33,26 @@ import {
   SUBAGENT_DELEGATION_TEMPLATE,
   NO_DELEGATION_TEMPLATE,
   parseModelString,
+  // v3.8.0: Provider-aware parallel agent selection
+  selectAgentsForTask,
+  getMaxAgentsForTier,
+  AGENTS_PER_PROVIDER,
+  // v3.8.0: Model ID validation
+  validateModelId,
+  // v3.8.1: Technique instructions for escalation
+  TECHNIQUE_INSTRUCTIONS,
 } from "../../features/auto-router"
 import {
   recordSubagentExecution,
   updateSubagentExecution,
   getSubagentExecution,
   formatSubagentAnalytics,
+  // v3.8.0: Spending tracking
+  recordModelUsage,
+  checkSpendingMilestone,
+  getSpendingSummary,
+  formatSpendingSummary,
+  resetSpendingTracker,
 } from "../../features/auto-router/analytics"
 import type { EscalationManager } from "../../features/auto-router"
 import type { BudgetTier, TechniqueCombo } from "../../features/auto-router/types"
@@ -118,6 +132,60 @@ const VALID_TECHNIQUES: readonly TechniqueCombo[] = [
   "direct", "ulw", "ultrathink", "ralph",
   "ulw+ralph", "ultrathink+ulw", "ultrathink+ralph", "triple"
 ] as const
+
+/**
+ * v3.8.1: Get the appropriate technique for a budget tier during escalation
+ * Higher tiers get more powerful techniques
+ */
+function getTechniqueForBudgetTier(tier: BudgetTier): TechniqueCombo {
+  switch (tier) {
+    case "free":
+    case "cheap":
+      return "direct"
+    case "moderate":
+      return "ulw"
+    case "expensive":
+      return "ultrathink+ulw"
+    case "maximum":
+      return "triple"
+  }
+}
+
+/**
+ * v3.8.1: Generate escalation prompt with technique instructions
+ * This ensures technique context isn't lost during escalation respawn
+ */
+function generateEscalationPrompt(
+  taskDescription: string,
+  newTier: BudgetTier,
+  existingTechnique?: TechniqueCombo
+): string {
+  // Use the more powerful of: existing technique or tier-appropriate technique
+  const tierTechnique = getTechniqueForBudgetTier(newTier)
+  const technique = existingTechnique && VALID_TECHNIQUES.indexOf(existingTechnique) > VALID_TECHNIQUES.indexOf(tierTechnique)
+    ? existingTechnique
+    : tierTechnique
+
+  const budgetConfig = BUDGET_TIERS[newTier]
+  const techniqueInstructions = TECHNIQUE_INSTRUCTIONS[technique]
+    .replace(/\{\{MAX_ITERATIONS\}\}/g, String(budgetConfig.maxIterations))
+
+  return `## AUTO-ROUTER ESCALATION
+You are being escalated to a higher capability tier due to previous failures.
+
+**Budget Tier**: ${newTier.toUpperCase()}
+**Model**: ${budgetConfig.models.primary}
+**Technique**: ${technique}
+**Max Iterations**: ${budgetConfig.maxIterations}
+
+${techniqueInstructions}
+
+---
+
+## YOUR TASK
+
+${taskDescription}`
+}
 
 /**
  * Result of launching a subagent with fallback support
@@ -768,7 +836,7 @@ Max iterations at this tier: ${budgetConfig.maxIterations}`
       let subagentInfo: SubagentExecutionInfo | undefined
 
       if (shouldAutoSpawn && options?.backgroundManager) {
-        const intendedModel = budgetConfig.models.primary
+        let intendedModel = budgetConfig.models.primary
         const subagentAgent = recommendedAgent
 
         // Generate a unique execution ID for analytics tracking
@@ -778,6 +846,16 @@ Max iterations at this tier: ${budgetConfig.maxIterations}`
         logProviderStatus(rateLimitState)
 
         try {
+          // v3.8.0: Validate model ID before launching subagent
+          const modelValidation = validateModelId(intendedModel)
+          if (!modelValidation.valid) {
+            log(`[AUTO-ROUTER] Model validation warning: ${modelValidation.message}`)
+            if (modelValidation.suggestion) {
+              log(`[AUTO-ROUTER] Using suggested model: ${modelValidation.suggestion}`)
+              intendedModel = modelValidation.suggestion
+            }
+          }
+
           // Launch subagent with explicit model using retry-fallback logic
           const modelConfig = parseModelString(intendedModel)
           const { result: launchResult, newRateLimitState } = await launchSubagentWithFallback(
@@ -834,6 +912,9 @@ Max iterations at this tier: ${budgetConfig.maxIterations}`
             complexityTier: result.classification.complexityTier,
             budgetTier: finalBudget,
           })
+
+          // v3.8.0: Track spending for model usage
+          recordModelUsage(usedModel)
 
           // Console output for subagent delegation
           console.log(`\n========================================`)
@@ -934,54 +1015,97 @@ ${NO_DELEGATION_TEMPLATE}`
       textPart.text = injectedPrompt
 
       // v3.5.0: Spawn parallel exploration agents for complex tasks
-      // v3.8.0: Expanded to include Tier 2+ and ralph techniques for better context gathering
+      // v3.8.0: Provider-aware scaling - up to 8 agents across 4 providers
       const parallelEnabled = config.parallel_agents?.enabled ?? DEFAULT_PARALLEL_AGENT_CONFIG.enabled
       const shouldSpawnParallel = (
         parallelEnabled !== false &&
         options?.backgroundManager &&
-        (result.classification.complexityTier >= 2 ||   // v3.8.0: Tier 2+ benefits from exploration
+        (result.classification.complexityTier >= 2 ||   // Tier 2+ benefits from exploration
          finalTechnique.includes("ulw") ||
-         finalTechnique.includes("ralph") ||             // v3.8.0: ralph benefits from context
+         finalTechnique.includes("ralph") ||
          finalTechnique === "triple")
       )
 
       let parallelAgentsLaunched = 0
       const launchedAgentNames: string[] = []
+      const launchedAgentModels: string[] = []
+
       if (shouldSpawnParallel && options?.backgroundManager) {
-        const agentsToSpawn = config.parallel_agents?.agents_for_tier3 ?? [...DEFAULT_PARALLEL_AGENT_CONFIG.agentsForTier3]
-        const maxAgents = Math.min(
-          config.parallel_agents?.max_concurrent ?? DEFAULT_PARALLEL_AGENT_CONFIG.maxConcurrent,
-          agentsToSpawn.length
-        )
+        // v3.8.0: Use provider-aware agent selection
+        const complexityTier = result.classification.complexityTier as 1 | 2 | 3
+        const domainSignals = result.classification.domainSignals || []
+        const availableProviders = ["opencode", "google", "github-copilot", "openai"]
+
+        // Select agents based on complexity, domain, and provider limits (2 per provider)
+        const selectedAgents = selectAgentsForTask(complexityTier, domainSignals, availableProviders)
+        const maxAgentsForTier = getMaxAgentsForTier(complexityTier)
+        const agentsToSpawn = selectedAgents.slice(0, maxAgentsForTier)
+
+        // Track provider usage to enforce 2-per-provider limit at launch time
+        const providerUsage: Record<string, number> = {}
 
         // v3.8.0: Console output for parallel agent launch
         console.log(`\n========================================`)
         console.log(`[AUTO-ROUTER] PARALLEL AGENT DEPLOYMENT`)
         console.log(`========================================`)
-        console.log(`Complexity: Tier ${result.classification.complexityTier}`)
+        console.log(`Complexity: Tier ${complexityTier}`)
         console.log(`Technique: ${finalTechnique}`)
-        console.log(`Deploying ${maxAgents} curated agent(s)...`)
+        console.log(`Domain Signals: ${domainSignals.join(", ") || "none"}`)
+        console.log(`Max Agents for Tier: ${maxAgentsForTier}`)
+        console.log(`Selected Agents: ${agentsToSpawn.length}`)
+        console.log(`Provider Limit: ${AGENTS_PER_PROVIDER} per provider`)
         console.log(`----------------------------------------`)
 
-        for (let i = 0; i < maxAgents; i++) {
-          const agentName = agentsToSpawn[i]
+        for (const { agentName, model } of agentsToSpawn) {
+          const provider = model.split("/")[0]
+
+          // Double-check provider limit (selectAgentsForTask should handle this, but defensive)
+          if ((providerUsage[provider] ?? 0) >= AGENTS_PER_PROVIDER) {
+            console.log(`  ⚠ ${agentName.toUpperCase()} skipped: provider ${provider} at limit`)
+            continue
+          }
+
           try {
+            // v3.8.0: Validate model ID before launching parallel agent
+            let validatedModel = model
+            const validation = validateModelId(model)
+            if (!validation.valid && validation.suggestion) {
+              log(`[AUTO-ROUTER] Parallel agent model correction: ${model} → ${validation.suggestion}`)
+              validatedModel = validation.suggestion
+            }
+
+            const modelConfig = parseModelString(validatedModel)
             const launchResult = await options.backgroundManager.launch({
               description: `${agentName}: ${detected.taskDescription.substring(0, 50)}`,
               prompt: `Explore and analyze for this task: ${detected.taskDescription}`,
               agent: agentName,
               parentSessionID: input.sessionID,
               parentMessageID: input.messageID,
+              model: modelConfig,
             })
+
             parallelAgentsLaunched++
             launchedAgentNames.push(agentName)
-            console.log(`  ✓ ${agentName.toUpperCase()} agent launched (ID: ${launchResult.id})`)
-            log(`[${HOOK_NAME}] Launched parallel agent`, { agent: agentName, sessionID: input.sessionID, taskId: launchResult.id })
+            launchedAgentModels.push(model)
+            providerUsage[provider] = (providerUsage[provider] ?? 0) + 1
+
+            // v3.8.0: Track spending for parallel agent launches
+            recordModelUsage(model)
+
+            console.log(`  ✓ ${agentName.toUpperCase()} (${model}) → ID: ${launchResult.id}`)
+            log(`[${HOOK_NAME}] Launched parallel agent`, {
+              agent: agentName,
+              model,
+              provider,
+              sessionID: input.sessionID,
+              taskId: launchResult.id,
+            })
           } catch (agentErr) {
             const errorMsg = agentErr instanceof Error ? agentErr.message : String(agentErr)
-            console.log(`  ✗ ${agentName.toUpperCase()} agent FAILED: ${errorMsg.substring(0, 50)}`)
+            console.log(`  ✗ ${agentName.toUpperCase()} FAILED: ${errorMsg.substring(0, 50)}`)
             log(`[${HOOK_NAME}] Failed to launch parallel agent`, {
               agent: agentName,
+              model,
               error: errorMsg,
             })
           }
@@ -989,8 +1113,14 @@ ${NO_DELEGATION_TEMPLATE}`
 
         console.log(`----------------------------------------`)
         if (parallelAgentsLaunched > 0) {
-          console.log(`SUCCESS: ${parallelAgentsLaunched} agent(s) deployed`)
+          // Show provider distribution
+          const providerSummary = Object.entries(providerUsage)
+            .filter(([, count]) => count > 0)
+            .map(([provider, count]) => `${provider}:${count}`)
+            .join(", ")
+          console.log(`SUCCESS: ${parallelAgentsLaunched}/${maxAgentsForTier} agent(s) deployed`)
           console.log(`Agents: ${launchedAgentNames.join(", ")}`)
+          console.log(`Provider Distribution: ${providerSummary}`)
           console.log(`Use background_output to check progress.`)
         } else {
           console.log(`WARNING: No agents deployed successfully`)
@@ -998,8 +1128,10 @@ ${NO_DELEGATION_TEMPLATE}`
         console.log(`========================================\n`)
 
         if (parallelAgentsLaunched > 0) {
-          textPart.text += `\n\n## PARALLEL AGENTS LAUNCHED
-${parallelAgentsLaunched} background agent(s) are exploring in parallel: **${launchedAgentNames.join(", ")}**
+          textPart.text += `\n\n## PARALLEL AGENTS LAUNCHED (${parallelAgentsLaunched}/${maxAgentsForTier})
+Background agents exploring in parallel:
+${launchedAgentNames.map((name, i) => `- **${name}** (${launchedAgentModels[i]})`).join("\n")}
+
 Use \`background_output\` tool to check their progress before proceeding.`
         }
       }
@@ -1279,6 +1411,13 @@ ${AUTO_ROUTER_TAG_CLOSE}`
       if (sessionId) {
         sessions.delete(sessionId)
         log(`[${HOOK_NAME}] Session cleaned up`, { sessionID: sessionId })
+
+        // v3.8.0: Show spending summary on session end
+        const summary = getSpendingSummary()
+        if (summary.requestCount > 0) {
+          console.log(formatSpendingSummary())
+        }
+        resetSpendingTracker()
       }
     }
 
@@ -1328,6 +1467,15 @@ ${AUTO_ROUTER_TAG_CLOSE}`
         modelMatch,
         success: true,
       })
+
+      // v3.8.0: Check spending milestone after subagent completion
+      const milestone = checkSpendingMilestone()
+      if (milestone) {
+        const summary = getSpendingSummary()
+        console.log(`\n💰 SPENDING MILESTONE: $${milestone.amount}`)
+        console.log(`   Main contributor: ${milestone.mainContributor}`)
+        console.log(`   Total requests: ${summary.requestCount}`)
+      }
 
       // Console output for completion
       console.log(`\n========================================`)
@@ -1412,23 +1560,33 @@ ${AUTO_ROUTER_TAG_CLOSE}`
           // Generate new execution ID
           const newExecutionId = `exec_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
 
+          // v3.8.1: Get escalated technique for the new tier
+          const escalatedTechnique = getTechniqueForBudgetTier(decision.toTier)
+
           console.log(`\n!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!`)
           console.log(`[AUTO-ROUTER] ESCALATION RESPAWN`)
           console.log(`!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!`)
           console.log(`Previous Tier: ${fromTier.toUpperCase()}`)
           console.log(`New Tier: ${decision.toTier.toUpperCase()}`)
+          console.log(`Technique: ${escalatedTechnique}`)
           console.log(`Escalation: ${escalationCount}/${maxEscalations}`)
           console.log(`New Model: ${newModel}`)
           console.log(`Spawning new subagent...`)
           console.log(`!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!`)
 
           try {
-            // Spawn new subagent with higher-tier model
-            // Parse model string to object format
+            // v3.8.1: Generate enhanced prompt with technique instructions
+            const enhancedPrompt = generateEscalationPrompt(
+              subagentInfo.taskDescription,
+              decision.toTier,
+              sessionState.technique
+            )
+
+            // Spawn new subagent with higher-tier model and technique instructions
             const escalatedModelConfig = parseModelString(newModel)
             const launchResult = await options.backgroundManager.launch({
               description: `[AUTO-ROUTER ESCALATE] ${subagentInfo.taskDescription.substring(0, 40)}`,
-              prompt: subagentInfo.taskDescription,
+              prompt: enhancedPrompt,
               agent: newAgent,
               parentSessionID: subagentInfo.parentSessionId,
               model: escalatedModelConfig,
@@ -1467,6 +1625,9 @@ ${AUTO_ROUTER_TAG_CLOSE}`
               complexityTier: subagentInfo.complexityTier,
               budgetTier: decision.toTier,
             })
+
+            // v3.8.0: Track spending for escalation respawn
+            recordModelUsage(newModel)
 
             console.log(`[AUTO-ROUTER] Escalation respawn successful`)
             console.log(`New Task ID: ${newTaskId}`)
