@@ -60,6 +60,72 @@ Or check the crash output - it will show `no_avx no_avx2` in the Features line i
 
 ---
 
+## Windows Defender Blocks TUI DLL: "error code 225"
+
+### Symptoms
+
+When running `opencode`, the TUI fails to initialize:
+```
+Failed to initialize OpenTUI render library: error code 225
+```
+
+Or OpenCode crashes immediately after startup without showing the TUI.
+
+### Cause
+
+Windows Defender identifies OpenCode's temporary TUI DLL as a threat:
+- **Detection name:** `Trojan:HTML/Wabattack.S!ctv` (false positive)
+- **Location:** `%LOCALAPPDATA%\Temp`
+
+This is a **false positive** caused by heuristic scanning of the unpacked DLL.
+
+### Quick Fix
+
+**PowerShell (run as Administrator):**
+```powershell
+# Add exclusion for Temp directory (where DLL is extracted)
+Add-MpPreference -ExclusionPath "$env:LOCALAPPDATA\Temp"
+```
+
+**Alternative - Exclude specific file pattern:**
+```powershell
+Add-MpPreference -ExclusionPath "$env:LOCALAPPDATA\Temp\opencode*"
+```
+
+### Verify the Exclusion
+
+```powershell
+# List current exclusions
+Get-MpPreference | Select-Object -ExpandProperty ExclusionPath
+```
+
+### After Adding Exclusion
+
+1. Close any running OpenCode instances
+2. Clear the temp folder (optional): `Remove-Item "$env:LOCALAPPDATA\Temp\opencode*" -Force -ErrorAction SilentlyContinue`
+3. Restart OpenCode: `opencode`
+
+### Verify the Fix
+
+```powershell
+opencode --version
+```
+
+The TUI should now render correctly.
+
+### Security Considerations
+
+- This is a **false positive** - OpenCode is safe
+- The exclusion is limited to the Temp directory, not system-wide
+- You can review the excluded files in Windows Security app
+- If concerned, submit the DLL to Microsoft for analysis: https://www.microsoft.com/wdsi/filesubmission
+
+### Why This Happens
+
+OpenCode extracts a rendering DLL at runtime to `%LOCALAPPDATA%\Temp`. Windows Defender's real-time protection scans this extraction and incorrectly flags it based on behavioral heuristics (code execution from temp directory + DLL loading pattern).
+
+---
+
 ## Known Working Versions
 
 | opencode-ai Version | Status | Notes |
@@ -93,6 +159,222 @@ bun run build
 ### 3. Verify
 ```powershell
 opencode --version  # Should show 1.1.19
+```
+
+---
+
+## Auto-Router Provider Fallback System (v3.7.x)
+
+### How Provider Fallback Works
+
+The auto-router includes an intelligent provider fallback system that handles both rate limits (HTTP 429) and authentication errors (HTTP 401/403, missing API keys).
+
+**Provider Fallback Chain:**
+```
+github-copilot → google → opencode → amazon-bedrock
+```
+
+**Blocked Providers (never used directly):**
+- `anthropic` - Direct Anthropic API is blocked; use via github-copilot instead
+
+### Symptoms of Provider Errors
+
+**Rate Limit Error (429):**
+```
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+[AUTO-ROUTER] PROVIDER RATE LIMIT ERROR
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+Provider: github-copilot
+Model: github-copilot/claude-sonnet-4
+Error: 429 Too Many Requests
+Cooldown: 1 minutes
+Action: Falling back to google
+Fallback: github-copilot/claude-sonnet-4 → google/antigravity-gemini-3-flash
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+```
+
+**Authentication Error (API Key Missing):**
+```
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+[AUTO-ROUTER] PROVIDER AUTH ERROR
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+Provider: google
+Model: google/antigravity-gemini-3-flash
+Error: Google Generative AI API key is missing
+Cooldown: 30 minutes
+Action: Falling back to opencode
+Fallback: google/antigravity-gemini-3-flash → opencode/glm-4.7-free
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+```
+
+### Cooldown Periods
+
+| Error Type | Cooldown | Reason |
+|------------|----------|--------|
+| Rate Limit (429) | 1 minute | Temporary throttling, recovers quickly |
+| Rate Limit (Anthropic) | 5 minutes | Anthropic has stricter limits |
+| Auth Error | 30 minutes | Requires manual API key configuration |
+
+### Checking Provider Status
+
+The auto-router logs provider status before spawning subagents:
+
+```
+[AUTO-ROUTER] Provider Status:
+----------------------------------------
+  github-copilot: ✓ available
+  google: ✗ unavailable (cooldown 28m remaining)
+  opencode: ✓ available
+  amazon-bedrock: ✓ available
+  anthropic: ✗ BLOCKED (direct API disabled)
+----------------------------------------
+```
+
+### Resolving Auth Errors
+
+1. **Google (Antigravity/Gemini)**
+   - Get API key: https://aistudio.google.com/apikey
+   - Set environment variable: `GOOGLE_GENERATIVE_AI_API_KEY=your-key`
+
+2. **OpenAI**
+   - Get API key: https://platform.openai.com/api-keys
+   - Set environment variable: `OPENAI_API_KEY=your-key`
+
+3. **GitHub Copilot**
+   - Ensure you have an active GitHub Copilot subscription
+   - Sign in via: `gh auth login`
+
+### Rate Limit State File
+
+Provider cooldowns are persisted to:
+```
+~/.opencode/rate-limit-state.json
+```
+
+To manually reset all cooldowns (force retry all providers):
+```bash
+rm ~/.opencode/rate-limit-state.json
+```
+
+---
+
+## OpenCode Plugin API Limitations & Workarounds
+
+### ⚠️ Hooks NOT Currently Wired Up
+
+The following hooks are defined in the auto-router but **not active** due to OpenCode Plugin API limitations:
+
+| Hook | Purpose | Status |
+|------|---------|--------|
+| `chat.params` | Runtime model switching | ❌ Read-only in OpenCode |
+| `chat.error` | Error interception | ❌ Not exposed by OpenCode |
+
+### Why Model Switching Doesn't Work
+
+OpenCode's plugin API allows hooks to read `chat.params` but **not modify** the model field. The `output.message.model` field is read-only.
+
+**Current Workaround:**
+- Model recommendations are injected into the prompt text
+- Users must configure agent variants in `opencode.json` to use different models
+- The `/auto` command shows which model SHOULD be used in console output
+
+### Configuring Agent Variants (Workaround)
+
+Since runtime model switching isn't possible, configure agents with different default models:
+
+```json
+// opencode.json
+{
+  "agents": {
+    "auto-free": {
+      "model": { "providerID": "opencode", "modelID": "glm-4.7-free" }
+    },
+    "auto-cheap": {
+      "model": { "providerID": "github-copilot", "modelID": "gpt-4o-mini" }
+    },
+    "auto-moderate": {
+      "model": { "providerID": "google", "modelID": "antigravity-gemini-3-flash" }
+    },
+    "auto-expensive": {
+      "model": { "providerID": "github-copilot", "modelID": "claude-sonnet-4" }
+    },
+    "auto-maximum": {
+      "model": { "providerID": "github-copilot", "modelID": "claude-opus-4-5" }
+    }
+  }
+}
+```
+
+### Error Detection Without chat.error Hook
+
+Since `chat.error` isn't exposed, the auto-router detects errors via:
+
+1. **Subagent spawn failures** - Caught in try/catch when launching background tasks
+2. **Retry-with-fallback** - Automatically retries with next provider in chain
+3. **Persistent state** - Records failures to disk for future session awareness
+
+### Future Improvements (Pending OpenCode API)
+
+When/if OpenCode adds these capabilities:
+- `chat.params` write access → Direct model switching
+- `chat.error` hook → Real-time rate limit detection
+- `session.model.set` → Programmatic model selection
+
+---
+
+## New Functions Reference (v3.7.x)
+
+### `isProviderUnavailableError(error)`
+
+Detects both rate limit and authentication errors.
+
+**Returns:** `{ isUnavailable: boolean, isAuthError: boolean }`
+
+```typescript
+const { isUnavailable, isAuthError } = isProviderUnavailableError(err)
+if (isUnavailable) {
+  if (isAuthError) {
+    // API key missing/invalid - 30 min cooldown
+  } else {
+    // Rate limit - 1 min cooldown
+  }
+}
+```
+
+### `recordProviderAuthError(state, provider, errorMessage)`
+
+Records an authentication error with extended cooldown (30 minutes).
+
+```typescript
+const newState = recordProviderAuthError(rateLimitState, "google", "API key missing")
+saveRateLimitState(newState)
+```
+
+### `launchSubagentWithFallback(manager, input, model, state, maxRetries)`
+
+Launches a subagent with automatic retry/fallback on provider errors.
+
+```typescript
+const { result, newRateLimitState } = await launchSubagentWithFallback(
+  backgroundManager,
+  { description, prompt, agent, parentSessionID, parentMessageID, model },
+  "google/antigravity-gemini-3-flash",
+  rateLimitState,
+  3 // maxRetries
+)
+```
+
+### `logProviderStatus(rateLimitState)`
+
+Logs current provider availability to console.
+
+```typescript
+logProviderStatus(rateLimitState)
+// Output:
+// [AUTO-ROUTER] Provider Status:
+//   github-copilot: ✓ available
+//   google: ✗ unavailable (cooldown 28m remaining)
+//   ...
 ```
 
 ---

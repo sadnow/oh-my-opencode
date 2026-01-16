@@ -29,7 +29,17 @@ import {
   getBudgetTierModelConfig,
   getAgentForBudgetTier,
   DEFAULT_PARALLEL_AGENT_CONFIG,
+  ORCHESTRATOR_MODEL_RECOMMENDATION,
+  SUBAGENT_DELEGATION_TEMPLATE,
+  NO_DELEGATION_TEMPLATE,
+  parseModelString,
 } from "../../features/auto-router"
+import {
+  recordSubagentExecution,
+  updateSubagentExecution,
+  getSubagentExecution,
+  formatSubagentAnalytics,
+} from "../../features/auto-router/analytics"
 import type { EscalationManager } from "../../features/auto-router"
 import type { BudgetTier, TechniqueCombo } from "../../features/auto-router/types"
 import type {
@@ -39,6 +49,7 @@ import type {
   AutoRouterHookOptions,
   AutoRouterSessionContext,
   TaskIntent,
+  SubagentExecutionInfo,
 } from "./types"
 import { extractTaskIntent } from "../../features/auto-router/classifier"
 import {
@@ -50,9 +61,12 @@ import {
 } from "./constants"
 import {
   loadRateLimitState,
+  saveRateLimitState,
   recordRateLimitHit,
+  recordProviderAuthError,
   recordSuccess,
   isRateLimitError,
+  isProviderUnavailableError,
   isProviderAvailable,
   getModelWithFallback,
   extractProvider,
@@ -60,6 +74,7 @@ import {
   getCooldownMs,
   BLOCKED_PROVIDERS,
   PROVIDER_FALLBACK_CHAIN,
+  COOLDOWN_MS,
   type RateLimitState,
 } from "../../features/auto-router/rate-limit-handler"
 import { BudgetTierSchema, TechniqueComboSchema, AutoRouterConfigSchema } from "../../config/schema"
@@ -103,26 +118,174 @@ const VALID_TECHNIQUES: readonly TechniqueCombo[] = [
   "ulw+ralph", "ultrathink+ulw", "ultrathink+ralph", "triple"
 ] as const
 
+/**
+ * Result of launching a subagent with fallback support
+ */
+interface SubagentLaunchResult {
+  taskId: string
+  sessionID: string
+  usedModel: string
+  didFallback: boolean
+  fallbackReason?: string
+}
+
+/**
+ * Launch a subagent with automatic fallback on provider errors
+ * Retries with fallback models when auth/rate limit errors occur
+ */
+async function launchSubagentWithFallback(
+  backgroundManager: NonNullable<AutoRouterHookOptions["backgroundManager"]>,
+  input: {
+    description: string
+    prompt: string
+    agent: string
+    parentSessionID: string
+    parentMessageID: string
+    model: { providerID: string; modelID: string }
+  },
+  intendedModel: string,
+  rateLimitState: RateLimitState,
+  maxRetries: number = 3
+): Promise<{ result: SubagentLaunchResult; newRateLimitState: RateLimitState }> {
+  let currentModel = intendedModel
+  let currentModelConfig = input.model
+  let retries = 0
+  let newState = rateLimitState
+
+  while (retries < maxRetries) {
+    try {
+      const launchResult = await backgroundManager.launch({
+        ...input,
+        model: currentModelConfig,
+      })
+
+      return {
+        result: {
+          taskId: launchResult.id,
+          sessionID: launchResult.sessionID || "",
+          usedModel: currentModel,
+          didFallback: retries > 0,
+          fallbackReason: retries > 0 ? "Provider unavailable" : undefined,
+        },
+        newRateLimitState: newState,
+      }
+
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : String(err)
+      const { isUnavailable, isAuthError } = isProviderUnavailableError(err)
+
+      if (isUnavailable) {
+        const provider = extractProvider(currentModel)
+
+        // Record the error with appropriate cooldown
+        if (isAuthError) {
+          newState = recordProviderAuthError(newState, provider, errorMessage)
+        } else {
+          newState = recordRateLimitHit(newState, provider)
+        }
+
+        // Save state immediately
+        saveRateLimitState(newState)
+
+        // Log the provider error prominently
+        console.log(`\n!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!`)
+        console.log(`[AUTO-ROUTER] PROVIDER ${isAuthError ? "AUTH" : "RATE LIMIT"} ERROR`)
+        console.log(`!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!`)
+        console.log(`Provider: ${provider}`)
+        console.log(`Model: ${currentModel}`)
+        console.log(`Error: ${errorMessage.substring(0, 200)}`)
+        console.log(`Cooldown: ${Math.ceil((isAuthError ? COOLDOWN_MS.auth_error : COOLDOWN_MS.default) / 60000)} minutes`)
+
+        // Get fallback model
+        const { model: fallbackModel, provider: fallbackProvider, didFallback } = getModelWithFallback(
+          newState,
+          currentModel
+        )
+
+        if (!didFallback || fallbackModel === currentModel) {
+          console.log(`Action: NO FALLBACK AVAILABLE - all providers exhausted`)
+          console.log(`!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n`)
+          throw new Error(`No available fallback providers. Last error: ${errorMessage}`)
+        }
+
+        console.log(`Action: Falling back to ${fallbackProvider}`)
+        console.log(`Fallback: ${currentModel} → ${fallbackModel}`)
+        console.log(`!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n`)
+
+        // Parse the fallback model and retry
+        currentModel = fallbackModel
+        currentModelConfig = parseModelString(fallbackModel)
+        retries++
+      } else {
+        // Non-provider error, don't retry
+        throw err
+      }
+    }
+  }
+
+  throw new Error(`Failed after ${maxRetries} retries across providers`)
+}
+
+/**
+ * Display current provider availability status
+ */
+function logProviderStatus(rateLimitState: RateLimitState): void {
+  console.log(`\n[AUTO-ROUTER] Provider Status:`)
+  console.log(`----------------------------------------`)
+  for (const provider of PROVIDER_FALLBACK_CHAIN) {
+    const available = isProviderAvailable(rateLimitState, provider)
+    const blocked = BLOCKED_PROVIDERS.has(provider)
+    const pState = rateLimitState.providers[provider]
+
+    let status = "✓ available"
+    let detail = ""
+
+    if (blocked) {
+      status = "✗ BLOCKED"
+    } else if (!available && pState) {
+      const now = Date.now()
+      const cooldownLeft = Math.max(0, pState.cooldownUntil - now)
+      const cooldownMinutes = Math.ceil(cooldownLeft / 60000)
+      status = "✗ unavailable"
+      detail = ` (cooldown ${cooldownMinutes}m remaining)`
+    }
+
+    console.log(`  ${provider}: ${status}${detail}`)
+  }
+  console.log(`  anthropic: ✗ BLOCKED (direct API disabled)`)
+  console.log(`----------------------------------------\n`)
+}
+
 export interface AutoRouterHook {
+  /** Main hook - intercepts /auto commands, classifies tasks, injects technique prompts */
   "chat.message": (
     input: AutoRouterHookInput,
     output: AutoRouterHookOutput
   ) => Promise<void>
-  /** Switch model based on auto-router budget tier */
+  /**
+   * ⚠️ NOT WIRED UP - OpenCode API doesn't support model switching via chat.params.
+   * Preserved as architectural placeholder.
+   */
   "chat.params": (
     output: { message: { model?: { providerID: string; modelID: string } } },
     sessionID: string
   ) => Promise<void>
-  /** Handle chat errors, including rate limit detection */
+  /**
+   * ⚠️ NOT WIRED UP - OpenCode API doesn't expose chat.error hook.
+   * Preserved as architectural placeholder.
+   */
   "chat.error": (
     input: { error: unknown; sessionID: string; model?: { providerID: string; modelID: string } }
   ) => Promise<void>
+  /** Event handler - handles escalations on session.idle, session.error */
   event: (input: { event: { type: string; properties?: unknown } }) => Promise<void>
   getSessionState: (sessionId: string) => SessionState | undefined
   /** Check if ralph-loop is enabled for a session */
   isRalphLoopEnabled: (sessionId: string) => boolean
   /** Get current rate limit state summary */
   getRateLimitSummary: () => string
+  /** Get subagent analytics summary (v3.7.0) */
+  getSubagentAnalytics: () => string
 }
 
 /**
@@ -134,6 +297,9 @@ export function createAutoRouterHook(
 ): AutoRouterHook {
   const sessions = new Map<string, SessionState>()
   const processedCommands = new Map<string, number>() // key -> timestamp
+
+  // v3.7.0: Track subagent executions for model verification
+  const subagentExecutions = new Map<string, SubagentExecutionInfo>()
 
   // v3.6.6: Rate limit state (loaded from disk, persisted on changes)
   let rateLimitState: RateLimitState = loadRateLimitState()
@@ -538,11 +704,225 @@ Continue with the same context unless explicitly overridden by the current task.
       // v3.5.0: Inject agent recommendation for model tier switching
       const recommendedAgent = getAgentForBudgetTier(finalBudget)
       const budgetConfig = BUDGET_TIERS[finalBudget]
+
+      // v3.6.7: Verbose console output - ALWAYS show routing decision
+      // NOTE: OpenCode plugin API does not support runtime model switching via chat.params
+      // This output shows what model WOULD be used if the user configures agents properly
+      console.log(`\n========================================`)
+      console.log(`[AUTO-ROUTER] TASK ROUTING`)
+      console.log(`========================================`)
+      console.log(`Session: ${input.sessionID.substring(0, 8)}...`)
+      console.log(`Task: ${detected.taskDescription.substring(0, 60)}${detected.taskDescription.length > 60 ? '...' : ''}`)
+      console.log(`----------------------------------------`)
+      console.log(`CLASSIFICATION:`)
+      console.log(`  Project Type: ${result.classification.projectType}`)
+      console.log(`  Complexity: Tier ${result.classification.complexityTier}`)
+      console.log(`  Novelty: ${result.classification.noveltyLevel}`)
+      console.log(`  Domains: ${result.classification.domainSignals.join(', ') || 'none'}`)
+      console.log(`----------------------------------------`)
+      console.log(`ROUTING DECISION:`)
+      console.log(`  Technique: ${finalTechnique}`)
+      console.log(`  Budget Tier: ${finalBudget.toUpperCase()}`)
+      console.log(`  Recommended Model: ${budgetConfig.models.primary}`)
+      console.log(`  Ralph Loop: ${ralphLoopEnabled ? 'ENABLED' : 'disabled'}`)
+      console.log(`  Max Iterations: ${budgetConfig.maxIterations}`)
+      if (cmdOptions.magicKeyword) {
+        console.log(`  Magic Keyword: ${cmdOptions.magicKeyword}`)
+      }
+      console.log(`----------------------------------------`)
+      console.log(`AGENT CONFIGURATION:`)
+      console.log(`  For subagent tasks use: agent="${recommendedAgent}"`)
+      console.log(`  Configure in opencode.json: agents.${recommendedAgent}.model`)
+      console.log(`========================================\n`)
+
       injectedPrompt += `\n\n## MODEL TIER: ${finalBudget.toUpperCase()}
 **Recommended Model**: ${budgetConfig.models.primary}
 **For subagent tasks**: Use agent="${recommendedAgent}" in sisyphus_task/call_omo_agent
 This ensures appropriate model capability for task complexity.
 Max iterations at this tier: ${budgetConfig.maxIterations}`
+
+      // v3.7.0: Auto-spawn subagent for Tier 2-3 tasks
+      const autoSpawnConfig = config.auto_spawn_subagents ?? { enabled: true, tier_threshold: 2, verify_models: true, spawn_for_ralph: true }
+      const autoSpawnEnabled = autoSpawnConfig.enabled !== false
+      const tierThreshold = autoSpawnConfig.tier_threshold ?? 2
+      const spawnForRalph = ("spawn_for_ralph" in autoSpawnConfig) ? autoSpawnConfig.spawn_for_ralph !== false : true
+      const techniqueTriggersSpawn = spawnForRalph && (
+        finalTechnique.includes("ralph") || finalTechnique === "triple"
+      )
+
+      const shouldAutoSpawn = (
+        autoSpawnEnabled &&
+        options?.backgroundManager &&
+        (result.classification.complexityTier >= tierThreshold || techniqueTriggersSpawn)
+      )
+
+      let subagentSpawned = false
+      let subagentTaskId: string | undefined
+      let subagentInfo: SubagentExecutionInfo | undefined
+
+      if (shouldAutoSpawn && options?.backgroundManager) {
+        const intendedModel = budgetConfig.models.primary
+        const subagentAgent = recommendedAgent
+
+        // Generate a unique execution ID for analytics tracking
+        const executionId = `exec_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
+
+        // Show provider status before spawning
+        logProviderStatus(rateLimitState)
+
+        try {
+          // Launch subagent with explicit model using retry-fallback logic
+          const modelConfig = parseModelString(intendedModel)
+          const { result: launchResult, newRateLimitState } = await launchSubagentWithFallback(
+            options.backgroundManager,
+            {
+              description: `[AUTO-ROUTER] ${detected.taskDescription.substring(0, 50)}`,
+              prompt: detected.taskDescription,
+              agent: subagentAgent,
+              parentSessionID: input.sessionID,
+              parentMessageID: input.messageID ?? "",
+              model: modelConfig,
+            },
+            intendedModel,
+            rateLimitState,
+            3 // maxRetries
+          )
+
+          // Update rate limit state if fallback occurred
+          rateLimitState = newRateLimitState
+
+          subagentTaskId = launchResult.taskId
+          subagentSpawned = true
+
+          // Track if fallback occurred for logging
+          const usedModel = launchResult.usedModel
+          const didFallback = launchResult.didFallback
+
+          // Create subagent execution info for tracking
+          subagentInfo = {
+            executionId,
+            intendedModel: usedModel, // Track actual model used
+            sessionId: launchResult.sessionID,
+            agentName: subagentAgent,
+            startTime: Date.now(),
+            isEscalation: false,
+            budgetTier: finalBudget,
+            complexityTier: result.classification.complexityTier,
+            parentSessionId: input.sessionID,
+            taskDescription: detected.taskDescription,
+          }
+
+          // Store locally for completion tracking
+          subagentExecutions.set(subagentTaskId, subagentInfo)
+
+          // Record in analytics
+          recordSubagentExecution({
+            executionId,
+            taskId: subagentTaskId,
+            sessionId: subagentInfo.sessionId,
+            agentName: subagentAgent,
+            intendedModel: usedModel,
+            isEscalation: false,
+            parentSessionId: input.sessionID,
+            complexityTier: result.classification.complexityTier,
+            budgetTier: finalBudget,
+          })
+
+          // Console output for subagent delegation
+          console.log(`\n========================================`)
+          console.log(`[AUTO-ROUTER] SUBAGENT DELEGATION`)
+          console.log(`========================================`)
+          console.log(`Task Complexity: Tier ${result.classification.complexityTier}`)
+          console.log(`Technique: ${finalTechnique}`)
+          console.log(`Budget: ${finalBudget.toUpperCase()}`)
+          console.log(`----------------------------------------`)
+          console.log(`Spawning Agent: ${subagentAgent}`)
+          if (didFallback) {
+            console.log(`Original Model: ${intendedModel}`)
+            console.log(`Actual Model: ${usedModel} (FALLBACK)`)
+          } else {
+            console.log(`Model: ${usedModel}`)
+          }
+          console.log(`Task ID: ${subagentTaskId}`)
+          console.log(`========================================`)
+          console.log(`NOTE: Work delegated to subagent.`)
+          console.log(`Use background_output to check progress.`)
+          console.log(`========================================\n`)
+
+          log(`[${HOOK_NAME}] Subagent spawned for Tier ${result.classification.complexityTier} task`, {
+            sessionID: input.sessionID,
+            taskId: subagentTaskId,
+            agent: subagentAgent,
+            intendedModel,
+            actualModel: usedModel,
+            didFallback,
+            budget: finalBudget,
+          })
+
+          // Update injected prompt to indicate delegation
+          const delegationInfo = SUBAGENT_DELEGATION_TEMPLATE
+            .replace("{{COMPLEXITY_TIER}}", String(result.classification.complexityTier))
+            .replace("{{SUBAGENT_MODEL}}", usedModel)
+            .replace("{{SUBAGENT_AGENT}}", subagentAgent)
+            .replace("{{INTENDED_BUDGET}}", finalBudget.toUpperCase())
+
+          let delegationNote = `\n\n## SUBAGENT DELEGATED
+A subagent has been spawned to handle this task.
+- **Task ID**: \`${subagentTaskId}\`
+- **Agent**: ${subagentAgent}
+- **Model**: ${usedModel}`
+
+          if (didFallback) {
+            delegationNote += `
+- **Note**: Original model (${intendedModel}) unavailable, using fallback`
+          }
+
+          delegationNote += `
+- **Budget Tier**: ${finalBudget.toUpperCase()}
+
+Monitor progress with: \`background_output(task_id="${subagentTaskId}")\`
+
+${delegationInfo}`
+
+          injectedPrompt += delegationNote
+
+        } catch (spawnErr) {
+          const errorMessage = spawnErr instanceof Error ? spawnErr.message : String(spawnErr)
+
+          // Check if this is a provider error that exhausted all fallbacks
+          const { isUnavailable, isAuthError } = isProviderUnavailableError(spawnErr)
+
+          console.log(`\n!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!`)
+          console.log(`[AUTO-ROUTER] SUBAGENT SPAWN FAILED`)
+          console.log(`!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!`)
+          console.log(`Error: ${errorMessage.substring(0, 200)}`)
+          if (isUnavailable) {
+            console.log(`Reason: ${isAuthError ? "Authentication error" : "Rate limit"} - all providers exhausted`)
+          }
+          console.log(`Falling back to direct execution`)
+          console.log(`!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n`)
+
+          log(`[${HOOK_NAME}] Failed to spawn subagent`, {
+            sessionID: input.sessionID,
+            error: errorMessage,
+            isUnavailable,
+            isAuthError,
+          })
+
+          // Show provider status after failure
+          logProviderStatus(rateLimitState)
+
+          // Fall back to direct execution
+          injectedPrompt += `\n\n## SUBAGENT SPAWN FAILED
+Falling back to direct execution in current session.
+Error: ${errorMessage}
+${isUnavailable ? `\n**Note**: ${isAuthError ? "Authentication" : "Rate limit"} error - configure provider API keys or wait for cooldown.` : ""}
+${NO_DELEGATION_TEMPLATE}`
+        }
+      } else if (!shouldAutoSpawn) {
+        // Not auto-spawning - direct execution
+        injectedPrompt += `\n${NO_DELEGATION_TEMPLATE}`
+      }
 
       textPart.text = injectedPrompt
 
@@ -786,6 +1166,22 @@ ${AUTO_ROUTER_TAG_CLOSE}`
             escalationCount,
           })
 
+          // v3.6.7: Console output for escalations (always shown)
+          console.log(`\n!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!`)
+          console.log(`[AUTO-ROUTER] BUDGET ESCALATION`)
+          console.log(`!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!`)
+          console.log(`Session: ${sessionID.substring(0, 8)}...`)
+          console.log(`Escalation: ${escalationCount}/${maxEscalations}`)
+          console.log(`From: ${decision.fromTier?.toUpperCase() ?? 'unknown'}`)
+          console.log(`To: ${decision.toTier.toUpperCase()}`)
+          console.log(`Reason: ${decision.reason ?? 'consecutive failures'}`)
+          console.log(`New Model: ${newBudgetConfig.models.primary}`)
+          console.log(`New Max Iterations: ${newBudgetConfig.maxIterations}`)
+          console.log(`!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!`)
+          console.log(`NOTE: Model recommendation updated in prompt.`)
+          console.log(`For subagent tasks, use: agent="${getAgentForBudgetTier(decision.toTier)}"`)
+          console.log(`!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n`)
+
           // Verbose mode: Show detailed escalation toast
           const isVerbose = config.verbose === true
           if (isVerbose && decision.fromTier) {
@@ -873,6 +1269,198 @@ ${AUTO_ROUTER_TAG_CLOSE}`
         history: sessionState.escalationManager.getHistory().length,
       })
     }
+
+    // v3.7.0: Handle subagent completion for analytics tracking
+    if (event.type === "background.task.completed") {
+      const taskId = getStringProp(props, "taskId") || getStringProp(props, "id")
+      if (!taskId) return
+
+      const subagentInfo = subagentExecutions.get(taskId)
+      if (!subagentInfo) return // Not a tracked subagent
+
+      const endTime = Date.now()
+      const durationMs = endTime - subagentInfo.startTime
+      const durationSec = Math.round(durationMs / 1000)
+
+      // Get actual model from the event if available
+      // Props might contain model info from the completed task
+      const actualModel = getStringProp(props, "model") || subagentInfo.intendedModel
+      const modelMatch = actualModel === subagentInfo.intendedModel
+
+      // Update analytics
+      updateSubagentExecution(taskId, {
+        endTime,
+        durationMs,
+        actualModel,
+        modelMatch,
+        success: true,
+      })
+
+      // Console output for completion
+      console.log(`\n========================================`)
+      console.log(`[AUTO-ROUTER] SUBAGENT COMPLETED`)
+      console.log(`========================================`)
+      console.log(`Task ID: ${taskId}`)
+      console.log(`Duration: ${durationSec}s`)
+      console.log(`Intended Model: ${subagentInfo.intendedModel}`)
+      console.log(`Actual Model: ${actualModel}`)
+      console.log(`Model Match: ${modelMatch ? "YES ✓" : "NO ✗"}`)
+      if (!modelMatch) {
+        console.log(`WARNING: Model mismatch detected!`)
+      }
+      console.log(`========================================\n`)
+
+      log(`[${HOOK_NAME}] Subagent completed`, {
+        taskId,
+        durationSec,
+        intendedModel: subagentInfo.intendedModel,
+        actualModel,
+        modelMatch,
+      })
+
+      // Clean up local tracking
+      subagentExecutions.delete(taskId)
+    }
+
+    // v3.7.0: Handle subagent error for analytics tracking and escalation respawn
+    if (event.type === "background.task.error") {
+      const taskId = getStringProp(props, "taskId") || getStringProp(props, "id")
+      if (!taskId) return
+
+      const subagentInfo = subagentExecutions.get(taskId)
+      if (!subagentInfo) return // Not a tracked subagent
+
+      const endTime = Date.now()
+      const durationMs = endTime - subagentInfo.startTime
+      const errorMessage = getStringProp(props, "error") || "Unknown error"
+
+      // Update analytics
+      updateSubagentExecution(taskId, {
+        endTime,
+        durationMs,
+        success: false,
+        errorMessage,
+      })
+
+      // Console output for error
+      console.log(`\n!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!`)
+      console.log(`[AUTO-ROUTER] SUBAGENT FAILED`)
+      console.log(`!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!`)
+      console.log(`Task ID: ${taskId}`)
+      console.log(`Intended Model: ${subagentInfo.intendedModel}`)
+      console.log(`Budget Tier: ${subagentInfo.budgetTier.toUpperCase()}`)
+      console.log(`Error: ${errorMessage}`)
+      console.log(`!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!`)
+
+      log(`[${HOOK_NAME}] Subagent failed`, {
+        taskId,
+        error: errorMessage,
+        budget: subagentInfo.budgetTier,
+      })
+
+      // Clean up local tracking
+      subagentExecutions.delete(taskId)
+
+      // v3.7.0: Attempt escalation respawn if auto_escalate is enabled
+      const sessionState = sessions.get(subagentInfo.parentSessionId)
+      if (sessionState && config.auto_escalate !== false && options?.backgroundManager) {
+        const decision = await sessionState.escalationManager.shouldEscalate()
+
+        if (decision.shouldEscalate && decision.toTier) {
+          const fromTier = subagentInfo.budgetTier
+          sessionState.escalationManager.escalate(decision.toTier)
+
+          const newBudgetConfig = BUDGET_TIERS[decision.toTier]
+          const newModel = newBudgetConfig.models.primary
+          const newAgent = getAgentForBudgetTier(decision.toTier)
+          const escalationCount = sessionState.escalationManager.getEscalationCount()
+          const maxEscalations = config.max_escalations ?? 3
+
+          // Generate new execution ID
+          const newExecutionId = `exec_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
+
+          console.log(`\n!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!`)
+          console.log(`[AUTO-ROUTER] ESCALATION RESPAWN`)
+          console.log(`!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!`)
+          console.log(`Previous Tier: ${fromTier.toUpperCase()}`)
+          console.log(`New Tier: ${decision.toTier.toUpperCase()}`)
+          console.log(`Escalation: ${escalationCount}/${maxEscalations}`)
+          console.log(`New Model: ${newModel}`)
+          console.log(`Spawning new subagent...`)
+          console.log(`!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!`)
+
+          try {
+            // Spawn new subagent with higher-tier model
+            // Parse model string to object format
+            const escalatedModelConfig = parseModelString(newModel)
+            const launchResult = await options.backgroundManager.launch({
+              description: `[AUTO-ROUTER ESCALATE] ${subagentInfo.taskDescription.substring(0, 40)}`,
+              prompt: subagentInfo.taskDescription,
+              agent: newAgent,
+              parentSessionID: subagentInfo.parentSessionId,
+              model: escalatedModelConfig,
+            })
+
+            const newTaskId = launchResult.id
+
+            // Create new subagent execution info
+            const newSubagentInfo: SubagentExecutionInfo = {
+              executionId: newExecutionId,
+              intendedModel: newModel,
+              sessionId: launchResult.sessionID || "",
+              agentName: newAgent,
+              startTime: Date.now(),
+              isEscalation: true,
+              escalatedFrom: fromTier,
+              budgetTier: decision.toTier,
+              complexityTier: subagentInfo.complexityTier,
+              parentSessionId: subagentInfo.parentSessionId,
+              taskDescription: subagentInfo.taskDescription,
+            }
+
+            // Store locally for tracking
+            subagentExecutions.set(newTaskId, newSubagentInfo)
+
+            // Record in analytics
+            recordSubagentExecution({
+              executionId: newExecutionId,
+              taskId: newTaskId,
+              sessionId: newSubagentInfo.sessionId,
+              agentName: newAgent,
+              intendedModel: newModel,
+              isEscalation: true,
+              escalatedFrom: fromTier,
+              parentSessionId: subagentInfo.parentSessionId,
+              complexityTier: subagentInfo.complexityTier,
+              budgetTier: decision.toTier,
+            })
+
+            console.log(`[AUTO-ROUTER] Escalation respawn successful`)
+            console.log(`New Task ID: ${newTaskId}`)
+            console.log(`!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n`)
+
+            log(`[${HOOK_NAME}] Escalation respawn successful`, {
+              fromTier,
+              toTier: decision.toTier,
+              oldTaskId: taskId,
+              newTaskId,
+              newModel,
+            })
+
+          } catch (respawnErr) {
+            const respawnError = respawnErr instanceof Error ? respawnErr.message : String(respawnErr)
+            console.log(`[AUTO-ROUTER] Escalation respawn failed: ${respawnError}`)
+            console.log(`!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n`)
+
+            log(`[${HOOK_NAME}] Escalation respawn failed`, {
+              fromTier,
+              toTier: decision.toTier,
+              error: respawnError,
+            })
+          }
+        }
+      }
+    }
   }
 
   /**
@@ -891,11 +1479,21 @@ ${AUTO_ROUTER_TAG_CLOSE}`
   }
 
   /**
-   * Chat params handler - switches model based on auto-router budget tier
-   * This is the key integration that ACTUALLY changes the model being used
+   * Chat params handler - INTENDED to switch model based on auto-router budget tier
    *
-   * v3.6.6: Now includes rate limit checking and automatic fallback
-   * v3.6.7: Added verbose model/provider logging
+   * ⚠️ IMPORTANT: This hook is NOT CURRENTLY WIRED UP to the main plugin.
+   * OpenCode's plugin API (chat.params) can only modify temperature/topP/topK/options,
+   * NOT the model. The `output.message.model` field is read-only.
+   *
+   * This code is preserved as architectural placeholder for when/if OpenCode adds
+   * runtime model switching support. Currently, model selection happens via:
+   * 1. Agent variants configured in opencode.json
+   * 2. Recommendations injected into the prompt text
+   *
+   * v3.6.6: Rate limit checking (would work if hook were active)
+   * v3.6.7: Verbose logging (would work if hook were active)
+   *
+   * @see https://github.com/opencode-ai/opencode - Plugin API documentation
    */
   const chatParams = async (
     output: { message: { model?: { providerID: string; modelID: string } } },
@@ -979,8 +1577,19 @@ ${AUTO_ROUTER_TAG_CLOSE}`
   }
 
   /**
-   * v3.6.6: Chat error handler - detects rate limits and triggers circuit breaker
-   * v3.6.7: Added verbose rate limit logging
+   * Chat error handler - detects rate limits and triggers circuit breaker
+   *
+   * ⚠️ IMPORTANT: This hook is NOT CURRENTLY WIRED UP to the main plugin.
+   * OpenCode's plugin API does not expose a chat.error hook for plugins to intercept.
+   *
+   * This code is preserved as architectural placeholder. If OpenCode adds error
+   * handling hooks, this would:
+   * 1. Detect rate limit errors (429 status)
+   * 2. Open circuit breakers for affected providers
+   * 3. Persist state to ~/.opencode/rate-limit-state.json
+   *
+   * v3.6.6: Rate limit detection and circuit breaker pattern
+   * v3.6.7: Verbose console logging
    */
   const chatError = async (
     input: { error: unknown; sessionID: string; model?: { providerID: string; modelID: string } }
@@ -1047,5 +1656,6 @@ ${AUTO_ROUTER_TAG_CLOSE}`
     getSessionState,
     isRalphLoopEnabled,
     getRateLimitSummary: () => getRateLimitSummary(rateLimitState),
+    getSubagentAnalytics: () => formatSubagentAnalytics(),
   }
 }

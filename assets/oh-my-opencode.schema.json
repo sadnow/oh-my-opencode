@@ -2580,6 +2580,29 @@
               }
             }
           }
+        },
+        "auto_spawn_subagents": {
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "default": true,
+              "type": "boolean"
+            },
+            "tier_threshold": {
+              "default": 2,
+              "type": "number",
+              "minimum": 1,
+              "maximum": 3
+            },
+            "verify_models": {
+              "default": true,
+              "type": "boolean"
+            },
+            "spawn_for_ralph": {
+              "default": true,
+              "type": "boolean"
+            }
+          }
         }
       }
     },

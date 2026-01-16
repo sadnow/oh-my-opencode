@@ -54,6 +54,10 @@ export {
   DEFAULT_MAX_PARALLEL_AGENTS,
   DEFAULT_PARALLEL_AGENT_CONFIG,
   type ParallelAgentConfig,
+  // Orchestrator & subagent delegation (v3.7.0)
+  ORCHESTRATOR_MODEL_RECOMMENDATION,
+  SUBAGENT_DELEGATION_TEMPLATE,
+  NO_DELEGATION_TEMPLATE,
 } from "./constants"
 
 // Export classifier functions
@@ -119,9 +123,20 @@ export {
   clearAnalytics,
   exportAnalytics,
   importAnalytics,
+  // Subagent analytics (v3.7.0)
+  recordSubagentExecution,
+  updateSubagentExecution,
+  getSubagentExecution,
+  getSubagentStats,
+  formatSubagentAnalytics,
+  clearSubagentAnalytics,
+  exportSubagentAnalytics,
+  importSubagentAnalytics,
   type ExecutionRecord,
   type TechniqueStats,
   type AnalyticsSummary,
+  type SubagentExecutionRecord,
+  type SubagentAnalyticsSummary,
 } from "./analytics"
 
 // Export preset selector
@@ -413,6 +428,9 @@ function generateInjectedPrompt(
   const executionDirectives = buildExecutionDirectives(technique, classification, config)
 
   // Fill in template
+  // Subagent delegation info depends on context - use placeholder that hook will replace
+  const subagentDelegationInfo = "Direct execution mode - subagent delegation determined at runtime."
+
   let prompt = AUTO_ROUTER_INJECTION_TEMPLATE
     .replace("{{PROJECT_TYPE}}", classification.projectType)
     .replace("{{COMPLEXITY_TIER}}", String(classification.complexityTier))
@@ -428,6 +446,7 @@ function generateInjectedPrompt(
     .replace("{{STARTING_TIER}}", budget)
     .replace("{{MODEL}}", budgetConfig.models.primary)
     .replace("{{MAX_ITERATIONS}}", String(budgetConfig.maxIterations))
+    .replace("{{SUBAGENT_DELEGATION_INFO}}", subagentDelegationInfo)
     .replace("{{APPLICABLE_RUBRICS}}", rubricList)
     .replace("{{EXECUTION_DIRECTIVES}}", executionDirectives)
     .replace("{{TASK_DESCRIPTION}}", taskDescription)

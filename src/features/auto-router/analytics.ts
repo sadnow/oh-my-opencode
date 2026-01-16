@@ -31,6 +31,48 @@ export interface ExecutionRecord {
   qualityScore?: number
   duration: number
   errorMessage?: string
+  // Subagent tracking fields (v3.7.0)
+  /** Task ID linking to subagent execution */
+  taskId?: string
+  /** Session ID of the parent orchestrator */
+  sessionId?: string
+  /** Name of the subagent used */
+  agentName?: string
+  /** Intended model for subagent */
+  intendedModel?: string
+  /** Actual model used by subagent (verified from session) */
+  actualModel?: string
+  /** Whether intended and actual models matched */
+  modelMatch?: boolean
+  /** Duration in milliseconds */
+  durationMs?: number
+  /** Whether this was an escalation from a lower tier */
+  isEscalation?: boolean
+  /** Budget tier escalated from (if isEscalation) */
+  escalatedFrom?: BudgetTier
+}
+
+/**
+ * Subagent execution info for tracking spawned subagents
+ */
+export interface SubagentExecutionRecord {
+  executionId: string       // Link to parent analytics record
+  taskId: string            // Background task ID
+  sessionId: string         // Subagent session ID
+  agentName: string         // e.g., "auto-expensive"
+  intendedModel: string     // e.g., "github-copilot/claude-sonnet-4"
+  actualModel?: string      // Verified from session messages
+  modelMatch?: boolean      // true if intended === actual
+  startTime: number         // For duration calculation
+  endTime?: number          // When task completed
+  durationMs?: number       // Calculated duration
+  isEscalation: boolean
+  escalatedFrom?: BudgetTier
+  parentSessionId: string   // Parent orchestrator session
+  complexityTier: ComplexityTier
+  budgetTier: BudgetTier
+  success?: boolean
+  errorMessage?: string
 }
 
 export interface TechniqueStats {
@@ -383,4 +425,262 @@ export function importAnalytics(records: ExecutionRecord[]): void {
 
 function generateId(): string {
   return `exec_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
+}
+
+// ============================================================================
+// Subagent Analytics (v3.7.0)
+// ============================================================================
+
+/**
+ * In-memory storage for subagent executions
+ */
+const subagentExecutions = new Map<string, SubagentExecutionRecord>()
+const MAX_SUBAGENT_RECORDS = 500
+
+/**
+ * Record a subagent execution start
+ */
+export function recordSubagentExecution(record: Omit<SubagentExecutionRecord, "startTime">): string {
+  const fullRecord: SubagentExecutionRecord = {
+    ...record,
+    startTime: Date.now(),
+  }
+
+  subagentExecutions.set(record.taskId, fullRecord)
+
+  // Maintain max size
+  if (subagentExecutions.size > MAX_SUBAGENT_RECORDS) {
+    const oldest = subagentExecutions.keys().next().value
+    if (oldest) subagentExecutions.delete(oldest)
+  }
+
+  log("[Analytics] Subagent execution recorded", {
+    taskId: record.taskId,
+    agentName: record.agentName,
+    intendedModel: record.intendedModel,
+    budgetTier: record.budgetTier,
+    isEscalation: record.isEscalation,
+  })
+
+  return record.executionId
+}
+
+/**
+ * Update subagent execution with completion info
+ */
+export function updateSubagentExecution(
+  taskId: string,
+  updates: Partial<SubagentExecutionRecord>
+): boolean {
+  const record = subagentExecutions.get(taskId)
+  if (!record) return false
+
+  Object.assign(record, updates)
+
+  // Calculate duration if endTime is set
+  if (updates.endTime && !record.durationMs) {
+    record.durationMs = updates.endTime - record.startTime
+  }
+
+  // Check model match if both models are known
+  if (record.actualModel && record.intendedModel) {
+    record.modelMatch = record.actualModel === record.intendedModel
+  }
+
+  log("[Analytics] Subagent execution updated", {
+    taskId,
+    actualModel: record.actualModel,
+    modelMatch: record.modelMatch,
+    durationMs: record.durationMs,
+    success: record.success,
+  })
+
+  return true
+}
+
+/**
+ * Get subagent execution record by task ID
+ */
+export function getSubagentExecution(taskId: string): SubagentExecutionRecord | undefined {
+  return subagentExecutions.get(taskId)
+}
+
+/**
+ * Subagent analytics summary
+ */
+export interface SubagentAnalyticsSummary {
+  totalSpawns: number
+  modelMatchRate: number
+  matchCount: number
+  mismatchCount: number
+  mismatches: Array<{
+    taskId: string
+    intendedModel: string
+    actualModel: string
+  }>
+  byTier: Record<ComplexityTier, {
+    spawns: number
+    matchRate: number
+  }>
+  byBudget: Record<BudgetTier, {
+    spawns: number
+    avgDurationMs: number
+  }>
+  escalationCount: number
+  escalationRate: number
+  escalationPaths: Record<string, number> // e.g., "cheap→moderate": 3
+}
+
+/**
+ * Get subagent analytics summary
+ */
+export function getSubagentStats(): SubagentAnalyticsSummary {
+  const records = Array.from(subagentExecutions.values())
+  const completedRecords = records.filter(r => r.endTime !== undefined)
+
+  // Model match stats
+  const withModelInfo = completedRecords.filter(r => r.actualModel !== undefined)
+  const matches = withModelInfo.filter(r => r.modelMatch === true)
+  const mismatches = withModelInfo.filter(r => r.modelMatch === false)
+
+  // By tier
+  const byTier: SubagentAnalyticsSummary["byTier"] = {
+    1: { spawns: 0, matchRate: 0 },
+    2: { spawns: 0, matchRate: 0 },
+    3: { spawns: 0, matchRate: 0 },
+  }
+  for (const tier of [1, 2, 3] as ComplexityTier[]) {
+    const tierRecords = completedRecords.filter(r => r.complexityTier === tier)
+    const tierWithModel = tierRecords.filter(r => r.actualModel !== undefined)
+    const tierMatches = tierWithModel.filter(r => r.modelMatch === true)
+    byTier[tier] = {
+      spawns: tierRecords.length,
+      matchRate: tierWithModel.length > 0 ? tierMatches.length / tierWithModel.length : 0,
+    }
+  }
+
+  // By budget
+  const byBudget: SubagentAnalyticsSummary["byBudget"] = {
+    free: { spawns: 0, avgDurationMs: 0 },
+    cheap: { spawns: 0, avgDurationMs: 0 },
+    moderate: { spawns: 0, avgDurationMs: 0 },
+    expensive: { spawns: 0, avgDurationMs: 0 },
+    maximum: { spawns: 0, avgDurationMs: 0 },
+  }
+  for (const budget of ["free", "cheap", "moderate", "expensive", "maximum"] as BudgetTier[]) {
+    const budgetRecords = completedRecords.filter(r => r.budgetTier === budget)
+    const durations = budgetRecords.filter(r => r.durationMs).map(r => r.durationMs!)
+    byBudget[budget] = {
+      spawns: budgetRecords.length,
+      avgDurationMs: durations.length > 0
+        ? durations.reduce((a, b) => a + b, 0) / durations.length
+        : 0,
+    }
+  }
+
+  // Escalation stats
+  const escalations = completedRecords.filter(r => r.isEscalation)
+  const escalationPaths: Record<string, number> = {}
+  for (const esc of escalations) {
+    if (esc.escalatedFrom) {
+      const path = `${esc.escalatedFrom}→${esc.budgetTier}`
+      escalationPaths[path] = (escalationPaths[path] || 0) + 1
+    }
+  }
+
+  return {
+    totalSpawns: records.length,
+    modelMatchRate: withModelInfo.length > 0 ? matches.length / withModelInfo.length : 0,
+    matchCount: matches.length,
+    mismatchCount: mismatches.length,
+    mismatches: mismatches.map(r => ({
+      taskId: r.taskId,
+      intendedModel: r.intendedModel,
+      actualModel: r.actualModel || "unknown",
+    })),
+    byTier,
+    byBudget,
+    escalationCount: escalations.length,
+    escalationRate: completedRecords.length > 0 ? escalations.length / completedRecords.length : 0,
+    escalationPaths,
+  }
+}
+
+/**
+ * Format subagent analytics summary for console output
+ */
+export function formatSubagentAnalytics(): string {
+  const stats = getSubagentStats()
+
+  let output = `
+========================================
+[AUTO-ROUTER] SUBAGENT ANALYTICS
+========================================
+Total Subagent Spawns: ${stats.totalSpawns}
+Model Match Rate: ${(stats.modelMatchRate * 100).toFixed(1)}% (${stats.matchCount}/${stats.matchCount + stats.mismatchCount})
+Mismatches: ${stats.mismatchCount}`
+
+  if (stats.mismatches.length > 0) {
+    output += "\n  " + stats.mismatches.map(m =>
+      `- Task ${m.taskId}: intended ${m.intendedModel}, got ${m.actualModel}`
+    ).join("\n  ")
+  }
+
+  output += `
+
+By Tier:`
+  for (const tier of [1, 2, 3] as ComplexityTier[]) {
+    const tierStats = stats.byTier[tier]
+    output += `\n  Tier ${tier}: ${tierStats.spawns} spawns, ${(tierStats.matchRate * 100).toFixed(1)}% match`
+  }
+
+  output += `
+
+By Budget:`
+  for (const budget of ["free", "cheap", "moderate", "expensive", "maximum"] as BudgetTier[]) {
+    const budgetStats = stats.byBudget[budget]
+    if (budgetStats.spawns > 0) {
+      output += `\n  ${budget}: ${budgetStats.spawns} spawns, avg ${Math.round(budgetStats.avgDurationMs / 1000)}s`
+    }
+  }
+
+  output += `
+
+Escalations: ${stats.escalationCount} (${(stats.escalationRate * 100).toFixed(1)}%)`
+  if (Object.keys(stats.escalationPaths).length > 0) {
+    for (const [path, count] of Object.entries(stats.escalationPaths)) {
+      output += `\n  ${path}: ${count}`
+    }
+  }
+
+  output += `
+========================================`
+
+  return output
+}
+
+/**
+ * Clear subagent analytics data
+ */
+export function clearSubagentAnalytics(): void {
+  subagentExecutions.clear()
+  log("[Analytics] Cleared all subagent execution history")
+}
+
+/**
+ * Export subagent analytics data for persistence
+ */
+export function exportSubagentAnalytics(): SubagentExecutionRecord[] {
+  return Array.from(subagentExecutions.values())
+}
+
+/**
+ * Import subagent analytics data
+ */
+export function importSubagentAnalytics(records: SubagentExecutionRecord[]): void {
+  subagentExecutions.clear()
+  for (const record of records.slice(-MAX_SUBAGENT_RECORDS)) {
+    subagentExecutions.set(record.taskId, record)
+  }
+  log("[Analytics] Imported subagent execution history", { count: subagentExecutions.size })
 }

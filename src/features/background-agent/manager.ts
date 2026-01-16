@@ -74,6 +74,14 @@ export class BackgroundManager {
   }
 
   async launch(input: LaunchInput): Promise<BackgroundTask> {
+    // Verbose console output for subagent launch
+    console.log(`\n[SUBAGENT] Launching: ${input.agent}`)
+    if (input.model) {
+      console.log(`[SUBAGENT]   Model: ${input.model.providerID}/${input.model.modelID}`)
+    }
+    console.log(`[SUBAGENT]   Task: ${input.description.substring(0, 60)}${input.description.length > 60 ? '...' : ''}`)
+    console.log(`[SUBAGENT]   Parent: ${input.parentSessionID.substring(0, 12)}...`)
+
     log("[background-agent] launch() called with:", {
       agent: input.agent,
       model: input.model,
@@ -186,11 +194,19 @@ export class BackgroundManager {
         parts: [{ type: "text", text: input.prompt }],
       },
     }).catch((error) => {
+      const errorMessage = error instanceof Error ? error.message : String(error)
+
+      // Verbose console output for subagent error
+      console.log(`\n[SUBAGENT] ERROR in ${input.agent}:`)
+      console.log(`[SUBAGENT]   ${errorMessage.substring(0, 200)}`)
+      if (input.model) {
+        console.log(`[SUBAGENT]   Model was: ${input.model.providerID}/${input.model.modelID}`)
+      }
+
       log("[background-agent] promptAsync error:", error)
       const existingTask = this.findBySession(sessionID)
       if (existingTask) {
         existingTask.status = "error"
-        const errorMessage = error instanceof Error ? error.message : String(error)
         if (errorMessage.includes("agent.name") || errorMessage.includes("undefined")) {
           existingTask.error = `Agent "${input.agent}" not found. Make sure the agent is registered in your opencode.json or provided by a plugin.`
         } else {
@@ -736,6 +752,21 @@ export class BackgroundManager {
     // Atomically mark as completed to prevent race conditions
     task.status = "completed"
     task.completedAt = new Date()
+
+    // Calculate duration for logging
+    const durationMs = task.completedAt.getTime() - task.startedAt.getTime()
+    const durationSec = Math.floor(durationMs / 1000)
+    const durationStr = durationSec >= 60
+      ? `${Math.floor(durationSec / 60)}m ${durationSec % 60}s`
+      : `${durationSec}s`
+
+    // Verbose console output for subagent completion
+    console.log(`\n[SUBAGENT] Completed: ${task.agent} (${durationStr})`)
+    console.log(`[SUBAGENT]   Task ID: ${task.id}`)
+    console.log(`[SUBAGENT]   Tool Calls: ${task.progress?.toolCalls ?? 0}`)
+    if (task.model) {
+      console.log(`[SUBAGENT]   Model: ${task.model.providerID}/${task.model.modelID}`)
+    }
 
     // Release concurrency BEFORE any async operations to prevent slot leaks
     if (task.concurrencyKey) {

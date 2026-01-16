@@ -9,6 +9,105 @@ For upstream changes, see the [original repository](https://github.com/code-yeon
 
 ---
 
+## [v3.7.0] - 2026-01-16
+
+### Auth Error Fallback & Improved Subagent Logging
+
+Major enhancement to the provider fallback system to handle authentication errors (not just rate limits) and improved visibility into subagent execution.
+
+**Problem Solved:**
+When using `/auto`, the system would fail silently when a provider's API key was missing or invalid. For example, "Google Generative AI API key is missing" would cause the task to fail instead of falling back to an available provider.
+
+**Solution:**
+
+#### Extended Error Detection
+- New `isProviderUnavailableError(error)` function returns `{ isUnavailable, isAuthError }`
+- Detects HTTP 401/403 status codes as auth errors
+- Detects API key patterns: "api key", "unauthorized", "forbidden", "missing key", etc.
+- Detects provider-specific patterns: `GOOGLE_GENERATIVE_AI_API_KEY`, `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`
+- Backward compatible: `isRateLimitError()` still works (now wraps new function)
+
+#### Auth Error Cooldown
+- Auth errors use 30-minute cooldown (vs 1 minute for rate limits)
+- Rationale: Auth errors require manual API key configuration
+- New `recordProviderAuthError(state, provider, errorMessage)` function
+- New `COOLDOWN_MS.auth_error` constant (30 min)
+
+#### Retry-with-Fallback for Subagents
+- New `launchSubagentWithFallback()` function with automatic retry
+- Attempts up to 3 providers before failing
+- Console shows clear "PROVIDER AUTH ERROR" or "PROVIDER RATE LIMIT ERROR" messages
+- Fallback chain: github-copilot → google → opencode → amazon-bedrock
+
+#### Verbose Console Output
+
+**On provider error:**
+```
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+[AUTO-ROUTER] PROVIDER AUTH ERROR
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+Provider: google
+Model: google/antigravity-gemini-3-flash
+Error: Google Generative AI API key is missing
+Cooldown: 30 minutes
+Action: Falling back to opencode
+Fallback: google/antigravity-gemini-3-flash → opencode/glm-4.7-free
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+```
+
+**Provider status display:**
+```
+[AUTO-ROUTER] Provider Status:
+----------------------------------------
+  github-copilot: ✓ available
+  google: ✗ unavailable (cooldown 28m remaining)
+  opencode: ✓ available
+  amazon-bedrock: ✓ available
+  anthropic: ✗ BLOCKED (direct API disabled)
+----------------------------------------
+```
+
+**Subagent lifecycle:**
+```
+[SUBAGENT] Launching: auto-expensive
+[SUBAGENT]   Model: github-copilot/claude-sonnet-4
+[SUBAGENT]   Task: [AUTO-ROUTER] Create mobile game...
+[SUBAGENT]   Parent: session_abc1...
+
+[SUBAGENT] Completed: auto-expensive (2m 34s)
+[SUBAGENT]   Task ID: bg_abc12345
+[SUBAGENT]   Tool Calls: 47
+[SUBAGENT]   Model: github-copilot/claude-sonnet-4
+```
+
+### Files Changed
+
+| File | Changes |
+|------|---------|
+| `src/features/auto-router/rate-limit-handler.ts` | Added `isProviderUnavailableError()`, `recordProviderAuthError()`, `COOLDOWN_MS.auth_error` |
+| `src/features/auto-router/rate-limit-handler.test.ts` | Added 20 new tests for auth error detection |
+| `src/hooks/auto-router/index.ts` | Added `launchSubagentWithFallback()`, `logProviderStatus()`, retry-fallback logic |
+| `src/features/background-agent/manager.ts` | Added verbose console output for launch/error/completion |
+| `docs/TROUBLESHOOTING.md` | Added provider fallback docs, API limitations, new functions reference |
+
+### OpenCode Plugin API Limitations Documented
+
+Added comprehensive documentation on current OpenCode Plugin API limitations and workarounds:
+
+- `chat.params` hook is read-only (cannot switch models at runtime)
+- `chat.error` hook is not exposed (cannot intercept errors directly)
+- Workaround: Configure agent variants in `opencode.json` with different models
+- Workaround: Error detection via try/catch in subagent spawn
+
+### Testing
+
+- **New tests**: 20 auth error detection tests
+- **Total tests**: 1268+ passing
+- All TypeScript type checks passing
+- Build succeeds
+
+---
+
 ## [v3.6.7] - 2026-01-16
 
 ### Verbose Model Logging & Setup Wizard

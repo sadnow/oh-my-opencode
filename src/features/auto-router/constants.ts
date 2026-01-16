@@ -14,6 +14,25 @@ import type {
 } from "./types"
 
 // ============================================================================
+// Orchestrator Model Recommendation
+// ============================================================================
+
+/**
+ * Recommended model for the orchestrator (the main session handling /auto commands).
+ * The orchestrator is a lightweight coordinator that classifies tasks and delegates
+ * actual work to subagents with appropriate models.
+ *
+ * Using a cheap/fast model for orchestration ensures:
+ * - Fast classification and routing decisions
+ * - Low cost for coordination overhead
+ * - Budget savings that can be allocated to actual work
+ *
+ * The orchestrator CAN'T change its own model at runtime (OpenCode API limitation),
+ * but it CAN spawn subagents with different models.
+ */
+export const ORCHESTRATOR_MODEL_RECOMMENDATION = "github-copilot/gpt-4o-mini"
+
+// ============================================================================
 // Budget Tier Priority (shared constant for comparison functions)
 // ============================================================================
 
@@ -596,6 +615,9 @@ export const AUTO_ROUTER_INJECTION_TEMPLATE = `<auto-router-decision>
 - **Max Iterations**: {{MAX_ITERATIONS}}
 - **Escalation Policy**: Adaptive (start cheap, escalate on failures)
 
+## Subagent Delegation
+{{SUBAGENT_DELEGATION_INFO}}
+
 ## Applicable Quality Rubrics
 {{APPLICABLE_RUBRICS}}
 
@@ -614,6 +636,30 @@ export const AUTO_ROUTER_INJECTION_TEMPLATE = `<auto-router-decision>
 
 {{TASK_DESCRIPTION}}
 `
+
+// ============================================================================
+// Subagent Delegation Templates
+// ============================================================================
+
+/**
+ * Template for subagent delegation info when auto-spawn is enabled.
+ * Shown when complexity >= tier threshold (default: Tier 2+).
+ */
+export const SUBAGENT_DELEGATION_TEMPLATE = `
+For Tier {{COMPLEXITY_TIER}} tasks, work is delegated to a subagent with an appropriate model.
+- **Subagent Model**: {{SUBAGENT_MODEL}}
+- **Subagent Agent**: {{SUBAGENT_AGENT}}
+- **Intended Budget**: {{INTENDED_BUDGET}}
+
+The subagent will perform the actual implementation work.
+You (orchestrator) coordinate and verify completion.`
+
+/**
+ * Template when subagent delegation is disabled or not triggered.
+ */
+export const NO_DELEGATION_TEMPLATE = `
+Direct execution mode - no subagent delegation.
+Work will be performed in this session with the current model.`
 
 // ============================================================================
 // Complexity Tier Descriptions

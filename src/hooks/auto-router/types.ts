@@ -78,7 +78,38 @@ export interface BackgroundManagerLike {
     agent: string
     parentSessionID: string
     parentMessageID?: string
-  }): Promise<{ id: string }>
+    /** Model to use for the subagent (v3.7.0) */
+    model?: { providerID: string; modelID: string; variant?: string }
+  }): Promise<{ id: string; sessionID?: string }>
+}
+
+/**
+ * Subagent execution info for tracking spawned subagents (v3.7.0)
+ * Used to track subagents spawned for Tier 2-3 tasks
+ */
+export interface SubagentExecutionInfo {
+  /** Link to parent analytics execution record */
+  executionId: string
+  /** Intended model for this subagent */
+  intendedModel: string
+  /** Subagent session ID */
+  sessionId: string
+  /** Agent name (e.g., "auto-expensive") */
+  agentName: string
+  /** Start timestamp for duration calculation */
+  startTime: number
+  /** Whether this was spawned due to escalation */
+  isEscalation: boolean
+  /** Budget tier escalated from (if isEscalation) */
+  escalatedFrom?: BudgetTier
+  /** Budget tier for this subagent */
+  budgetTier: BudgetTier
+  /** Complexity tier of the task */
+  complexityTier: 1 | 2 | 3
+  /** Parent session ID (orchestrator) */
+  parentSessionId: string
+  /** Task description */
+  taskDescription: string
 }
 
 export interface AutoRouterHookOptions {
@@ -105,5 +136,12 @@ export interface AutoRouterHookOptions {
     wizard_mode?: boolean
     /** Show detailed classification and routing information (v3.6.2) */
     verbose?: boolean
+    // v3.7.0: Subagent auto-spawn config
+    auto_spawn_subagents?: {
+      enabled?: boolean
+      tier_threshold?: number
+      verify_models?: boolean
+      spawn_for_ralph?: boolean
+    }
   }
 }

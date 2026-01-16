@@ -41,6 +41,7 @@ export interface RateLimitState {
 export const COOLDOWN_MS = {
   anthropic: 5 * 60 * 1000, // 5 minutes
   default: 1 * 60 * 1000, // 1 minute
+  auth_error: 30 * 60 * 1000, // 30 minutes - auth errors need manual intervention
 } as const
 
 // Half-open state: require N successes to close circuit
@@ -61,49 +62,100 @@ export const PROVIDER_FALLBACK_CHAIN: string[] = [
 // Providers that are BLOCKED (should never be used directly)
 export const BLOCKED_PROVIDERS = new Set(["anthropic"])
 
-/**
- * Detect if an error is a rate limit error (429)
- */
-export function isRateLimitError(error: unknown): boolean {
-  if (!error) return false
+// Auth error patterns - API key missing or invalid
+const AUTH_ERROR_PATTERNS = [
+  "api key",
+  "api_key",
+  "apikey",
+  "unauthorized",
+  "forbidden",
+  "missing key",
+  "invalid key",
+  "authentication",
+  "not authorized",
+  "access denied",
+  // Provider-specific patterns
+  "google_generative_ai_api_key",
+  "anthropic_api_key",
+  "openai_api_key",
+  "gemini api key",
+  "is missing",
+]
 
-  // Check for 429 status code
+/**
+ * Detect if an error is a provider unavailable error (rate limit OR auth error)
+ * Returns { isUnavailable, isAuthError } for differentiated handling
+ */
+export function isProviderUnavailableError(error: unknown): { isUnavailable: boolean; isAuthError: boolean } {
+  if (!error) return { isUnavailable: false, isAuthError: false }
+
+  let status: number | undefined
+  let message = ""
+
+  // Extract status and message from various error formats
   if (typeof error === "object") {
     const err = error as Record<string, unknown>
 
-    // Direct status check
-    if (err.status === 429 || err.statusCode === 429) {
-      return true
-    }
+    // Extract status code
+    if (typeof err.status === "number") status = err.status
+    if (typeof err.statusCode === "number") status = err.statusCode
 
-    // Check message for "429"
-    if (typeof err.message === "string" && err.message.includes("429")) {
-      return true
+    // Extract message
+    if (typeof err.message === "string") message = err.message
+
+    // Check nested error object
+    if (typeof err.error === "object") {
+      const innerError = err.error as Record<string, unknown>
+      if (typeof innerError.message === "string") message = message || innerError.message
+      if (innerError.type === "rate_limit_error") {
+        return { isUnavailable: true, isAuthError: false }
+      }
     }
 
     // Check for rate_limit_error type (Anthropic format)
     if (err.type === "error" && typeof err.error === "object") {
       const innerError = err.error as Record<string, unknown>
       if (innerError.type === "rate_limit_error") {
-        return true
+        return { isUnavailable: true, isAuthError: false }
       }
     }
+  } else if (typeof error === "string") {
+    message = error
+  }
 
-    // Check nested error object
-    if (typeof err.error === "object") {
-      const innerError = err.error as Record<string, unknown>
-      if (innerError.type === "rate_limit_error") {
-        return true
-      }
+  // Check for rate limit (429) status
+  if (status === 429) {
+    return { isUnavailable: true, isAuthError: false }
+  }
+
+  // Check for auth errors (401, 403)
+  if (status === 401 || status === 403) {
+    return { isUnavailable: true, isAuthError: true }
+  }
+
+  // Check message for "429" or rate limit keywords
+  if (message.includes("429") || message.toLowerCase().includes("rate_limit") || message.toLowerCase().includes("rate limit")) {
+    return { isUnavailable: true, isAuthError: false }
+  }
+
+  // Check message for auth error patterns
+  const msgLower = message.toLowerCase()
+  for (const pattern of AUTH_ERROR_PATTERNS) {
+    if (msgLower.includes(pattern.toLowerCase())) {
+      return { isUnavailable: true, isAuthError: true }
     }
   }
 
-  // Check string representation
-  if (typeof error === "string") {
-    return error.includes("429") || error.includes("rate_limit")
-  }
+  return { isUnavailable: false, isAuthError: false }
+}
 
-  return false
+/**
+ * Detect if an error is a rate limit error (429)
+ * @deprecated Use isProviderUnavailableError() for more comprehensive detection
+ */
+export function isRateLimitError(error: unknown): boolean {
+  const { isUnavailable } = isProviderUnavailableError(error)
+  return isUnavailable
 }
 
 /**
@@ -180,13 +232,17 @@ export function saveRateLimitState(state: RateLimitState): void {
 
 /**
  * Record a rate limit hit for a provider
+ * @param state Current rate limit state
+ * @param provider Provider ID
+ * @param customCooldownMs Optional custom cooldown (used for auth errors)
  */
 export function recordRateLimitHit(
   state: RateLimitState,
-  provider: string
+  provider: string,
+  customCooldownMs?: number
 ): RateLimitState {
   const now = Date.now()
-  const cooldownMs = getCooldownMs(provider)
+  const cooldownMs = customCooldownMs ?? getCooldownMs(provider)
 
   const existing = state.providers[provider]
   const newProviderState: ProviderRateLimitState = {
@@ -218,6 +274,24 @@ export function recordRateLimitHit(
   saveRateLimitState(newState)
 
   return newState
+}
+
+/**
+ * Record an authentication error for a provider
+ * Auth errors use longer cooldown (30 min) since they typically need manual intervention
+ */
+export function recordProviderAuthError(
+  state: RateLimitState,
+  provider: string,
+  errorMessage: string
+): RateLimitState {
+  log("[rate-limit] Auth error recorded for provider", {
+    provider,
+    errorMessage: errorMessage.substring(0, 100),
+  })
+
+  // Use longer cooldown for auth errors - they need manual API key configuration
+  return recordRateLimitHit(state, provider, COOLDOWN_MS.auth_error)
 }
 
 /**

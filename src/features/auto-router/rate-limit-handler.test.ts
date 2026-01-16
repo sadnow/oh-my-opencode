@@ -5,9 +5,11 @@
 import { describe, it, expect, beforeEach } from "bun:test"
 import {
   isRateLimitError,
+  isProviderUnavailableError,
   extractProvider,
   getCooldownMs,
   recordRateLimitHit,
+  recordProviderAuthError,
   recordSuccess,
   isProviderAvailable,
   getFallbackProvider,
@@ -70,6 +72,153 @@ describe("rate-limit-handler", () => {
       expect(isRateLimitError({ message: "Internal Server Error" })).toBe(false)
       expect(isRateLimitError(null)).toBe(false)
       expect(isRateLimitError(undefined)).toBe(false)
+    })
+
+    it("should detect auth errors as unavailable (backward compat)", () => {
+      // Auth errors should now return true via isRateLimitError
+      expect(isRateLimitError({ status: 401 })).toBe(true)
+      expect(isRateLimitError({ status: 403 })).toBe(true)
+      expect(isRateLimitError({ message: "API key is missing" })).toBe(true)
+    })
+  })
+
+  describe("isProviderUnavailableError", () => {
+    it("should detect rate limit errors (not auth)", () => {
+      const result = isProviderUnavailableError({ status: 429 })
+      expect(result.isUnavailable).toBe(true)
+      expect(result.isAuthError).toBe(false)
+    })
+
+    it("should detect 401 as auth error", () => {
+      const result = isProviderUnavailableError({ status: 401 })
+      expect(result.isUnavailable).toBe(true)
+      expect(result.isAuthError).toBe(true)
+    })
+
+    it("should detect 403 as auth error", () => {
+      const result = isProviderUnavailableError({ status: 403 })
+      expect(result.isUnavailable).toBe(true)
+      expect(result.isAuthError).toBe(true)
+    })
+
+    it("should detect API key missing in message as auth error", () => {
+      const result = isProviderUnavailableError({
+        message: "Google Generative AI API key is missing"
+      })
+      expect(result.isUnavailable).toBe(true)
+      expect(result.isAuthError).toBe(true)
+    })
+
+    it("should detect unauthorized in message as auth error", () => {
+      const result = isProviderUnavailableError({
+        message: "Unauthorized: Invalid credentials"
+      })
+      expect(result.isUnavailable).toBe(true)
+      expect(result.isAuthError).toBe(true)
+    })
+
+    it("should detect forbidden in message as auth error", () => {
+      const result = isProviderUnavailableError({
+        message: "Forbidden: Access denied to resource"
+      })
+      expect(result.isUnavailable).toBe(true)
+      expect(result.isAuthError).toBe(true)
+    })
+
+    it("should detect provider-specific API key patterns", () => {
+      const googleError = isProviderUnavailableError({
+        message: "GOOGLE_GENERATIVE_AI_API_KEY not found"
+      })
+      expect(googleError.isUnavailable).toBe(true)
+      expect(googleError.isAuthError).toBe(true)
+
+      const anthropicError = isProviderUnavailableError({
+        message: "ANTHROPIC_API_KEY is required"
+      })
+      expect(anthropicError.isUnavailable).toBe(true)
+      expect(anthropicError.isAuthError).toBe(true)
+
+      const openaiError = isProviderUnavailableError({
+        message: "OPENAI_API_KEY missing from environment"
+      })
+      expect(openaiError.isUnavailable).toBe(true)
+      expect(openaiError.isAuthError).toBe(true)
+    })
+
+    it("should return false for non-provider errors", () => {
+      const result = isProviderUnavailableError({
+        status: 500,
+        message: "Internal server error"
+      })
+      expect(result.isUnavailable).toBe(false)
+      expect(result.isAuthError).toBe(false)
+    })
+
+    it("should handle null/undefined", () => {
+      expect(isProviderUnavailableError(null).isUnavailable).toBe(false)
+      expect(isProviderUnavailableError(undefined).isUnavailable).toBe(false)
+    })
+
+    it("should handle string errors", () => {
+      const rateLimit = isProviderUnavailableError("429 rate limit exceeded")
+      expect(rateLimit.isUnavailable).toBe(true)
+      expect(rateLimit.isAuthError).toBe(false)
+
+      const authError = isProviderUnavailableError("API key is missing")
+      expect(authError.isUnavailable).toBe(true)
+      expect(authError.isAuthError).toBe(true)
+    })
+  })
+
+  describe("recordProviderAuthError", () => {
+    it("should use auth_error cooldown (30 minutes)", () => {
+      const state = recordProviderAuthError(emptyState, "google", "API key missing")
+      const now = Date.now()
+
+      // Auth error cooldown should be ~30 minutes
+      const cooldownExpected = now + COOLDOWN_MS.auth_error
+      expect(state.providers["google"].cooldownUntil).toBeGreaterThan(cooldownExpected - 1000)
+      expect(state.providers["google"].cooldownUntil).toBeLessThan(cooldownExpected + 1000)
+    })
+
+    it("should open the circuit breaker", () => {
+      const state = recordProviderAuthError(emptyState, "google", "Unauthorized")
+
+      expect(state.providers["google"].circuitState).toBe("open")
+      expect(state.providers["google"].hitCount).toBe(1)
+    })
+
+    it("should have longer cooldown than rate limit errors", () => {
+      const authState = recordProviderAuthError(emptyState, "google", "API key missing")
+      const rateLimitState = recordRateLimitHit(emptyState, "google")
+
+      const authCooldown = authState.providers["google"].cooldownUntil
+      const rateCooldown = rateLimitState.providers["google"].cooldownUntil
+
+      // Auth errors should have significantly longer cooldown
+      expect(authCooldown - rateCooldown).toBeGreaterThan(25 * 60 * 1000) // ~25+ min difference
+    })
+  })
+
+  describe("recordRateLimitHit with custom cooldown", () => {
+    it("should accept custom cooldown parameter", () => {
+      const customCooldown = 10 * 60 * 1000 // 10 minutes
+      const state = recordRateLimitHit(emptyState, "github-copilot", customCooldown)
+      const now = Date.now()
+
+      expect(state.providers["github-copilot"].cooldownUntil).toBeGreaterThan(now + customCooldown - 1000)
+      expect(state.providers["github-copilot"].cooldownUntil).toBeLessThan(now + customCooldown + 1000)
+    })
+  })
+
+  describe("COOLDOWN_MS", () => {
+    it("should have auth_error cooldown defined", () => {
+      expect(COOLDOWN_MS.auth_error).toBeDefined()
+      expect(COOLDOWN_MS.auth_error).toBe(30 * 60 * 1000) // 30 minutes
+    })
+
+    it("should have auth_error longer than default", () => {
+      expect(COOLDOWN_MS.auth_error).toBeGreaterThan(COOLDOWN_MS.default)
     })
   })
 

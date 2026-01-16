@@ -378,6 +378,18 @@ export const MetaDevelopmentConfigSchema = z.object({
   ]),
 })
 
+/** Subagent auto-spawn configuration schema (v3.7.0) */
+export const SubagentSpawnConfigSchema = z.object({
+  /** Enable automatic subagent spawning for complex tasks (default: true) */
+  enabled: z.boolean().default(true),
+  /** Minimum complexity tier to trigger subagent spawn (default: 2) */
+  tier_threshold: z.number().min(1).max(3).default(2),
+  /** Verify subagent used the intended model (default: true) */
+  verify_models: z.boolean().default(true),
+  /** Also spawn subagent for ralph/triple techniques regardless of tier (default: true) */
+  spawn_for_ralph: z.boolean().default(true),
+})
+
 export const AutoRouterConfigSchema = z.object({
   /** Enable auto-router functionality (default: true) */
   enabled: z.boolean().default(true),
@@ -405,6 +417,8 @@ export const AutoRouterConfigSchema = z.object({
   verbose: z.boolean().default(false),
   /** Parallel agent spawning configuration (v3.5.0) */
   parallel_agents: ParallelAgentConfigSchema.optional(),
+  /** Subagent auto-spawn configuration for complex tasks (v3.7.0) */
+  auto_spawn_subagents: SubagentSpawnConfigSchema.optional(),
 })
 
 export const OhMyOpenCodeConfigSchema = z.object({
@@ -453,6 +467,7 @@ export type CategoriesConfig = z.infer<typeof CategoriesConfigSchema>
 export type BuiltinCategoryName = z.infer<typeof BuiltinCategoryNameSchema>
 export type GitMasterConfig = z.infer<typeof GitMasterConfigSchema>
 export type AutoRouterConfig = z.infer<typeof AutoRouterConfigSchema>
+export type SubagentSpawnConfig = z.infer<typeof SubagentSpawnConfigSchema>
 export type MetaDevelopmentConfig = z.infer<typeof MetaDevelopmentConfigSchema>
 export type BudgetTier = z.infer<typeof BudgetTierSchema>
 export type TechniqueCombo = z.infer<typeof TechniqueComboSchema>
