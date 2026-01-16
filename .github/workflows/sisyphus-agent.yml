@@ -69,14 +69,14 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-bun-
 
-      # Build local oh-my-opencode
-      - name: Build oh-my-opencode
+      # v3.8.0: Build local oh_my_autocode (renamed from oh-my-opencode)
+      - name: Build oh_my_autocode
         run: |
           bun install
           bun run build
 
       # Install OpenCode + configure local plugin + auth in single step
-      - name: Setup OpenCode with oh-my-opencode
+      - name: Setup OpenCode with oh_my_autocode
         env:
           OPENCODE_AUTH_JSON: ${{ secrets.OPENCODE_AUTH_JSON }}
           ANTHROPIC_BASE_URL: ${{ secrets.ANTHROPIC_BASE_URL }}
@@ -106,10 +106,11 @@ jobs:
           bun run dist/cli/index.js install --no-tui --claude=max20 --chatgpt=no --gemini=no --copilot=no
 
           # Override plugin to use local file reference
+          # v3.8.0: Updated plugin filter for oh_my_autocode rename
           OPENCODE_JSON=~/.config/opencode/opencode.json
           REPO_PATH=$(pwd)
           jq --arg path "file://$REPO_PATH/src/index.ts" '
-            .plugin = [.plugin[] | select(. != "oh-my-opencode")] + [$path]
+            .plugin = [.plugin[] | select(. != "oh-my-opencode" and . != "oh_my_autocode")] + [$path]
           ' "$OPENCODE_JSON" > /tmp/oc.json && mv /tmp/oc.json "$OPENCODE_JSON"
 
           OPENCODE_JSON=~/.config/opencode/opencode.json
@@ -154,7 +155,8 @@ jobs:
             }
           ' "$OPENCODE_JSON" > /tmp/oc.json && mv /tmp/oc.json "$OPENCODE_JSON"
 
-          OMO_JSON=~/.config/opencode/oh-my-opencode.json
+          # v3.8.0: Updated config filename for oh_my_autocode rename
+          OMO_JSON=~/.config/opencode/oh_my_autocode.json
           PROMPT_APPEND=$(cat << 'PROMPT_EOF'
           <ultrawork-mode>
           [CODE RED] Maximum precision required. Ultrathink before acting.
@@ -358,7 +360,8 @@ jobs:
               --add-label "sisyphus: working" || true
           fi
 
-      - name: Run oh-my-opencode
+      # v3.8.0: Renamed from oh-my-opencode
+      - name: Run oh_my_autocode
         env:
           GITHUB_TOKEN: ${{ secrets.GH_PAT }}
           USER_COMMENT: ${{ steps.context.outputs.comment }}
