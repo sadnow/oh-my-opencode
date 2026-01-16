@@ -93,7 +93,11 @@ export class BackgroundManager {
       throw new Error("Agent parameter is required")
     }
 
-    const concurrencyKey = input.agent
+    // v3.8.0: Use provider/model for concurrency, not agent name
+    // This enables "2 agents per provider" policy enforcement
+    const concurrencyKey = input.model
+      ? `${input.model.providerID}/${input.model.modelID}`
+      : input.agent
 
     await this.concurrencyManager.acquire(concurrencyKey)
 

@@ -382,8 +382,12 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
     ? createStartWorkHook(ctx)
     : null;
 
+  // v3.8.0: Move backgroundManager creation before hooks that need it
+  const backgroundManager = new BackgroundManager(ctx);
+
+  // v3.8.0: Pass backgroundManager to sisyphus-orchestrator for task tracking
   const sisyphusOrchestrator = isHookEnabled("sisyphus-orchestrator")
-    ? createSisyphusOrchestratorHook(ctx)
+    ? createSisyphusOrchestratorHook(ctx, { directory: ctx.directory, backgroundManager })
     : null;
 
   const prometheusMdOnly = isHookEnabled("prometheus-md-only")
@@ -391,8 +395,6 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
     : null;
 
   const taskResumeInfo = createTaskResumeInfoHook();
-
-  const backgroundManager = new BackgroundManager(ctx);
 
   initTaskToastManager(ctx.client);
 
@@ -700,6 +702,8 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
       await directoryReadmeInjector?.["tool.execute.before"]?.(input, output);
       await rulesInjector?.["tool.execute.before"]?.(input, output);
       await prometheusMdOnly?.["tool.execute.before"]?.(input, output);
+      // v3.8.0: Wire sisyphus-orchestrator tool.execute.before for Write/Edit interception
+      await sisyphusOrchestrator?.["tool.execute.before"]?.(input, output);
 
       if (input.tool === "task") {
         const args = output.args as Record<string, unknown>;
