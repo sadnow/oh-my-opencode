@@ -67,6 +67,6 @@ export const EXIT_CODES = {
 
 export const MIN_OPENCODE_VERSION = "1.0.150"
 
-export const PACKAGE_NAME = "oh-my-opencode"
+export const PACKAGE_NAME = "oh_my_autocode"
 
 export const OPENCODE_BINARIES = ["opencode", "opencode-desktop"] as const

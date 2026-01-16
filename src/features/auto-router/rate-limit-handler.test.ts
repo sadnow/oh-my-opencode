@@ -399,7 +399,7 @@ describe("rate-limit-handler", () => {
 
       const fallback = getFallbackProvider(state, "github-copilot")
       expect(fallback).not.toBe("github-copilot")
-      expect(fallback).toBe("google") // Next in chain
+      expect(fallback).toBe("openai") // Next in chain (openai comes before google in PROVIDER_FALLBACK_CHAIN)
     })
 
     it("should skip excluded provider", () => {
@@ -434,7 +434,7 @@ describe("rate-limit-handler", () => {
       const result = getModelWithFallback(state, "github-copilot/claude-sonnet-4")
 
       expect(result.didFallback).toBe(true)
-      expect(result.provider).toBe("google")
+      expect(result.provider).toBe("openai") // openai comes before google in PROVIDER_FALLBACK_CHAIN
     })
 
     it("should always fallback for blocked providers", () => {
