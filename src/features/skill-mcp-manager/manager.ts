@@ -6,6 +6,7 @@ import type { ClaudeCodeMcpServer } from "../claude-code-mcp-loader/types"
 import { expandEnvVarsInObject } from "../claude-code-mcp-loader/env-expander"
 import { createCleanMcpEnvironment } from "./env-cleaner"
 import type { SkillMcpClientInfo, SkillMcpServerContext } from "./types"
+import { resetTerminal } from "../../shared/terminal-cleanup"
 
 /**
  * Connection type for a managed MCP client.
@@ -95,15 +96,18 @@ export class SkillMcpManager {
 
     process.on("SIGINT", async () => {
       await cleanup()
+      resetTerminal()
       process.exit(0)
     })
     process.on("SIGTERM", async () => {
       await cleanup()
+      resetTerminal()
       process.exit(0)
     })
     if (process.platform === "win32") {
       process.on("SIGBREAK", async () => {
         await cleanup()
+        resetTerminal()
         process.exit(0)
       })
     }

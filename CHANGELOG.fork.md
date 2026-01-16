@@ -9,6 +9,36 @@ For upstream changes, see the [original repository](https://github.com/code-yeon
 
 ---
 
+## [v3.6.5] - 2026-01-16
+
+### Terminal Cleanup on Exit
+
+Fixes terminal corruption (mouse tracking escape sequences) when OpenCode sessions exit or crash.
+
+**Problem:**
+After session exit/crash, PowerShell showed raw SGR mouse tracking codes like `[555;102;13M` when moving mouse.
+
+**Solution:**
+- New `src/shared/terminal-cleanup.ts` module with `resetTerminal()` function
+- Disables all mouse tracking modes before process exit
+- Added to all signal handlers (SIGINT, SIGTERM, SIGBREAK)
+
+**Files Updated:**
+- `src/shared/terminal-cleanup.ts` - NEW: Terminal reset function
+- `src/tools/lsp/client.ts` - Added resetTerminal() to signal handlers
+- `src/features/skill-mcp-manager/manager.ts` - Added resetTerminal() to signal handlers
+- `src/features/background-agent/manager.ts` - Added resetTerminal() to registerProcessSignal()
+- `src/cli/run/runner.ts` - Added resetTerminal() to SIGINT handler
+
+**What resetTerminal() Does:**
+- Disables SGR mouse tracking (`\x1b[?1006l`)
+- Disables X11 mouse tracking (`\x1b[?1000l`)
+- Resets text attributes (`\x1b[0m`)
+- Exits alternate screen buffer
+- Shows cursor
+
+---
+
 ## [v3.6.4] - 2026-01-15
 
 ### Full Session Context Preservation

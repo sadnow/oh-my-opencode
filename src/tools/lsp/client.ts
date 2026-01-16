@@ -4,6 +4,7 @@ import { extname, resolve } from "path"
 import { pathToFileURL } from "node:url"
 import { getLanguageId } from "./config"
 import type { Diagnostic, ResolvedServer } from "./types"
+import { resetTerminal } from "../../shared/terminal-cleanup"
 
 interface ManagedClient {
   client: LSPClient
@@ -44,12 +45,14 @@ class LSPServerManager {
     // Ctrl+C - works on all platforms
     process.on("SIGINT", () => {
       cleanup()
+      resetTerminal()
       process.exit(0)
     })
 
     // Kill signal - Unix/macOS
     process.on("SIGTERM", () => {
       cleanup()
+      resetTerminal()
       process.exit(0)
     })
 
@@ -57,6 +60,7 @@ class LSPServerManager {
     if (process.platform === "win32") {
       process.on("SIGBREAK", () => {
         cleanup()
+        resetTerminal()
         process.exit(0)
       })
     }

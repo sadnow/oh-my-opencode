@@ -14,6 +14,7 @@ import { getTaskToastManager } from "../task-toast-manager"
 import { findNearestMessageWithFields, MESSAGE_STORAGE } from "../hook-message-injector"
 import { existsSync, readdirSync } from "node:fs"
 import { join } from "node:path"
+import { resetTerminal } from "../../shared/terminal-cleanup"
 
 const TASK_TTL_MS = 30 * 60 * 1000
 const MIN_STABILITY_TIME_MS = 10 * 1000  // Must run at least 10s before stability detection kicks in
@@ -1094,6 +1095,7 @@ function registerProcessSignal(
   const listener = () => {
     handler()
     if (exitAfter) {
+      resetTerminal()
       process.exit(0)
     }
   }

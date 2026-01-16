@@ -3,6 +3,7 @@ import pc from "picocolors"
 import type { RunOptions, RunContext } from "./types"
 import { checkCompletionConditions } from "./completion"
 import { createEventState, processEvents, serializeError } from "./events"
+import { resetTerminal } from "../../shared/terminal-cleanup"
 
 const POLL_INTERVAL_MS = 500
 const DEFAULT_TIMEOUT_MS = 0
@@ -41,6 +42,7 @@ export async function run(options: RunOptions): Promise<number> {
     process.on("SIGINT", () => {
       console.log(pc.yellow("\nInterrupted. Shutting down..."))
       cleanup()
+      resetTerminal()
       process.exit(130)
     })
 
