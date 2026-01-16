@@ -383,7 +383,7 @@ export const BUDGET_TIERS: Record<BudgetTier, BudgetTierConfig> = {
   free: {
     name: "free",
     models: {
-      primary: "opencode/glm-4.7-free",       // Free GLM model
+      primary: "opencode/glm-4.7-free",       // Free GLM model (always available)
       thinking: "opencode/grok-code",          // Free Grok for reasoning
       judge: "opencode/glm-4.7-free",         // Free judge
     },
@@ -393,9 +393,10 @@ export const BUDGET_TIERS: Record<BudgetTier, BudgetTierConfig> = {
   cheap: {
     name: "cheap",
     models: {
-      primary: "github-copilot/gpt-4o-mini",   // Free via Copilot CLI
-      thinking: "github-copilot/gpt-4o-mini",
-      judge: "github-copilot/gpt-4o-mini",
+      // Use OpenAI as primary (more reliable when Copilot credits exhausted)
+      primary: "openai/gpt-4o-mini",           // OpenAI API (requires key)
+      thinking: "opencode/grok-code",          // Free fallback for thinking
+      judge: "opencode/glm-4.7-free",         // Free judge
     },
     maxIterations: 3,   // Quick tasks: fail fast if not solving
     timeoutMs: 30000,   // 30 seconds
@@ -405,7 +406,7 @@ export const BUDGET_TIERS: Record<BudgetTier, BudgetTierConfig> = {
     models: {
       primary: "google/antigravity-gemini-3-flash",      // Free via Antigravity OAuth (AI Studio)
       thinking: "google/antigravity-gemini-3-pro-high",  // Thinking enabled, 1M context
-      judge: "github-copilot/gpt-4o-mini",              // Keep judge cheap
+      judge: "opencode/glm-4.7-free",                   // Free judge (avoid copilot)
     },
     maxIterations: 5,   // Standard tasks: moderate exploration
     timeoutMs: 60000,   // 1 minute
@@ -413,8 +414,9 @@ export const BUDGET_TIERS: Record<BudgetTier, BudgetTierConfig> = {
   expensive: {
     name: "expensive",
     models: {
-      primary: "github-copilot/claude-sonnet-4",        // Claude Sonnet 4 via Copilot CLI
-      thinking: "github-copilot/claude-sonnet-4",
+      // Use OpenAI gpt-4o when Copilot premium exhausted
+      primary: "openai/gpt-4o",                         // OpenAI GPT-4o (high capability)
+      thinking: "google/antigravity-gemini-3-pro-high", // Gemini for thinking (free)
       judge: "google/antigravity-gemini-3-flash",       // Free judge via Antigravity
     },
     maxIterations: 10,  // Complex tasks: extensive exploration
@@ -423,9 +425,10 @@ export const BUDGET_TIERS: Record<BudgetTier, BudgetTierConfig> = {
   maximum: {
     name: "maximum",
     models: {
-      primary: "github-copilot/claude-opus-4-5",       // Claude Opus 4.5 via Copilot CLI
-      thinking: "github-copilot/claude-opus-4-5",
-      judge: "github-copilot/claude-sonnet-4",         // Sonnet as judge for maximum tier
+      // Use OpenAI o1 for maximum capability when Copilot premium exhausted
+      primary: "openai/o1",                             // OpenAI o1 (highest reasoning)
+      thinking: "openai/gpt-4o",                        // GPT-4o for extended thinking
+      judge: "openai/gpt-4o",                           // GPT-4o as judge
     },
     maxIterations: 25,  // Hardest tasks: exhaustive exploration
     timeoutMs: 600000,  // 10 minutes

@@ -52,11 +52,13 @@ const STATE_DIR = join(homedir(), ".opencode")
 const STATE_FILE = join(STATE_DIR, "rate-limit-state.json")
 
 // Provider fallback chain (in order of preference)
+// Prioritize providers with available credits/access
 export const PROVIDER_FALLBACK_CHAIN: string[] = [
-  "github-copilot",
-  "google",
-  "opencode",
-  "amazon-bedrock",
+  "opencode",       // Free models always available
+  "google",         // AI Studio / Antigravity
+  "openai",         // Direct OpenAI API (if configured)
+  "github-copilot", // May have usage limits
+  "amazon-bedrock", // Enterprise fallback
 ]
 
 // Providers that are BLOCKED (should never be used directly)
@@ -447,29 +449,48 @@ export function getModelWithFallback(
 function mapModelToProvider(modelName: string, provider: string): string {
   // Model equivalents across providers
   const modelMappings: Record<string, Record<string, string>> = {
+    opencode: {
+      // Map to free models (always available)
+      "claude-opus-4-5": "grok-code",
+      "claude-sonnet-4": "glm-4.7-free",
+      "gpt-4o": "grok-code",
+      "gpt-4o-mini": "glm-4.7-free",
+      "gemini-3-pro": "grok-code",
+      "gemini-3-flash": "glm-4.7-free",
+    },
+    google: {
+      // Map to Antigravity/AI Studio models
+      "claude-opus-4-5": "antigravity-gemini-3-pro-high",
+      "claude-sonnet-4": "antigravity-gemini-3-flash",
+      "gpt-4o": "antigravity-gemini-3-pro-high",
+      "gpt-4o-mini": "antigravity-gemini-3-flash",
+      "gemini-3-pro": "antigravity-gemini-3-pro-high",
+      "gemini-3-flash": "antigravity-gemini-3-flash",
+    },
+    openai: {
+      // Map to OpenAI models (if API key configured)
+      "claude-opus-4-5": "gpt-4o",
+      "claude-sonnet-4": "gpt-4o",
+      "gpt-4o": "gpt-4o",
+      "gpt-4o-mini": "gpt-4o-mini",
+      "gemini-3-pro": "gpt-4o",
+      "gemini-3-flash": "gpt-4o-mini",
+      "glm-4.7-free": "gpt-4o-mini",
+      "grok-code": "gpt-4o",
+    },
     "github-copilot": {
       "claude-opus-4-5": "claude-opus-4-5",
       "claude-sonnet-4": "claude-sonnet-4",
       "gpt-4o": "gpt-4o",
       "gpt-4o-mini": "gpt-4o-mini",
-    },
-    google: {
-      // Map to Antigravity models
-      "claude-opus-4-5": "antigravity-gemini-3-pro-high",
-      "claude-sonnet-4": "antigravity-gemini-3-flash",
-      "gpt-4o": "antigravity-gemini-3-pro-high",
-      "gpt-4o-mini": "antigravity-gemini-3-flash",
-    },
-    opencode: {
-      // Map to free models
-      "claude-opus-4-5": "glm-4.7-free",
-      "claude-sonnet-4": "glm-4.7-free",
-      "gpt-4o": "grok-code",
-      "gpt-4o-mini": "glm-4.7-free",
+      "gemini-3-pro": "gpt-4o",
+      "gemini-3-flash": "gpt-4o-mini",
     },
     "amazon-bedrock": {
       "claude-opus-4-5": "anthropic.claude-opus-4-5",
       "claude-sonnet-4": "anthropic.claude-sonnet-4",
+      "gpt-4o": "anthropic.claude-sonnet-4",
+      "gpt-4o-mini": "anthropic.claude-haiku-3-5",
     },
   }
 
@@ -480,9 +501,10 @@ function mapModelToProvider(modelName: string, provider: string): string {
 
   // No mapping found, use a safe default for this provider
   const defaultModels: Record<string, string> = {
-    "github-copilot": "gpt-4o-mini",
-    google: "antigravity-gemini-3-flash",
     opencode: "glm-4.7-free",
+    google: "antigravity-gemini-3-flash",
+    openai: "gpt-4o-mini",
+    "github-copilot": "gpt-4o-mini",
     "amazon-bedrock": "anthropic.claude-sonnet-4",
   }
 
