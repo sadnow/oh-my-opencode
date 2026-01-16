@@ -9,6 +9,61 @@ For upstream changes, see the [original repository](https://github.com/code-yeon
 
 ---
 
+## [v3.6.7] - 2026-01-16
+
+### Verbose Model Logging & Setup Wizard
+
+Adds comprehensive model/provider visibility and a Python CLI setup wizard.
+
+**Verbose Logging:**
+- Console output shows exactly which model and provider is being used
+- Rate limit events display with full provider status
+- Model switching clearly indicates fallback vs primary selection
+
+**Console Output Example:**
+```
+========================================
+[AUTO-ROUTER] MODEL SELECTION
+========================================
+Session: abc12345...
+Budget Tier: MODERATE
+----------------------------------------
+Original Request:
+  Provider: github-copilot
+  Model: claude-sonnet-4
+----------------------------------------
+Final Selection:
+  Provider: github-copilot
+  Model: claude-sonnet-4
+  Fallback: NO
+========================================
+```
+
+**Setup Wizard (autocode_setup.py):**
+- Interactive CLI mode with arrow key navigation
+- Command-line options mode for scripting
+- Rate limit configuration (cooldown periods)
+- Provider enable/disable management
+- Budget tier presets
+- Rebuild option
+- Rate limit state reset
+
+**Usage:**
+```bash
+python autocode_setup.py              # Interactive mode
+python autocode_setup.py --options    # Show all options
+python autocode_setup.py --status     # Show current config
+python autocode_setup.py --set-budget moderate
+python autocode_setup.py --enable-verbose --rebuild
+```
+
+**New Files:**
+- `autocode_setup.py` - Comprehensive CLI setup wizard
+- Updated `src/shared/notifications.ts` - New notification functions
+- Updated `src/hooks/auto-router/index.ts` - Verbose logging
+
+---
+
 ## [v3.6.6] - 2026-01-16
 
 ### Rate Limit Protection & Provider Fallback

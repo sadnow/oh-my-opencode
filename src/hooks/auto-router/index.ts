@@ -12,6 +12,10 @@ import {
   formatMagicKeywordToast,
   formatModelSelectionToast,
   formatParallelAgentToast,
+  formatProviderSwitchToast,
+  formatRateLimitToast,
+  formatModelUsageToast,
+  formatProviderStatusToast,
   toSimpleToast,
 } from "../../shared/notifications"
 import {
@@ -53,6 +57,9 @@ import {
   getModelWithFallback,
   extractProvider,
   getRateLimitSummary,
+  getCooldownMs,
+  BLOCKED_PROVIDERS,
+  PROVIDER_FALLBACK_CHAIN,
   type RateLimitState,
 } from "../../features/auto-router/rate-limit-handler"
 import { BudgetTierSchema, TechniqueComboSchema, AutoRouterConfigSchema } from "../../config/schema"
@@ -888,6 +895,7 @@ ${AUTO_ROUTER_TAG_CLOSE}`
    * This is the key integration that ACTUALLY changes the model being used
    *
    * v3.6.6: Now includes rate limit checking and automatic fallback
+   * v3.6.7: Added verbose model/provider logging
    */
   const chatParams = async (
     output: { message: { model?: { providerID: string; modelID: string } } },
@@ -906,10 +914,16 @@ ${AUTO_ROUTER_TAG_CLOSE}`
     const modelConfig = getBudgetTierModelConfig(currentTier)
 
     // v3.6.6: Check rate limits and apply fallback if needed
-    const originalModel = `${modelConfig.providerID}/${modelConfig.modelID}`
+    const originalProvider = modelConfig.providerID
+    const originalModel = modelConfig.modelID
+    const originalFullModel = `${originalProvider}/${originalModel}`
+
+    // Check if original provider is blocked
+    const isOriginalBlocked = BLOCKED_PROVIDERS.has(originalProvider)
+
     const { model: finalModel, provider: finalProvider, didFallback } = getModelWithFallback(
       rateLimitState,
-      originalModel
+      originalFullModel
     )
 
     // Parse fallback result
@@ -922,26 +936,51 @@ ${AUTO_ROUTER_TAG_CLOSE}`
       modelID: fallbackModelID,
     }
 
+    // v3.6.7: Verbose logging - ALWAYS show which model is being used
+    console.log(`\n========================================`)
+    console.log(`[AUTO-ROUTER] MODEL SELECTION`)
+    console.log(`========================================`)
+    console.log(`Session: ${sessionID.substring(0, 8)}...`)
+    console.log(`Budget Tier: ${currentTier.toUpperCase()}`)
+    console.log(`----------------------------------------`)
+    console.log(`Original Request:`)
+    console.log(`  Provider: ${originalProvider}`)
+    console.log(`  Model: ${originalModel}`)
+    if (isOriginalBlocked) {
+      console.log(`  Status: BLOCKED (direct Anthropic API disabled)`)
+    }
+    console.log(`----------------------------------------`)
+    console.log(`Final Selection:`)
+    console.log(`  Provider: ${fallbackProviderID}`)
+    console.log(`  Model: ${fallbackModelID}`)
+    console.log(`  Fallback: ${didFallback ? "YES" : "NO"}`)
     if (didFallback) {
-      log(`[${HOOK_NAME}] Model switched with rate limit fallback`, {
+      console.log(`  Reason: ${isOriginalBlocked ? "Provider blocked" : "Rate limited"}`)
+    }
+    console.log(`========================================\n`)
+
+    // Also log to debug log
+    if (didFallback) {
+      log(`[${HOOK_NAME}] MODEL SWITCH: ${originalFullModel} → ${finalModel}`, {
         sessionID,
         tier: currentTier,
-        original: originalModel,
-        fallback: finalModel,
-        provider: finalProvider,
+        original: { provider: originalProvider, model: originalModel },
+        final: { provider: fallbackProviderID, model: fallbackModelID },
+        reason: isOriginalBlocked ? "blocked" : "rate_limited",
       })
     } else {
-      log(`[${HOOK_NAME}] Model switched based on budget tier`, {
+      log(`[${HOOK_NAME}] MODEL SELECTED: ${finalModel}`, {
         sessionID,
         tier: currentTier,
-        providerID: fallbackProviderID,
-        modelID: fallbackModelID,
+        provider: fallbackProviderID,
+        model: fallbackModelID,
       })
     }
   }
 
   /**
    * v3.6.6: Chat error handler - detects rate limits and triggers circuit breaker
+   * v3.6.7: Added verbose rate limit logging
    */
   const chatError = async (
     input: { error: unknown; sessionID: string; model?: { providerID: string; modelID: string } }
@@ -951,17 +990,43 @@ ${AUTO_ROUTER_TAG_CLOSE}`
     // Check if this is a rate limit error
     if (isRateLimitError(error)) {
       const provider = model ? model.providerID : "unknown"
-      log(`[${HOOK_NAME}] Rate limit detected, triggering circuit breaker`, {
-        sessionID,
-        provider,
-        model: model ? `${model.providerID}/${model.modelID}` : "unknown",
-      })
+      const modelName = model ? model.modelID : "unknown"
+      const cooldownMs = getCooldownMs(provider)
+      const cooldownMinutes = Math.ceil(cooldownMs / 60000)
+
+      // v3.6.7: Verbose console output for rate limits
+      console.log(`\n!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!`)
+      console.log(`[AUTO-ROUTER] RATE LIMIT DETECTED`)
+      console.log(`!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!`)
+      console.log(`Provider: ${provider}`)
+      console.log(`Model: ${modelName}`)
+      console.log(`Cooldown: ${cooldownMinutes} minute(s)`)
+      console.log(`Circuit Breaker: OPENING`)
+      console.log(`!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!`)
 
       // Record the rate limit hit (this persists to disk)
       rateLimitState = recordRateLimitHit(rateLimitState, provider)
 
-      // Log the updated state
-      log(`[${HOOK_NAME}] Rate limit state updated`, {
+      // Show updated provider status
+      console.log(`\n[AUTO-ROUTER] PROVIDER STATUS AFTER RATE LIMIT:`)
+      console.log(`----------------------------------------`)
+      for (const p of PROVIDER_FALLBACK_CHAIN) {
+        const available = isProviderAvailable(rateLimitState, p)
+        const blocked = BLOCKED_PROVIDERS.has(p)
+        let status = "AVAILABLE"
+        if (blocked) status = "BLOCKED"
+        else if (!available) status = "RATE LIMITED"
+        console.log(`  ${p}: ${status}`)
+      }
+      console.log(`  anthropic: BLOCKED (always)`)
+      console.log(`----------------------------------------\n`)
+
+      // Log to debug log
+      log(`[${HOOK_NAME}] RATE LIMIT: ${provider}/${modelName} - circuit OPEN for ${cooldownMinutes}m`, {
+        sessionID,
+        provider,
+        model: `${provider}/${modelName}`,
+        cooldownMs,
         summary: getRateLimitSummary(rateLimitState),
       })
     }

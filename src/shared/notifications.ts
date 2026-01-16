@@ -297,6 +297,111 @@ export function formatParallelAgentToast(
   }
 }
 
+/**
+ * Format provider switch toast (v3.6.7)
+ */
+export function formatProviderSwitchToast(
+  originalProvider: string,
+  originalModel: string,
+  newProvider: string,
+  newModel: string,
+  reason: "rate_limit" | "fallback" | "preference"
+): VerboseNotification {
+  const reasonText = reason === "rate_limit"
+    ? "Rate limited"
+    : reason === "fallback"
+    ? "Fallback"
+    : "User preference"
+
+  return {
+    title: `Provider Switch: ${reasonText}`,
+    lines: [
+      `From: ${originalProvider}/${originalModel}`,
+      `To: ${newProvider}/${newModel}`,
+    ],
+    variant: reason === "rate_limit" ? "warning" : "info",
+    duration: 5000,
+  }
+}
+
+/**
+ * Format rate limit warning toast (v3.6.7)
+ */
+export function formatRateLimitToast(
+  provider: string,
+  cooldownMinutes: number,
+  fallbackProvider?: string
+): VerboseNotification {
+  const lines = [
+    `Provider "${provider}" rate limited`,
+    `Cooldown: ${cooldownMinutes} minute${cooldownMinutes > 1 ? "s" : ""}`,
+  ]
+
+  if (fallbackProvider) {
+    lines.push(`Fallback: ${fallbackProvider}`)
+  }
+
+  return {
+    title: "Rate Limit Detected",
+    lines,
+    variant: "warning",
+    duration: 6000,
+  }
+}
+
+/**
+ * Format model usage toast - shows exactly which model is being used (v3.6.7)
+ */
+export function formatModelUsageToast(
+  provider: string,
+  model: string,
+  tier: BudgetTier,
+  isBlocked: boolean,
+  isFallback: boolean
+): VerboseNotification {
+  const tierLabel = BUDGET_DISPLAY_NAMES[tier] || tier
+  const lines = [`Provider: ${provider}`, `Model: ${model}`, `Tier: ${tierLabel}`]
+
+  if (isBlocked) {
+    lines.push("Status: BLOCKED - using fallback")
+  } else if (isFallback) {
+    lines.push("Status: Fallback provider")
+  } else {
+    lines.push("Status: Primary provider")
+  }
+
+  return {
+    title: "Model in Use",
+    lines,
+    variant: isBlocked ? "warning" : "info",
+    duration: 4000,
+  }
+}
+
+/**
+ * Format provider status toast - shows all providers and their status (v3.6.7)
+ */
+export function formatProviderStatusToast(
+  providers: Array<{ name: string; status: "available" | "rate_limited" | "blocked"; cooldownLeft?: number }>
+): VerboseNotification {
+  const lines = providers.map(p => {
+    if (p.status === "blocked") {
+      return `${p.name}: BLOCKED`
+    } else if (p.status === "rate_limited") {
+      return `${p.name}: Rate limited (${p.cooldownLeft}m left)`
+    } else {
+      return `${p.name}: Available`
+    }
+  })
+
+  return {
+    title: "Provider Status",
+    lines,
+    variant: "info",
+    duration: 5000,
+  }
+}
+
 // ============================================================================
 // Helper Functions
 // ============================================================================
