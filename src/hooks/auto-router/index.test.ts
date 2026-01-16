@@ -4,59 +4,74 @@ import { createAutoRouterHook } from "./index"
 
 describe("auto-router hook", () => {
   describe("parseAutoCommand", () => {
-    it("should match /auto with quoted task", () => {
-      // #given a quoted /auto command
+    it("should match /autocode with quoted task", () => {
+      // #given a quoted /autocode command
+      const text = '/autocode "Fix the bug in authentication"'
+
+      // #when parsing
+      const result = parseAutoCommand(text)
+
+      // #then should capture task description (not deprecated for /autocode)
+      expect(result?.task).toBe("Fix the bug in authentication")
+      expect(result?.isDeprecated).toBe(false)
+    })
+
+    it("should match /auto with quoted task (deprecated)", () => {
+      // #given a quoted /auto command (deprecated)
       const text = '/auto "Fix the bug in authentication"'
 
       // #when parsing
       const result = parseAutoCommand(text)
 
-      // #then should capture task description
-      expect(result).toBe("Fix the bug in authentication")
+      // #then should capture task description and flag as deprecated
+      expect(result?.task).toBe("Fix the bug in authentication")
+      expect(result?.isDeprecated).toBe(true)
     })
 
-    it("should match /auto with single-quoted task", () => {
-      // #given a single-quoted /auto command
-      const text = "/auto 'Create a new feature'"
+    it("should match /autocode with single-quoted task", () => {
+      // #given a single-quoted /autocode command
+      const text = "/autocode 'Create a new feature'"
 
       // #when parsing
       const result = parseAutoCommand(text)
 
       // #then should capture task description
-      expect(result).toBe("Create a new feature")
+      expect(result?.task).toBe("Create a new feature")
+      expect(result?.isDeprecated).toBe(false)
     })
 
-    it("should match /auto with unquoted task", () => {
-      // #given an unquoted /auto command
-      const text = "/auto Fix the README typo"
+    it("should match /autocode with unquoted task", () => {
+      // #given an unquoted /autocode command
+      const text = "/autocode Fix the README typo"
 
       // #when parsing
       const result = parseAutoCommand(text)
 
       // #then should capture task description
-      expect(result).toBe("Fix the README typo")
+      expect(result?.task).toBe("Fix the README typo")
+      expect(result?.isDeprecated).toBe(false)
     })
 
-    it("should match /auto with options", () => {
-      // #given /auto with --budget option
-      const text = '/auto "Complex task" --budget=expensive'
+    it("should match /autocode with options", () => {
+      // #given /autocode with --budget option
+      const text = '/autocode "Complex task" --budget=expensive'
 
       // #when parsing
       const result = parseAutoCommand(text)
 
       // #then should capture task description (options are after capture)
-      expect(result).toBe("Complex task")
+      expect(result?.task).toBe("Complex task")
     })
 
     it("should be case-insensitive", () => {
-      // #given uppercase /AUTO command
-      const text = '/AUTO "Test task"'
+      // #given uppercase /AUTOCODE command
+      const text = '/AUTOCODE "Test task"'
 
       // #when parsing
       const result = parseAutoCommand(text)
 
       // #then should still match
-      expect(result).toBe("Test task")
+      expect(result?.task).toBe("Test task")
     })
 
     it("should return null for /auto with only whitespace", () => {

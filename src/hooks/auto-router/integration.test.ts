@@ -743,118 +743,125 @@ describe("Session Context Preservation (v3.6.3)", () => {
 
 describe("parseAutoCommand", () => {
   describe("quoted strings", () => {
-    it("should parse double-quoted task", () => {
+    it("should parse double-quoted task with /autocode", () => {
+      const result = parseAutoCommand('/autocode "fix the bug"')
+      expect(result?.task).toBe("fix the bug")
+      expect(result?.isDeprecated).toBe(false)
+    })
+
+    it("should parse double-quoted task with /auto (deprecated)", () => {
       const result = parseAutoCommand('/auto "fix the bug"')
-      expect(result).toBe("fix the bug")
+      expect(result?.task).toBe("fix the bug")
+      expect(result?.isDeprecated).toBe(true)
     })
 
     it("should parse single-quoted task", () => {
-      const result = parseAutoCommand("/auto 'fix the bug'")
-      expect(result).toBe("fix the bug")
+      const result = parseAutoCommand("/autocode 'fix the bug'")
+      expect(result?.task).toBe("fix the bug")
     })
 
     it("should handle quotes with special characters inside", () => {
-      const result = parseAutoCommand('/auto "fix the \\"nested\\" quotes"')
+      const result = parseAutoCommand('/autocode "fix the \\"nested\\" quotes"')
       // Note: This captures up to the first unescaped quote
       expect(result).toBeTruthy()
     })
 
     it("should handle empty quotes", () => {
-      const result = parseAutoCommand('/auto ""')
+      const result = parseAutoCommand('/autocode ""')
       expect(result).toBe(null) // Empty task should return null
     })
   })
 
   describe("unquoted strings", () => {
     it("should parse unquoted task", () => {
-      const result = parseAutoCommand("/auto fix the login bug")
-      expect(result).toBe("fix the login bug")
+      const result = parseAutoCommand("/autocode fix the login bug")
+      expect(result?.task).toBe("fix the login bug")
     })
 
     it("should trim whitespace", () => {
-      const result = parseAutoCommand("/auto   fix the bug   ")
-      expect(result).toBe("fix the bug")
+      const result = parseAutoCommand("/autocode   fix the bug   ")
+      expect(result?.task).toBe("fix the bug")
     })
 
     it("should handle single word", () => {
-      const result = parseAutoCommand("/auto deploy")
-      expect(result).toBe("deploy")
+      const result = parseAutoCommand("/autocode deploy")
+      expect(result?.task).toBe("deploy")
     })
   })
 
   describe("multiline support", () => {
     it("should capture multiline task description", () => {
-      const result = parseAutoCommand(`/auto implement the feature:
+      const result = parseAutoCommand(`/autocode implement the feature:
 - Step 1: Create component
 - Step 2: Add tests
 - Step 3: Deploy`)
 
-      expect(result).toContain("implement the feature")
-      expect(result).toContain("Step 1")
-      expect(result).toContain("Step 2")
-      expect(result).toContain("Step 3")
+      expect(result?.task).toContain("implement the feature")
+      expect(result?.task).toContain("Step 1")
+      expect(result?.task).toContain("Step 2")
+      expect(result?.task).toContain("Step 3")
     })
 
     it("should handle newlines in middle of text", () => {
-      const result = parseAutoCommand("/auto first line\nsecond line\nthird line")
-      expect(result).toContain("first line")
-      expect(result).toContain("second line")
-      expect(result).toContain("third line")
+      const result = parseAutoCommand("/autocode first line\nsecond line\nthird line")
+      expect(result?.task).toContain("first line")
+      expect(result?.task).toContain("second line")
+      expect(result?.task).toContain("third line")
     })
   })
 
   describe("with options", () => {
     it("should stop at --budget option", () => {
-      const result = parseAutoCommand("/auto fix the bug --budget=expensive")
-      expect(result).toBe("fix the bug")
+      const result = parseAutoCommand("/autocode fix the bug --budget=expensive")
+      expect(result?.task).toBe("fix the bug")
     })
 
     it("should stop at --force-technique option", () => {
-      const result = parseAutoCommand("/auto fix the bug --force-technique=triple")
-      expect(result).toBe("fix the bug")
+      const result = parseAutoCommand("/autocode fix the bug --force-technique=triple")
+      expect(result?.task).toBe("fix the bug")
     })
 
     it("should handle quoted task with options", () => {
-      const result = parseAutoCommand('/auto "fix the bug" --budget=moderate')
-      expect(result).toBe("fix the bug")
+      const result = parseAutoCommand('/autocode "fix the bug" --budget=moderate')
+      expect(result?.task).toBe("fix the bug")
     })
 
     it("should handle multiline with options", () => {
-      const result = parseAutoCommand(`/auto implement this:
+      const result = parseAutoCommand(`/autocode implement this:
 - feature A
 - feature B --budget=expensive`)
       // Should NOT include --budget as part of task
-      expect(result).not.toContain("--budget")
+      expect(result?.task).not.toContain("--budget")
     })
   })
 
   describe("edge cases", () => {
-    it("should return null for non /auto commands", () => {
+    it("should return null for non /autocode commands", () => {
       expect(parseAutoCommand("/commit message")).toBe(null)
       expect(parseAutoCommand("just some text")).toBe(null)
       expect(parseAutoCommand("/automate something")).toBe(null)
     })
 
-    it("should return null for /auto without task", () => {
-      expect(parseAutoCommand("/auto")).toBe(null)
-      expect(parseAutoCommand("/auto ")).toBe(null)
-      expect(parseAutoCommand("/auto   ")).toBe(null)
+    it("should return null for /autocode without task", () => {
+      expect(parseAutoCommand("/autocode")).toBe(null)
+      expect(parseAutoCommand("/autocode ")).toBe(null)
+      expect(parseAutoCommand("/autocode   ")).toBe(null)
     })
 
-    it("should be case insensitive for /auto", () => {
-      expect(parseAutoCommand("/AUTO fix bug")).toBe("fix bug")
-      expect(parseAutoCommand("/Auto fix bug")).toBe("fix bug")
-      expect(parseAutoCommand("/aUtO fix bug")).toBe("fix bug")
+    it("should be case insensitive for /autocode", () => {
+      expect(parseAutoCommand("/AUTOCODE fix bug")?.task).toBe("fix bug")
+      expect(parseAutoCommand("/Autocode fix bug")?.task).toBe("fix bug")
+      expect(parseAutoCommand("/aUtOcOdE fix bug")?.task).toBe("fix bug")
     })
 
     it("should handle task with hyphens (not options)", () => {
-      const result = parseAutoCommand("/auto fix the e2e-tests")
-      expect(result).toBe("fix the e2e-tests")
+      const result = parseAutoCommand("/autocode fix the e2e-tests")
+      expect(result?.task).toBe("fix the e2e-tests")
     })
 
     it("should handle URLs in task", () => {
-      const result = parseAutoCommand("/auto check https://example.com/api")
-      expect(result).toBe("check https://example.com/api")
+      const result = parseAutoCommand("/autocode check https://example.com/api")
+      expect(result?.task).toBe("check https://example.com/api")
     })
   })
 })
