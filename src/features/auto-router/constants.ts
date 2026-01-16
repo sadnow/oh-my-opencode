@@ -521,31 +521,43 @@ export const ESCALATION_RULES: EscalationTrigger[] = [
 export const TECHNIQUE_INSTRUCTIONS: Record<TechniqueCombo, string> = {
   direct: `**Direct Execution**: No special orchestration needed.
 - Execute the task directly using available tools
+- Use sisyphus_task(subagent_type="explore") for codebase searches if needed
 - Verify completion with available verification (tests, lsp_diagnostics)
 - Report completion when done`,
 
   ulw: `**Ultrawork Mode**: Parallel agents + TDD verification
 - ANNOUNCE: "ULTRAWORK MODE ENABLED!"
-- Fire explore/librarian agents IN PARALLEL for context gathering
+- **IMMEDIATELY** fire sisyphus_task agents in PARALLEL:
+  \`\`\`
+  sisyphus_task(subagent_type="explore", prompt="...", run_in_background=true, skills=[])
+  sisyphus_task(subagent_type="librarian", prompt="...", run_in_background=true, skills=[])
+  \`\`\`
 - Use TDD workflow if tests available: RED -> GREEN -> REFACTOR
 - Track ALL steps with TODO items
-- Verify against success criteria before completion`,
+- Verify against success criteria before completion
+- Use sisyphus_task(subagent_type="oracle") if stuck on architecture decisions`,
 
   ultrathink: `**Ultrathink Mode**: Deep reasoning before action
 - Think through the problem thoroughly before any implementation
 - Consider edge cases, failure modes, and architectural implications
 - Plan the implementation sequence before starting
+- Use sisyphus_task(subagent_type="oracle") for complex architecture questions
 - Validate reasoning before each major step`,
 
   ralph: `**Ralph Loop Mode**: Persistent execution until completion
 - Work continuously until the task is FULLY complete
+- Use sisyphus_task agents to gather context: explore, librarian
 - Output <promise>DONE</promise> ONLY when truly finished
-- If stuck, try different approaches before giving up
+- If stuck, use sisyphus_task(subagent_type="oracle") for consultation
 - Maximum iterations: {{MAX_ITERATIONS}}`,
 
   "ulw+ralph": `**Ultrawork + Ralph Loop**: Parallel exploration with persistence
 - ANNOUNCE: "ULTRAWORK MODE ENABLED!"
-- Fire parallel exploration agents
+- **IMMEDIATELY** fire parallel sisyphus_task agents:
+  \`\`\`
+  sisyphus_task(subagent_type="explore", run_in_background=true, skills=[])
+  sisyphus_task(subagent_type="librarian", run_in_background=true, skills=[])
+  \`\`\`
 - Use TDD workflow where possible
 - Continue in Ralph loop until complete: <promise>DONE</promise>
 - Do not stop at partial completion
@@ -553,12 +565,15 @@ export const TECHNIQUE_INSTRUCTIONS: Record<TechniqueCombo, string> = {
 
   "ultrathink+ulw": `**Ultrathink + Ultrawork**: Deep reasoning + parallel execution
 - First, think deeply about the problem and plan
+- Use sisyphus_task(subagent_type="oracle") for architecture review if needed
 - Then, ANNOUNCE: "ULTRAWORK MODE ENABLED!"
+- Fire sisyphus_task agents in PARALLEL (explore, librarian)
 - Execute with parallel agents and TDD
 - Verify reasoning at each major checkpoint`,
 
   "ultrathink+ralph": `**Ultrathink + Ralph Loop**: Deep reasoning with persistence
 - Think through the problem thoroughly first
+- Use sisyphus_task(subagent_type="oracle") for complex decisions
 - Execute with persistence until complete
 - Output <promise>DONE</promise> only when truly finished
 - Revisit reasoning if stuck
@@ -569,19 +584,25 @@ This is the maximum capability configuration. Use ALL techniques:
 
 1. **ULTRATHINK FIRST**:
    - Deep analysis of the problem
+   - Use sisyphus_task(subagent_type="oracle") for architecture review
    - Plan the complete implementation
    - Identify all edge cases and failure modes
 
 2. **ULTRAWORK EXECUTION**:
    - ANNOUNCE: "ULTRAWORK MODE ENABLED!"
-   - Fire 5+ parallel exploration agents
+   - **IMMEDIATELY** fire 5+ sisyphus_task agents in PARALLEL:
+     \`\`\`
+     sisyphus_task(subagent_type="explore", prompt="Find all X files", run_in_background=true, skills=[])
+     sisyphus_task(subagent_type="explore", prompt="Find Y patterns", run_in_background=true, skills=[])
+     sisyphus_task(subagent_type="librarian", prompt="Research Z library", run_in_background=true, skills=[])
+     \`\`\`
    - Use TDD workflow (RED -> GREEN -> REFACTOR)
    - Track ALL steps with TODO items
 
 3. **RALPH LOOP PERSISTENCE**:
    - Continue until FULLY complete
    - Output <promise>DONE</promise> ONLY when all criteria met
-   - Try different approaches if stuck
+   - If stuck, use sisyphus_task(subagent_type="oracle") for consultation
    - Maximum iterations: {{MAX_ITERATIONS}}
 
 **VERIFICATION GUARANTEE**: Nothing is "done" without proof. Run tests, verify with LLM judge if applicable.`,
@@ -644,6 +665,7 @@ export const AUTO_ROUTER_INJECTION_TEMPLATE = `<auto-router-decision>
 /**
  * Template for subagent delegation info when auto-spawn is enabled.
  * Shown when complexity >= tier threshold (default: Tier 2+).
+ * v3.8.0: Enhanced to explicitly instruct usage of curated agents via sisyphus_task
  */
 export const SUBAGENT_DELEGATION_TEMPLATE = `
 For Tier {{COMPLEXITY_TIER}} tasks, work is delegated to a subagent with an appropriate model.
@@ -651,15 +673,77 @@ For Tier {{COMPLEXITY_TIER}} tasks, work is delegated to a subagent with an appr
 - **Subagent Agent**: {{SUBAGENT_AGENT}}
 - **Intended Budget**: {{INTENDED_BUDGET}}
 
-The subagent will perform the actual implementation work.
-You (orchestrator) coordinate and verify completion.`
+## CRITICAL: Use Curated Agents via sisyphus_task
+
+You have access to specialized agents that provide expertise. **ALWAYS leverage them:**
+
+### 🔍 explore - Codebase Discovery (FREE)
+Use when: Finding files, locating implementations, understanding project structure
+\`\`\`
+sisyphus_task(
+  description="Find auth implementation",
+  prompt="Find all files related to authentication and authorization",
+  subagent_type="explore",
+  run_in_background=true,
+  skills=[]
+)
+\`\`\`
+
+### 📚 librarian - Documentation & Library Research (CHEAP)
+Use when: Understanding libraries, finding usage examples, looking up API docs
+\`\`\`
+sisyphus_task(
+  description="Research React Query patterns",
+  prompt="Find official React Query documentation for useQuery caching strategies",
+  subagent_type="librarian",
+  run_in_background=true,
+  skills=[]
+)
+\`\`\`
+
+### 🧠 oracle - High-IQ Consulting (EXPENSIVE)
+Use when: Complex architecture decisions, debugging hard problems (after 2+ failed attempts), code review
+\`\`\`
+sisyphus_task(
+  description="Review authentication architecture",
+  prompt="Review this authentication implementation for security issues and architectural concerns",
+  subagent_type="oracle",
+  run_in_background=false,
+  skills=[]
+)
+\`\`\`
+
+### 🎨 frontend-ui-ux-engineer - UI/UX Design (MODERATE)
+Use when: Building user interfaces, implementing designs, accessibility concerns
+\`\`\`
+sisyphus_task(
+  description="Implement responsive dashboard",
+  prompt="Create a responsive dashboard component with modern UI patterns",
+  subagent_type="frontend-ui-ux-engineer",
+  run_in_background=false,
+  skills=[]
+)
+\`\`\`
+
+**Best Practice**: Fire explore/librarian in PARALLEL at the start to gather context while you plan.
+**Rule**: ALWAYS prefer sisyphus_task over direct tool calls for search/research tasks.`
 
 /**
  * Template when subagent delegation is disabled or not triggered.
+ * v3.8.0: Enhanced to remind about curated agent availability
  */
 export const NO_DELEGATION_TEMPLATE = `
 Direct execution mode - no subagent delegation.
-Work will be performed in this session with the current model.`
+Work will be performed in this session with the current model.
+
+## Available Curated Agents (via sisyphus_task)
+
+Even in direct execution, you can leverage specialized agents:
+- **explore**: Codebase discovery - use for multi-file searches (run_in_background=true)
+- **librarian**: Documentation research - use for library/API questions (run_in_background=true)
+- **oracle**: High-IQ consultation - use for complex architecture or debugging (run_in_background=false)
+
+Fire explore/librarian in PARALLEL to gather context efficiently.`
 
 // ============================================================================
 // Complexity Tier Descriptions

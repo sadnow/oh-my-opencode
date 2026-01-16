@@ -934,16 +934,19 @@ ${NO_DELEGATION_TEMPLATE}`
       textPart.text = injectedPrompt
 
       // v3.5.0: Spawn parallel exploration agents for complex tasks
+      // v3.8.0: Expanded to include Tier 2+ and ralph techniques for better context gathering
       const parallelEnabled = config.parallel_agents?.enabled ?? DEFAULT_PARALLEL_AGENT_CONFIG.enabled
       const shouldSpawnParallel = (
         parallelEnabled !== false &&
         options?.backgroundManager &&
-        (result.classification.complexityTier === 3 ||
+        (result.classification.complexityTier >= 2 ||   // v3.8.0: Tier 2+ benefits from exploration
          finalTechnique.includes("ulw") ||
+         finalTechnique.includes("ralph") ||             // v3.8.0: ralph benefits from context
          finalTechnique === "triple")
       )
 
       let parallelAgentsLaunched = 0
+      const launchedAgentNames: string[] = []
       if (shouldSpawnParallel && options?.backgroundManager) {
         const agentsToSpawn = config.parallel_agents?.agents_for_tier3 ?? [...DEFAULT_PARALLEL_AGENT_CONFIG.agentsForTier3]
         const maxAgents = Math.min(
@@ -951,10 +954,19 @@ ${NO_DELEGATION_TEMPLATE}`
           agentsToSpawn.length
         )
 
+        // v3.8.0: Console output for parallel agent launch
+        console.log(`\n========================================`)
+        console.log(`[AUTO-ROUTER] PARALLEL AGENT DEPLOYMENT`)
+        console.log(`========================================`)
+        console.log(`Complexity: Tier ${result.classification.complexityTier}`)
+        console.log(`Technique: ${finalTechnique}`)
+        console.log(`Deploying ${maxAgents} curated agent(s)...`)
+        console.log(`----------------------------------------`)
+
         for (let i = 0; i < maxAgents; i++) {
           const agentName = agentsToSpawn[i]
           try {
-            await options.backgroundManager.launch({
+            const launchResult = await options.backgroundManager.launch({
               description: `${agentName}: ${detected.taskDescription.substring(0, 50)}`,
               prompt: `Explore and analyze for this task: ${detected.taskDescription}`,
               agent: agentName,
@@ -962,18 +974,32 @@ ${NO_DELEGATION_TEMPLATE}`
               parentMessageID: input.messageID,
             })
             parallelAgentsLaunched++
-            log(`[${HOOK_NAME}] Launched parallel agent`, { agent: agentName, sessionID: input.sessionID })
+            launchedAgentNames.push(agentName)
+            console.log(`  ✓ ${agentName.toUpperCase()} agent launched (ID: ${launchResult.id})`)
+            log(`[${HOOK_NAME}] Launched parallel agent`, { agent: agentName, sessionID: input.sessionID, taskId: launchResult.id })
           } catch (agentErr) {
+            const errorMsg = agentErr instanceof Error ? agentErr.message : String(agentErr)
+            console.log(`  ✗ ${agentName.toUpperCase()} agent FAILED: ${errorMsg.substring(0, 50)}`)
             log(`[${HOOK_NAME}] Failed to launch parallel agent`, {
               agent: agentName,
-              error: agentErr instanceof Error ? agentErr.message : String(agentErr),
+              error: errorMsg,
             })
           }
         }
 
+        console.log(`----------------------------------------`)
+        if (parallelAgentsLaunched > 0) {
+          console.log(`SUCCESS: ${parallelAgentsLaunched} agent(s) deployed`)
+          console.log(`Agents: ${launchedAgentNames.join(", ")}`)
+          console.log(`Use background_output to check progress.`)
+        } else {
+          console.log(`WARNING: No agents deployed successfully`)
+        }
+        console.log(`========================================\n`)
+
         if (parallelAgentsLaunched > 0) {
           textPart.text += `\n\n## PARALLEL AGENTS LAUNCHED
-${parallelAgentsLaunched} background agent(s) are exploring in parallel.
+${parallelAgentsLaunched} background agent(s) are exploring in parallel: **${launchedAgentNames.join(", ")}**
 Use \`background_output\` tool to check their progress before proceeding.`
         }
       }
@@ -1035,9 +1061,8 @@ Use \`background_output\` tool to check their progress before proceeding.`
 
         // Show parallel agents toast if applicable
         if (parallelAgentsLaunched > 0) {
-          const agentsToSpawn = config.parallel_agents?.agents_for_tier3 ?? [...DEFAULT_PARALLEL_AGENT_CONFIG.agentsForTier3]
-          const launchedAgents = agentsToSpawn.slice(0, parallelAgentsLaunched)
-          const parallelToast = formatParallelAgentToast(parallelAgentsLaunched, launchedAgents)
+          // v3.8.0: Use actual launched agent names instead of re-computing
+          const parallelToast = formatParallelAgentToast(parallelAgentsLaunched, launchedAgentNames)
           const parallelSimple = toSimpleToast(parallelToast)
           await ctx.client.tui
             .showToast({
@@ -1057,7 +1082,8 @@ Use \`background_output\` tool to check their progress before proceeding.`
           toastMessage += ` | Ralph Loop`
         }
         if (parallelAgentsLaunched > 0) {
-          toastMessage += ` | ${parallelAgentsLaunched} agents`
+          // v3.8.0: Show agent names in standard mode too
+          toastMessage += ` | Agents: ${launchedAgentNames.join(", ")}`
         }
         if (cmdOptions.magicKeyword) {
           toastMessage = `[${cmdOptions.magicKeyword}] ${toastMessage}`
