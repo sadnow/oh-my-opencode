@@ -34,6 +34,14 @@ import {
   selectTechniqueFromClassification,
   getMinBudgetForComplexity,
   buildConfigFromAnswersWithClassification,
+  // v3.8.0: Provider-aware parallel agent selection
+  selectAgentsForTask,
+  getMaxAgentsForTier,
+  AGENTS_PER_PROVIDER,
+  AGENT_PROVIDER_MAPPINGS,
+  // v3.8.0: Model ID validation
+  validateModelId,
+  KNOWN_MODELS,
 } from './src/features/auto-router'
 import { extractComplexitySignals } from './src/features/auto-router/classifier'
 import { detectProjectType, buildProjectContext } from './src/features/auto-router/project-detector'
@@ -325,10 +333,12 @@ async function runTests() {
   console.log("\nTEST: Free Tier Configuration")
   try {
     const freeTier = BUDGET_TIERS.free
+    // Free tier uses opencode provider models (grok-code or glm-4.7-free)
+    const isFreeProvider = freeTier.models.primary.startsWith("opencode/")
     if (
       freeTier &&
       freeTier.name === "free" &&
-      freeTier.models.primary.includes("free") &&
+      isFreeProvider &&
       freeTier.maxIterations === 3 &&
       freeTier.timeoutMs === 120000
     ) {
@@ -1131,6 +1141,357 @@ Score: 0.75
       passed++
     } else {
       console.log(`  ❌ Wizard should treat simple and complex tasks differently`)
+      failed++
+    }
+  } catch (error) {
+    console.log(`  ❌ ERROR: ${error instanceof Error ? error.message : String(error)}`)
+    failed++
+  }
+
+  // ============================================================================
+  // v3.8.0 PROVIDER-AWARE PARALLEL AGENT TESTS
+  // ============================================================================
+
+  console.log(`\n${"─".repeat(80)}`)
+  console.log("v3.8.0 PROVIDER-AWARE PARALLEL AGENT TESTS")
+  console.log(`${"─".repeat(80)}`)
+
+  // Test 32: selectAgentsForTask - Tier 1 (2 agents max)
+  console.log("\nTEST: Provider-Aware Agent Selection - Tier 1")
+  try {
+    const tier1Agents = selectAgentsForTask(1, [], ["opencode", "google", "github-copilot", "openai"])
+    const agentNames = tier1Agents.map(a => a.agentName)
+
+    console.log(`  Selected agents: ${agentNames.join(", ")}`)
+    console.log(`  Max for Tier 1: ${getMaxAgentsForTier(1)}`)
+
+    // Tier 1 should get explore + librarian (both from opencode)
+    const hasExplore = agentNames.includes("explore")
+    const hasLibrarian = agentNames.includes("librarian")
+    const maxTier1 = getMaxAgentsForTier(1)
+
+    if (hasExplore && hasLibrarian && tier1Agents.length <= maxTier1) {
+      console.log(`  ✅ Tier 1 correctly selects basic exploration agents`)
+      console.log(`     - Agents: ${agentNames.join(", ")}`)
+      passed++
+    } else {
+      console.log(`  ❌ Tier 1 agent selection incorrect`)
+      failed++
+    }
+  } catch (error) {
+    console.log(`  ❌ ERROR: ${error instanceof Error ? error.message : String(error)}`)
+    failed++
+  }
+
+  // Test 33: selectAgentsForTask - Tier 2 (4 agents max)
+  console.log("\nTEST: Provider-Aware Agent Selection - Tier 2")
+  try {
+    const tier2Agents = selectAgentsForTask(2, [], ["opencode", "google", "github-copilot", "openai"])
+    const agentNames = tier2Agents.map(a => a.agentName)
+    const maxTier2 = getMaxAgentsForTier(2)
+
+    console.log(`  Selected agents: ${agentNames.join(", ")}`)
+    console.log(`  Max for Tier 2: ${maxTier2}`)
+
+    // Tier 2 should include Tier 1 agents plus Tier 2 agents
+    if (tier2Agents.length <= maxTier2 && tier2Agents.length >= 2) {
+      console.log(`  ✅ Tier 2 correctly selects expanded agent set`)
+      console.log(`     - Count: ${tier2Agents.length}/${maxTier2} max`)
+      passed++
+    } else {
+      console.log(`  ❌ Tier 2 agent selection incorrect`)
+      failed++
+    }
+  } catch (error) {
+    console.log(`  ❌ ERROR: ${error instanceof Error ? error.message : String(error)}`)
+    failed++
+  }
+
+  // Test 34: selectAgentsForTask - Tier 3 (8 agents max)
+  console.log("\nTEST: Provider-Aware Agent Selection - Tier 3")
+  try {
+    const tier3Agents = selectAgentsForTask(3, [], ["opencode", "google", "github-copilot", "openai"])
+    const agentNames = tier3Agents.map(a => a.agentName)
+    const maxTier3 = getMaxAgentsForTier(3)
+
+    console.log(`  Selected agents: ${agentNames.join(", ")}`)
+    console.log(`  Max for Tier 3: ${maxTier3}`)
+
+    // Tier 3 should include all available agents (up to 8)
+    if (tier3Agents.length <= maxTier3) {
+      console.log(`  ✅ Tier 3 correctly selects full agent set`)
+      console.log(`     - Count: ${tier3Agents.length}/${maxTier3} max`)
+      passed++
+    } else {
+      console.log(`  ❌ Tier 3 agent selection incorrect`)
+      failed++
+    }
+  } catch (error) {
+    console.log(`  ❌ ERROR: ${error instanceof Error ? error.message : String(error)}`)
+    failed++
+  }
+
+  // Test 35: Provider Limit Enforcement (2 per provider)
+  console.log("\nTEST: Provider Limit Enforcement (2 per provider)")
+  try {
+    const allAgents = selectAgentsForTask(3, [], ["opencode", "google", "github-copilot", "openai"])
+
+    // Count agents per provider
+    const providerCounts: Record<string, number> = {}
+    for (const agent of allAgents) {
+      const provider = agent.model.split("/")[0]
+      providerCounts[provider] = (providerCounts[provider] ?? 0) + 1
+    }
+
+    console.log(`  Provider distribution:`)
+    let allWithinLimit = true
+    for (const [provider, count] of Object.entries(providerCounts)) {
+      console.log(`    - ${provider}: ${count} agents`)
+      if (count > AGENTS_PER_PROVIDER) {
+        allWithinLimit = false
+      }
+    }
+
+    if (allWithinLimit) {
+      console.log(`  ✅ All providers within ${AGENTS_PER_PROVIDER}-agent limit`)
+      passed++
+    } else {
+      console.log(`  ❌ Provider limit exceeded`)
+      failed++
+    }
+  } catch (error) {
+    console.log(`  ❌ ERROR: ${error instanceof Error ? error.message : String(error)}`)
+    failed++
+  }
+
+  // Test 36: Domain-Aware Agent Selection (UI-heavy)
+  console.log("\nTEST: Domain-Aware Agent Selection (UI-heavy)")
+  try {
+    const uiAgents = selectAgentsForTask(2, ["ui-heavy"], ["opencode", "google", "github-copilot", "openai"])
+    const agentNames = uiAgents.map(a => a.agentName)
+
+    console.log(`  Domain signals: ui-heavy`)
+    console.log(`  Selected agents: ${agentNames.join(", ")}`)
+
+    // UI-heavy should prioritize frontend-ui-ux-engineer
+    const hasFrontend = agentNames.includes("frontend-ui-ux-engineer")
+
+    if (hasFrontend) {
+      console.log(`  ✅ UI-heavy domain correctly prioritizes frontend agent`)
+      passed++
+    } else {
+      console.log(`  ❌ UI-heavy should include frontend-ui-ux-engineer`)
+      failed++
+    }
+  } catch (error) {
+    console.log(`  ❌ ERROR: ${error instanceof Error ? error.message : String(error)}`)
+    failed++
+  }
+
+  // Test 37: Domain-Aware Agent Selection (Security)
+  console.log("\nTEST: Domain-Aware Agent Selection (Security)")
+  try {
+    const securityAgents = selectAgentsForTask(3, ["security-sensitive"], ["opencode", "google", "github-copilot", "openai"])
+    const agentNames = securityAgents.map(a => a.agentName)
+
+    console.log(`  Domain signals: security-sensitive`)
+    console.log(`  Selected agents: ${agentNames.join(", ")}`)
+
+    // Security should prioritize oracle for architecture review
+    const hasOracle = agentNames.includes("oracle")
+
+    if (hasOracle) {
+      console.log(`  ✅ Security domain correctly includes oracle for architecture review`)
+      passed++
+    } else {
+      console.log(`  ❌ Security should include oracle agent`)
+      failed++
+    }
+  } catch (error) {
+    console.log(`  ❌ ERROR: ${error instanceof Error ? error.message : String(error)}`)
+    failed++
+  }
+
+  // Test 38: Agent Provider Mappings Configuration
+  console.log("\nTEST: Agent Provider Mappings Configuration")
+  try {
+    const mappings = AGENT_PROVIDER_MAPPINGS
+
+    // Verify all mappings have required fields
+    let allValid = true
+    for (const mapping of mappings) {
+      if (!mapping.agentName || !mapping.defaultModel || !mapping.provider || !mapping.purpose || !mapping.minTier) {
+        allValid = false
+        console.log(`  ❌ Invalid mapping: ${mapping.agentName || "unknown"}`)
+      }
+    }
+
+    console.log(`  Total agent mappings: ${mappings.length}`)
+    console.log(`  Agents: ${mappings.map(m => m.agentName).join(", ")}`)
+
+    if (allValid && mappings.length >= 4) {
+      console.log(`  ✅ Agent provider mappings configured correctly`)
+      passed++
+    } else {
+      console.log(`  ❌ Agent provider mappings incomplete`)
+      failed++
+    }
+  } catch (error) {
+    console.log(`  ❌ ERROR: ${error instanceof Error ? error.message : String(error)}`)
+    failed++
+  }
+
+  // Test 39: Max Agents Per Tier
+  console.log("\nTEST: Max Agents Per Tier Configuration")
+  try {
+    const tier1Max = getMaxAgentsForTier(1)
+    const tier2Max = getMaxAgentsForTier(2)
+    const tier3Max = getMaxAgentsForTier(3)
+
+    console.log(`  Tier 1 max: ${tier1Max} agents`)
+    console.log(`  Tier 2 max: ${tier2Max} agents`)
+    console.log(`  Tier 3 max: ${tier3Max} agents`)
+
+    // Verify ascending limits
+    if (tier1Max === 2 && tier2Max === 4 && tier3Max === 8) {
+      console.log(`  ✅ Max agents scale correctly with complexity`)
+      console.log(`     - Tier 1: 2 (explore + librarian)`)
+      console.log(`     - Tier 2: 4 (+ frontend + document-writer)`)
+      console.log(`     - Tier 3: 8 (all agents across 4 providers)`)
+      passed++
+    } else {
+      console.log(`  ❌ Max agents per tier incorrect`)
+      failed++
+    }
+  } catch (error) {
+    console.log(`  ❌ ERROR: ${error instanceof Error ? error.message : String(error)}`)
+    failed++
+  }
+
+  // ============================================================================
+  // v3.8.0 MODEL ID VALIDATION TESTS
+  // ============================================================================
+  console.log(`\n${"─".repeat(80)}`)
+  console.log("v3.8.0 MODEL ID VALIDATION TESTS")
+  console.log(`${"─".repeat(80)}`)
+
+  // Test 40: Valid Model ID
+  console.log("\nTEST: Valid Model ID Recognition")
+  try {
+    const result = validateModelId("github-copilot/gpt-4o")
+    console.log(`  Input: github-copilot/gpt-4o`)
+    console.log(`  Valid: ${result.valid}`)
+
+    if (result.valid) {
+      console.log(`  ✅ Valid model correctly recognized`)
+      passed++
+    } else {
+      console.log(`  ❌ Expected valid=true for known model`)
+      failed++
+    }
+  } catch (error) {
+    console.log(`  ❌ ERROR: ${error instanceof Error ? error.message : String(error)}`)
+    failed++
+  }
+
+  // Test 41: Invalid Model with Suggestion
+  console.log("\nTEST: Invalid Model with Typo Suggestion")
+  try {
+    const result = validateModelId("github-copilot/qpt-4o")
+    console.log(`  Input: github-copilot/qpt-4o (typo)`)
+    console.log(`  Valid: ${result.valid}`)
+    console.log(`  Suggestion: ${result.suggestion || "none"}`)
+
+    if (!result.valid && result.suggestion?.includes("gpt-4o")) {
+      console.log(`  ✅ Typo detected with correct suggestion`)
+      passed++
+    } else {
+      console.log(`  ❌ Expected suggestion for typo`)
+      failed++
+    }
+  } catch (error) {
+    console.log(`  ❌ ERROR: ${error instanceof Error ? error.message : String(error)}`)
+    failed++
+  }
+
+  // Test 42: Completely Unknown Model
+  console.log("\nTEST: Completely Unknown Model")
+  try {
+    const result = validateModelId("unknown-provider/nonexistent-model-xyz")
+    console.log(`  Input: unknown-provider/nonexistent-model-xyz`)
+    console.log(`  Valid: ${result.valid}`)
+    console.log(`  Message: ${result.message?.substring(0, 50) || "none"}...`)
+
+    if (!result.valid && result.message) {
+      console.log(`  ✅ Unknown model correctly rejected with message`)
+      passed++
+    } else {
+      console.log(`  ❌ Expected rejection for unknown model`)
+      failed++
+    }
+  } catch (error) {
+    console.log(`  ❌ ERROR: ${error instanceof Error ? error.message : String(error)}`)
+    failed++
+  }
+
+  // Test 43: Known Models Registry
+  console.log("\nTEST: Known Models Registry Completeness")
+  try {
+    const knownCount = KNOWN_MODELS.size
+    const hasGitHubCopilot = KNOWN_MODELS.has("github-copilot/gpt-4o-mini")
+    const hasGoogle = KNOWN_MODELS.has("google/antigravity-gemini-3-flash")
+    const hasOpenCode = KNOWN_MODELS.has("opencode/glm-4.7-free")
+
+    console.log(`  Total known models: ${knownCount}`)
+    console.log(`  Has GitHub Copilot models: ${hasGitHubCopilot}`)
+    console.log(`  Has Google models: ${hasGoogle}`)
+    console.log(`  Has OpenCode models: ${hasOpenCode}`)
+
+    if (knownCount >= 10 && hasGitHubCopilot && hasGoogle && hasOpenCode) {
+      console.log(`  ✅ Known models registry complete`)
+      console.log(`     - ${knownCount} models across multiple providers`)
+      passed++
+    } else {
+      console.log(`  ❌ Known models registry incomplete`)
+      failed++
+    }
+  } catch (error) {
+    console.log(`  ❌ ERROR: ${error instanceof Error ? error.message : String(error)}`)
+    failed++
+  }
+
+  // Test 44: Model Validation for All Budget Tier Models
+  console.log("\nTEST: Budget Tier Models Are All Valid")
+  try {
+    const allBudgetModels: string[] = []
+    for (const [tier, config] of Object.entries(BUDGET_TIERS)) {
+      if (config.models?.primary) allBudgetModels.push(config.models.primary)
+      if (config.models?.thinking) allBudgetModels.push(config.models.thinking)
+    }
+
+    const uniqueModels = [...new Set(allBudgetModels)]
+    let allValid = true
+    const invalidModels: string[] = []
+
+    for (const model of uniqueModels) {
+      const validation = validateModelId(model)
+      if (!validation.valid) {
+        allValid = false
+        invalidModels.push(model)
+      }
+    }
+
+    console.log(`  Budget tier models checked: ${uniqueModels.length}`)
+
+    if (allValid) {
+      console.log(`  ✅ All budget tier models are valid`)
+      console.log(`     - ${uniqueModels.length} unique models verified`)
+      passed++
+    } else {
+      console.log(`  ❌ Some budget tier models are invalid:`)
+      for (const invalid of invalidModels) {
+        console.log(`     - ${invalid}`)
+      }
       failed++
     }
   } catch (error) {
