@@ -2,9 +2,9 @@
 
 ## Project Overview
 
-Oh-My-OpenCode is a batteries-included plugin for [OpenCode](https://opencode.ai) that transforms it into a multi-model AI agent orchestration system. It provides curated agents (Sisyphus orchestrator, Oracle consultant, Librarian researcher, Explore fast search), LSP/AST-Grep tools, MCP integrations, and intelligent task routing via the `/auto` command.
+Oh-My-AutoCode (formerly Oh-My-OpenCode) is a batteries-included plugin for [OpenCode](https://opencode.ai) that transforms it into a multi-model AI agent orchestration system. It provides curated agents (Sisyphus orchestrator, Oracle consultant, Librarian researcher, Explore fast search), LSP/AST-Grep tools, MCP integrations, and intelligent task routing via the `/autocode` command.
 
-**This fork (sadnow/oh-my-opencode)** adds **Technique Orchestration** - an intelligent auto-router that analyzes tasks and automatically selects optimal technique combinations (direct, ulw, ultrathink, ralph, or combos) with adaptive budget escalation.
+**This fork (sadnow/oh_my_autocode)** adds **Technique Orchestration** - an intelligent auto-router that analyzes tasks and automatically selects optimal technique combinations (direct, ulw, ultrathink, ralph, or combos) with adaptive budget escalation.
 
 ## Quick Start
 
@@ -28,7 +28,7 @@ npx tsx test-auto-router.ts
 src/
 ├── agents/           # AI agents: Sisyphus, oracle, librarian, explore, frontend, etc.
 ├── hooks/            # 22+ lifecycle hooks including auto-router
-│   └── auto-router/  # /auto command hook - intelligent task routing
+│   └── auto-router/  # /autocode command hook - intelligent task routing
 ├── features/
 │   └── auto-router/  # Core auto-router logic (~3,500 LOC)
 │       ├── index.ts           # Main createAutoRouter() function
@@ -102,36 +102,37 @@ Expected: 35+ tests passing
 
 ## Current Focus
 
-**Status**: v3.2.0 - Wizard Mode & Complete Autonomy Complete
+**Status**: v3.8.0 - Major Rename & Enhancements
 
-### Recently Completed (v3.2.0)
-1. ✅ Wizard mode - interactive 4-question configuration flow
-2. ✅ Free model budget tier - $0 cost with glm-4.7-free and grok-code
-3. ✅ Ralph-loop auto-enable - persistence for ralph techniques
-4. ✅ Production-ready checklist - build + diagnostics verification
-5. ✅ 35 test cases passing
+### v3.8.0 Changes
+1. Renamed: oh-my-opencode → oh_my_autocode
+2. Renamed: /auto → /autocode (with deprecation warning for /auto)
+3. Added: Model deployment notifications
+4. Added: Spending tracking with $1 milestones
+5. Added: Model ID validation to catch typos
+6. Added: Verbose ralph-loop logging
 
 ### Key Files
 - `src/features/auto-router/wizard.ts` - Interactive wizard logic
 - `src/features/auto-router/production-ready.ts` - Completion checklist
 - `src/hooks/auto-router/index.ts` - Hook integration with ralph-loop
 
-## Auto-Router Usage
+## AutoCode Usage
 
 ### Basic Usage
 ```
-/auto "fix the login bug"           # Auto-classifies and routes
-/auto "build user auth system"      # Detects complexity, picks technique
+/autocode "fix the login bug"           # Auto-classifies and routes
+/autocode "build user auth system"      # Detects complexity, picks technique
 ```
 
 ### Magic Keywords
 ```
-/auto ultrawork: task description   # Forces ulw + moderate budget
-/auto deepthink: complex algorithm  # Forces ultrathink + expensive
-/auto fullsend: critical refactor   # Forces triple + maximum
+/autocode ultrawork: task description   # Forces ulw + moderate budget
+/autocode deepthink: complex algorithm  # Forces ultrathink + expensive
+/autocode fullsend: critical refactor   # Forces triple + maximum
 ```
 
-### Configuration (oh-my-opencode.json)
+### Configuration (oh_my_autocode.json)
 ```json
 {
   "auto_router": {
