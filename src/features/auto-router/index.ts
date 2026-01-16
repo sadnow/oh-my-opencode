@@ -49,15 +49,27 @@ export {
   // Agent-based model switching (v3.5.0)
   BUDGET_TIER_AGENTS,
   getAgentForBudgetTier,
-  // Parallel agent config (v3.5.0)
+  // Parallel agent config (v3.5.0, enhanced v3.8.0)
   DEFAULT_PARALLEL_AGENTS,
   DEFAULT_MAX_PARALLEL_AGENTS,
   DEFAULT_PARALLEL_AGENT_CONFIG,
   type ParallelAgentConfig,
+  // v3.8.0: Provider-aware parallel agent selection
+  AGENTS_PER_PROVIDER,
+  AGENT_PROVIDER_MAPPINGS,
+  type AgentProviderMapping,
+  selectAgentsForTask,
+  getMaxAgentsForTier,
+  calculateMaxConcurrentAgents,
+  getProviderAgentAllocation,
   // Orchestrator & subagent delegation (v3.7.0)
   ORCHESTRATOR_MODEL_RECOMMENDATION,
   SUBAGENT_DELEGATION_TEMPLATE,
   NO_DELEGATION_TEMPLATE,
+  // Model ID validation (v3.8.0)
+  validateModelId,
+  KNOWN_MODELS,
+  type ModelValidationResult,
 } from "./constants"
 
 // Export classifier functions
@@ -132,6 +144,14 @@ export {
   clearSubagentAnalytics,
   exportSubagentAnalytics,
   importSubagentAnalytics,
+  // Spending tracking (v3.8.0)
+  recordModelUsage,
+  checkSpendingMilestone,
+  getSpendingSummary,
+  formatSpendingSummary,
+  resetSpendingTracker,
+  PROVIDER_COST_RATES,
+  type SpendingMilestone,
   type ExecutionRecord,
   type TechniqueStats,
   type AnalyticsSummary,
@@ -213,6 +233,32 @@ export {
   type ChecklistResult,
   type CheckContext,
 } from "./production-ready"
+
+// Export configuration profiles (v3.8.1)
+export {
+  CONFIG_PROFILES,
+  DEFAULT_PROFILE_ID,
+  getProfile,
+  getProfilesSortedByCost,
+  getProfilesByTag,
+  recommendProfile,
+  PROFILE_CLASSIC,
+  PROFILE_CLASSIC_FREE,
+  PROFILE_CLASSIC_COPILOT_MAX,
+  PROFILE_ULTRA_FRUGAL,
+  PROFILE_BUDGET_CONSCIOUS,
+  PROFILE_BALANCED,
+  PROFILE_QUALITY_FIRST,
+  PROFILE_SPEED_DEMON,
+  PROFILE_ENTERPRISE,
+  PROFILE_GAME_DEV,
+  PROFILE_RESEARCH,
+  type ConfigProfile,
+  type ProviderPriority,
+  type BudgetTierOverride,
+  type LoggingConfig,
+  type EscalationConfig,
+} from "./profiles"
 
 // ============================================================================
 // Main Auto-Router Interface
