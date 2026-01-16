@@ -361,6 +361,7 @@ export function createRalphLoopHook(
       const sessionState = getSessionState(sessionID)
       if (sessionState.isRecovering) {
         log(`[${HOOK_NAME}] Skipped: in recovery`, { sessionID })
+        console.log(`[RALPH-LOOP] Idle event skipped - session in recovery (${sessionID.substring(0, 8)}...)`)
         return
       }
 
@@ -368,6 +369,16 @@ export function createRalphLoopHook(
       if (!state || !state.active) {
         return
       }
+
+      // v3.8.0: Verbose console logging for debugging premature termination
+      console.log(`\n========================================`)
+      console.log(`[RALPH-LOOP] IDLE EVENT RECEIVED`)
+      console.log(`========================================`)
+      console.log(`Session: ${sessionID.substring(0, 8)}...`)
+      console.log(`Iteration: ${state.iteration}/${state.max_iterations}`)
+      console.log(`Promise: ${state.completion_promise}`)
+      console.log(`Started: ${state.started_at}`)
+      console.log(`----------------------------------------`)
 
       if (state.session_id && state.session_id !== sessionID) {
         if (checkSessionExists) {
@@ -398,7 +409,13 @@ export function createRalphLoopHook(
         ? false
         : await detectCompletionInSessionMessages(sessionID, state.completion_promise)
 
+      // v3.8.0: Log completion detection results
+      console.log(`[RALPH-LOOP] Completion Detection:`)
+      console.log(`  Via transcript: ${completionDetectedViaTranscript ? "YES" : "no"}`)
+      console.log(`  Via API: ${completionDetectedViaApi ? "YES" : "no"}`)
+
       if (completionDetectedViaTranscript || completionDetectedViaApi) {
+        console.log(`[RALPH-LOOP] COMPLETION PROMISE DETECTED! Running verification...`)
         log(`[${HOOK_NAME}] Completion promise detected, running verification...`, {
           sessionID,
           iteration: state.iteration,
@@ -597,6 +614,13 @@ export function createRalphLoopHook(
         }
 
         // All checks passed - task truly complete!
+        console.log(`\n!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!`)
+        console.log(`[RALPH-LOOP] TASK COMPLETE!`)
+        console.log(`!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!`)
+        console.log(`Termination Reason: All checks passed`)
+        console.log(`Iterations used: ${state.iteration}/${state.max_iterations}`)
+        console.log(`Duration: ${Date.now() - new Date(state.started_at).getTime()}ms`)
+        console.log(`!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!`)
         log(`[${HOOK_NAME}] Task truly complete!`, {
           sessionID,
           iteration: state.iteration,
@@ -619,6 +643,13 @@ export function createRalphLoopHook(
       }
 
       if (state.iteration >= state.max_iterations) {
+        console.log(`\n!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!`)
+        console.log(`[RALPH-LOOP] LOOP STOPPED - MAX ITERATIONS`)
+        console.log(`!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!`)
+        console.log(`Termination Reason: Max iterations reached without completion promise`)
+        console.log(`Iterations: ${state.iteration}/${state.max_iterations}`)
+        console.log(`Duration: ${Date.now() - new Date(state.started_at).getTime()}ms`)
+        console.log(`!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!`)
         log(`[${HOOK_NAME}] Max iterations reached`, {
           sessionID,
           iteration: state.iteration,
@@ -642,10 +673,15 @@ export function createRalphLoopHook(
 
       const newState = incrementIteration(ctx.directory, stateDir)
       if (!newState) {
+        console.log(`[RALPH-LOOP] ERROR: Failed to increment iteration state`)
         log(`[${HOOK_NAME}] Failed to increment iteration`, { sessionID })
         return
       }
 
+      console.log(`[RALPH-LOOP] CONTINUING - No completion promise detected`)
+      console.log(`  Next iteration: ${newState.iteration}/${newState.max_iterations}`)
+      console.log(`  Injecting continuation prompt...`)
+      console.log(`========================================\n`)
       log(`[${HOOK_NAME}] Continuing loop`, {
         sessionID,
         iteration: newState.iteration,
