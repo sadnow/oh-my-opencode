@@ -915,3 +915,132 @@ export const DEFAULT_PARALLEL_AGENT_CONFIG: ParallelAgentConfig = {
   maxConcurrent: DEFAULT_MAX_PARALLEL_AGENTS,
   agentsForTier3: DEFAULT_PARALLEL_AGENTS,
 }
+
+// ============================================================================
+// Model ID Validation (v3.8.0)
+// ============================================================================
+
+/**
+ * Known model IDs for validation.
+ * This helps catch typos like "qpt-4o-mini" before they reach OpenCode.
+ */
+export const KNOWN_MODELS = new Set([
+  // GitHub Copilot provider (free via Copilot CLI)
+  "github-copilot/gpt-4o-mini",
+  "github-copilot/gpt-4o",
+  "github-copilot/claude-sonnet-4",
+  "github-copilot/claude-opus-4-5",
+  "github-copilot/gemini-2.0-flash",
+
+  // Google provider (free via Antigravity OAuth)
+  "google/antigravity-gemini-3-flash",
+  "google/antigravity-gemini-3-pro-high",
+  "google/antigravity-gemini-3-pro-low",
+  "google/gemini-2.5-flash",
+  "google/gemini-2.5-pro",
+
+  // OpenCode free models
+  "opencode/glm-4.7-free",
+  "opencode/grok-code",
+
+  // Amazon Bedrock
+  "amazon-bedrock/claude-sonnet-4",
+  "amazon-bedrock/claude-opus-4-5",
+  "amazon-bedrock/claude-haiku-3-5",
+
+  // OpenAI direct (requires API key)
+  "openai/gpt-4o",
+  "openai/gpt-4o-mini",
+  "openai/gpt-5.2",
+  "openai/o1",
+  "openai/o1-mini",
+])
+
+/**
+ * Result of model ID validation
+ */
+export interface ModelValidationResult {
+  valid: boolean
+  suggestion?: string
+  message?: string
+}
+
+/**
+ * Validate a model ID against known models.
+ * Returns suggestions if the model is unknown but similar to a known one.
+ *
+ * @example
+ * validateModelId("qpt-4o-mini") // { valid: false, suggestion: "github-copilot/gpt-4o-mini" }
+ * validateModelId("github-copilot/gpt-4o") // { valid: true }
+ */
+export function validateModelId(model: string): ModelValidationResult {
+  // Check exact match
+  if (KNOWN_MODELS.has(model)) {
+    return { valid: true }
+  }
+
+  // Try to find similar model
+  const normalizedInput = model.toLowerCase().replace(/[^a-z0-9]/gi, "")
+  let bestMatch: string | undefined
+  let bestScore = 0
+
+  for (const known of KNOWN_MODELS) {
+    const normalizedKnown = known.toLowerCase().replace(/[^a-z0-9]/gi, "")
+
+    // Check for common typos
+    const score = calculateSimilarity(normalizedInput, normalizedKnown)
+    if (score > bestScore && score > 0.6) {
+      bestScore = score
+      bestMatch = known
+    }
+
+    // Also check just the model part (after the /)
+    const modelPart = model.split("/")[1] || model
+    const knownModelPart = known.split("/")[1]
+    if (knownModelPart && modelPart) {
+      const partScore = calculateSimilarity(
+        modelPart.toLowerCase().replace(/[^a-z0-9]/gi, ""),
+        knownModelPart.toLowerCase().replace(/[^a-z0-9]/gi, "")
+      )
+      if (partScore > bestScore && partScore > 0.6) {
+        bestScore = partScore
+        bestMatch = known
+      }
+    }
+  }
+
+  if (bestMatch) {
+    return {
+      valid: false,
+      suggestion: bestMatch,
+      message: `Unknown model "${model}". Did you mean "${bestMatch}"?`,
+    }
+  }
+
+  return {
+    valid: false,
+    message: `Unknown model "${model}". Check available models in your provider configuration.`,
+  }
+}
+
+/**
+ * Calculate similarity score between two strings (0-1)
+ * Uses simple Levenshtein-based similarity
+ */
+function calculateSimilarity(a: string, b: string): number {
+  if (a === b) return 1
+  if (a.length === 0 || b.length === 0) return 0
+
+  // Check if one contains the other
+  if (a.includes(b) || b.includes(a)) {
+    return 0.8
+  }
+
+  // Simple character matching
+  const aChars = new Set(a.split(""))
+  const bChars = new Set(b.split(""))
+  const intersection = new Set([...aChars].filter(x => bChars.has(x)))
+  const union = new Set([...aChars, ...bChars])
+
+  return intersection.size / union.size
+}
