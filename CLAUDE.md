@@ -27,20 +27,29 @@ npx tsx test-auto-router.ts
 ```
 src/
 ├── agents/           # AI agents: Sisyphus, oracle, librarian, explore, frontend, etc.
+│   ├── sisyphus.ts         # Main orchestrator (DEFAULT_MODEL: openai/gpt-5.2)
+│   ├── oracle.ts           # High-IQ consultant (DEFAULT_MODEL: openai/gpt-5.2)
+│   ├── explore.ts          # Fast codebase search
+│   ├── librarian.ts        # Documentation researcher
+│   └── frontend-ui-ux-engineer.ts  # UI/UX specialist
 ├── hooks/            # 22+ lifecycle hooks including auto-router
 │   └── auto-router/  # /autocode command hook - intelligent task routing
 ├── features/
-│   └── auto-router/  # Core auto-router logic (~3,500 LOC)
-│       ├── index.ts           # Main createAutoRouter() function
-│       ├── classifier.ts      # Task complexity classification
-│       ├── technique-selector.ts  # Technique selection matrix
-│       ├── escalation-manager.ts  # Budget tier escalation
-│       ├── judge-rubrics.ts   # LLM-as-judge evaluation
-│       ├── analytics.ts       # Technique effectiveness tracking
-│       ├── preset-selector.ts # Development preset auto-application
-│       ├── wizard.ts          # Interactive wizard configuration
-│       ├── production-ready.ts # Completion checklist verification
-│       └── constants.ts       # Budget tiers, techniques, presets
+│   └── auto-router/  # Core auto-router logic (~4,500 LOC)
+│       ├── index.ts              # Main createAutoRouter() function
+│       ├── classifier.ts         # Task complexity classification
+│       ├── technique-selector.ts # Technique selection matrix
+│       ├── escalation-manager.ts # Budget tier escalation state machine
+│       ├── judge-rubrics.ts      # LLM-as-judge evaluation criteria
+│       ├── judge-invoker.ts      # LLM judge invocation logic
+│       ├── analytics.ts          # Technique effectiveness tracking
+│       ├── preset-selector.ts    # Development preset auto-application
+│       ├── wizard.ts             # Interactive wizard configuration
+│       ├── production-ready.ts   # Completion checklist verification
+│       ├── rate-limit-handler.ts # Provider circuit breakers & fallbacks
+│       ├── semantic-search.ts    # Semantic code search utilities
+│       ├── constants.ts          # Budget tiers, techniques, presets
+│       └── types.ts              # TypeScript type definitions
 ├── tools/            # LSP, AST-Grep, Grep, Glob tools
 ├── mcp/              # MCP configs: context7, grep_app, websearch
 └── config/           # Zod schema, TypeScript types
@@ -98,11 +107,18 @@ src/
 ```bash
 npx tsx test-auto-router.ts
 ```
-Expected: 35+ tests passing
+Expected: 54 tests passing
 
 ## Current Focus
 
-**Status**: v3.8.0 - Major Rename & Enhancements
+**Status**: v3.8.1 - Configuration Profiles & Enhanced Wizard
+
+### v3.8.1 Changes
+1. Added: Configuration profiles system (`src/features/auto-router/profiles.ts`)
+2. Added: 11 pre-configured profiles (classic, balanced, quality-first, etc.)
+3. Added: Comprehensive Python wizard (`script/autocode_setup.py`)
+4. Added: Expense tracking by provider
+5. Fixed: Security issue with `os.system()` usage
 
 ### v3.8.0 Changes
 1. Renamed: oh-my-opencode → oh_my_autocode
@@ -113,9 +129,47 @@ Expected: 35+ tests passing
 6. Added: Verbose ralph-loop logging
 
 ### Key Files
+- `src/features/auto-router/profiles.ts` - Configuration profiles (11 presets)
 - `src/features/auto-router/wizard.ts` - Interactive wizard logic
 - `src/features/auto-router/production-ready.ts` - Completion checklist
 - `src/hooks/auto-router/index.ts` - Hook integration with ralph-loop
+- `script/autocode_setup.py` - Python setup wizard CLI
+
+## Configuration Profiles
+
+11 pre-configured profiles for different workflows:
+
+| Profile | Budget | Use Case |
+|---------|--------|----------|
+| `classic` | cheap | Original oh-my-opencode behavior |
+| `classic-free` | free | Original behavior, zero cost |
+| `classic-copilot-max` | moderate | Maximize Copilot subscription |
+| `ultra-frugal` | free | Free models only |
+| `budget-conscious` | free | Minimize costs |
+| `balanced` | cheap | Recommended default |
+| `quality-first` | moderate | Production code |
+| `speed-demon` | cheap | Fast prototyping |
+| `enterprise` | expensive | Maximum reliability |
+| `game-dev` | moderate | Game development |
+| `research` | moderate | Deep analysis |
+
+### Using the Python Wizard
+```bash
+# Fast setup - select a profile
+python script/autocode_setup.py --fast
+
+# Apply specific profile
+python script/autocode_setup.py --profile classic-free
+
+# View current configuration
+python script/autocode_setup.py --status
+
+# View expense breakdown
+python script/autocode_setup.py --expenses
+
+# See all options
+python script/autocode_setup.py --options
+```
 
 ## AutoCode Usage
 
@@ -150,12 +204,15 @@ Expected: 35+ tests passing
 ### Test File Location
 `test-auto-router.ts` at project root
 
-### Test Categories (35 total)
+### Test Categories (54 total)
 1. **Core Tests** (8): Classification, technique selection, budget routing
 2. **Edge Cases** (10): Empty input, long input, special characters, free tier, boundaries
 3. **Integration Tests** (7): End-to-end flow, project detection, judge rubrics
 4. **Wizard Tests** (6): Questions, config building, presets, flags, state machine
 5. **Production-Ready Tests** (4): Default checks, verification, judge check, report formatting
+6. **v3.3.0 Resource Optimization Tests** (6): Ralph loop determination, budget assignment
+7. **v3.8.0 Provider-Aware Tests** (8): Agent selection, provider limits, domain awareness
+8. **v3.8.0 Model Validation Tests** (5): Model ID validation, typo detection
 
 ### Running Tests
 ```bash

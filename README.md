@@ -73,7 +73,7 @@ Yes, technically possible. But I cannot recommend using it.
 
 ## 🍴 oh-my-autocode
 
-> **This is [oh-my-autocode](https://github.com/sadnow/oh-my-opencode)**, a fork adding **Intelligent Task Orchestration** via the `/auto` command.
+> **This is [oh-my-autocode](https://github.com/sadnow/oh-my-opencode)**, a fork adding **Intelligent Task Orchestration** via the `/autocode` command.
 >
 > See [upstream oh-my-opencode](https://github.com/code-yeongyu/oh-my-opencode) for the original project.
 
@@ -81,12 +81,12 @@ Yes, technically possible. But I cannot recommend using it.
 
 | Feature | Description |
 |---------|-------------|
-| **`/auto` command** | Intelligent task routing with automatic technique selection |
+| **`/autocode` command** | Intelligent task routing with automatic technique selection |
 | **10 Techniques** | `direct` → `ulw` → `ultrathink` → `ralph` → combos → `triple` |
 | **5 Budget Tiers** | `free` → `cheap` → `moderate` → `expensive` → `maximum` |
 | **Magic Keywords** | `ultrawork:`, `deepthink:`, `fullsend:` for explicit control |
 | **Quality Thresholds** | Domain-aware: crypto (0.85), security (0.8), prototype (0.6) |
-| **Wizard Mode** | `/auto-wizard` for interactive configuration |
+| **Wizard Mode** | `/autocode-wizard` for interactive configuration |
 | **Completion Judge** | LLM verification of task completion claims |
 | **Upstream Sync** | Automatic notification when behind upstream releases |
 
@@ -94,12 +94,14 @@ Yes, technically possible. But I cannot recommend using it.
 
 ```bash
 # Auto-classifies task and selects optimal technique
-/auto "fix the login bug"
+/autocode "fix the login bug"
 
 # Forces specific technique via magic keyword
-/auto ultrawork: build user authentication system
-/auto deepthink: optimize database query performance
-/auto fullsend: refactor entire payment module
+/autocode ultrawork: build user authentication system
+/autocode deepthink: optimize database query performance
+/autocode fullsend: refactor entire payment module
+
+# Legacy: /auto still works but shows deprecation warning
 ```
 
 See [CHANGELOG.fork.md](./CHANGELOG.fork.md) for full fork history.
@@ -816,7 +818,7 @@ When agents thrive, you thrive. But I want to help you directly too.
   - `ultrawork` / `ulw`: Maximum performance mode with parallel agent orchestration
   - `search` / `find` / `찾아` / `検索`: Maximized search effort with parallel explore and librarian agents
   - `analyze` / `investigate` / `분석` / `調査`: Deep analysis mode with multi-phase expert consultation
-- **Auto Router** (`/auto` command): Intelligent task routing that goes beyond simple model selection. **Unique feature in the ecosystem.**
+- **Auto Router** (`/autocode` command): Intelligent task routing that goes beyond simple model selection. **Unique feature in the ecosystem.**
   - Analyzes your task and automatically selects the optimal technique combination
   - 10 execution techniques: `direct`, `ulw`, `ultrathink`, `ralph`, and 7 combinations (`ulw+ralph`, `ultrathink+ulw`, etc.)
   - 4-tier adaptive budget system: `cheap` → `moderate` → `expensive` → `maximum`
@@ -829,14 +831,14 @@ When agents thrive, you thrive. But I want to help you directly too.
 
   **Usage:**
   ```
-  /auto "fix the typo in README"                    # Simple → direct technique
-  /auto "implement user auth with JWT"              # Moderate → ulw+ralph
-  /auto "refactor payment system for PCI compliance" # Complex → triple technique
-  /auto "task" --budget=expensive                   # Budget override
-  /auto "task" --force-technique=ultrathink         # Technique override
-  /auto ultrawork: build a REST API                 # Magic keyword shortcut
-  /auto deepthink: design complex algorithm         # Extended thinking mode
-  /auto fullsend: critical security refactor        # Maximum capability mode
+  /autocode "fix the typo in README"                    # Simple → direct technique
+  /autocode "implement user auth with JWT"              # Moderate → ulw+ralph
+  /autocode "refactor payment system for PCI compliance" # Complex → triple technique
+  /autocode "task" --budget=expensive                   # Budget override
+  /autocode "task" --force-technique=ultrathink         # Technique override
+  /autocode ultrawork: build a REST API                 # Magic keyword shortcut
+  /autocode deepthink: design complex algorithm         # Extended thinking mode
+  /autocode fullsend: critical security refactor        # Maximum capability mode
   ```
 
   Configure in `oh-my-opencode.json`:

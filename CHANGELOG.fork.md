@@ -1,11 +1,148 @@
 # Changelog: oh-my-autocode
 
 > **oh-my-autocode** is a fork of [oh-my-opencode](https://github.com/code-yeongyu/oh-my-opencode)
-> adding intelligent task orchestration via the `/auto` command.
+> adding intelligent task orchestration via the `/autocode` command.
 
 All notable changes specific to this fork are documented here.
 
 For upstream changes, see the [original repository](https://github.com/code-yeongyu/oh-my-opencode).
+
+---
+
+## [v3.8.1] - 2026-01-16
+
+### Configuration Profiles & Enhanced Python Wizard
+
+Major enhancement adding pre-configured profiles for different use cases and a completely rewritten Python setup wizard.
+
+**New Features:**
+
+#### Configuration Profiles (`src/features/auto-router/profiles.ts`)
+
+11 pre-configured profiles optimized for different workflows:
+
+| Profile | Description | Cost Range |
+|---------|-------------|------------|
+| `classic` | Original oh-my-opencode behavior | $0.01-0.30/task |
+| `classic-free` | Classic feel with free models only | $0/task |
+| `classic-copilot-max` | Maximize Copilot subscription value | $0.02-0.40/task |
+| `ultra-frugal` | Free models only, no escalation | $0/task |
+| `budget-conscious` | Minimize costs, escalate when needed | $0.01-0.05/task |
+| `balanced` | Recommended default | $0.01-0.20/task |
+| `quality-first` | Premium models for production code | $0.05-1.00/task |
+| `speed-demon` | Fast iteration for prototyping | $0.01-0.10/task |
+| `enterprise` | Maximum reliability with Bedrock | $0.10-2.00/task |
+| `game-dev` | Optimized for game development | $0.02-0.50/task |
+| `research` | Deep thinking for analysis tasks | $0.05-1.50/task |
+
+Each profile configures:
+- Provider priorities and fallback chains
+- Budget tier defaults and escalation rules
+- Logging and spending milestone settings
+- Technique selection (direct, ulw, ultrathink, ralph)
+
+#### Enhanced Python Wizard (`script/autocode_setup.py`)
+
+Completely rewritten with:
+
+- **Profile Selection**: Apply any of the 11 profiles via `--profile <name>`
+- **Fast Setup**: Quick profile selection with `--fast`
+- **Expense Tracking**: View costs by provider with `--expenses`
+- **Usage Statistics**: Track tasks, tokens, and spending
+- **Interactive CLI**: Arrow-key navigation (requires `readchar` package)
+- **Comprehensive Options**: See all flags with `--options`
+
+**Example Usage:**
+```bash
+# Fast setup - just pick a profile
+python script/autocode_setup.py --fast
+
+# Apply a specific profile
+python script/autocode_setup.py --profile classic-free
+
+# View current status
+python script/autocode_setup.py --status
+
+# View expense breakdown
+python script/autocode_setup.py --expenses
+
+# Run tests
+python script/autocode_setup.py --test
+```
+
+**Bug Fixes:**
+
+- Fixed `--profile X --status` not showing new profile (status shown before profile applied)
+- Replaced `os.system()` with `subprocess.run()` for security
+
+**New Exports:**
+
+Added to `src/features/auto-router/index.ts`:
+```typescript
+export {
+  CONFIG_PROFILES,
+  DEFAULT_PROFILE_ID,
+  getProfile,
+  getProfilesSortedByCost,
+  getProfilesByTag,
+  recommendProfile,
+  PROFILE_CLASSIC,
+  PROFILE_CLASSIC_FREE,
+  PROFILE_CLASSIC_COPILOT_MAX,
+  // ... all profile constants
+  type ConfigProfile,
+  type ProviderPriority,
+  type BudgetTierOverride,
+  type LoggingConfig,
+  type EscalationConfig,
+} from "./profiles"
+```
+
+**Documentation:**
+
+- Created `docs/auto-router-api.md` - Complete API reference
+- Updated `CLAUDE.md` with profile system information
+
+---
+
+## [v3.8.0] - 2026-01-16
+
+### Command Rename & Codebase Cleanup
+
+Major rename and organizational improvements for consistency and maintainability.
+
+**Breaking Changes:**
+- Command renamed: `/auto` → `/autocode` (legacy `/auto` still works with deprecation warning)
+- Package renamed: `oh-my-opencode` → `oh_my_autocode` (internal)
+- Wizard renamed: `/auto-wizard` → `/autocode-wizard`
+
+**Improvements:**
+
+#### Model Version Updates
+- Updated Anthropic haiku models from `claude-3-haiku-20240307` to `claude-3-5-haiku-20251022`
+- Fixes anti-pattern violation: no 2024 model references
+
+#### File Organization
+- Moved `auto_router.py` to `script/` directory
+- Moved `autocode_setup.py` to `script/` directory
+- Moved `tutorial.html` to `docs/` directory
+- Deleted Windows artifact `nul` file
+
+#### Documentation Updates
+- Updated all README examples from `/auto` to `/autocode`
+- Added deprecation notice for legacy `/auto` command
+- Updated CHANGELOG header to reference `/autocode`
+
+### Files Changed
+
+| File | Changes |
+|------|---------|
+| `script/auto_router.py` | Moved from root, updated model versions |
+| `script/autocode_setup.py` | Moved from root |
+| `docs/tutorial.html` | Moved from root |
+| `README.md` | Updated `/auto` → `/autocode` throughout |
+| `CHANGELOG.fork.md` | Added v3.8.0 section, updated header |
+| `nul` | Deleted (Windows artifact) |
 
 ---
 
