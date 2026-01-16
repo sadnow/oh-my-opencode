@@ -34,6 +34,7 @@ export const BuiltinSkillNameSchema = z.enum([
   "frontend-ui-ux",
   "git-master",
   "auto",
+  "autocode",  // v3.8.0: /autocode command (replaces /auto)
 ])
 
 export const OverridableAgentNameSchema = z.enum([
@@ -472,5 +473,9 @@ export type MetaDevelopmentConfig = z.infer<typeof MetaDevelopmentConfigSchema>
 export type BudgetTier = z.infer<typeof BudgetTierSchema>
 export type TechniqueCombo = z.infer<typeof TechniqueComboSchema>
 export type ProjectType = z.infer<typeof ProjectTypeSchema>
+
+// v3.8.0: Alias for rename oh-my-opencode → oh_my_autocode
+export const OhMyAutoCodeConfigSchema = OhMyOpenCodeConfigSchema
+export type OhMyAutoCodeConfig = OhMyOpenCodeConfig
 
 export { AnyMcpNameSchema, type AnyMcpName, McpNameSchema, type McpName } from "../mcp/types"

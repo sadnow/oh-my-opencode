@@ -1,12 +1,13 @@
 {
-  "name": "oh-my-opencode",
-  "version": "3.0.0-beta.8",
+  "name": "oh_my_autocode",
+  "version": "3.8.0",
   "description": "The Best AI Agent Harness - Batteries-Included OpenCode Plugin with Multi-Model Orchestration, Parallel Background Agents, and Crafted LSP/AST Tools",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "type": "module",
   "bin": {
-    "oh-my-opencode": "./bin/oh-my-opencode.js"
+    "oh_my_autocode": "./bin/oh_my_autocode.js",
+    "oh-my-opencode": "./bin/oh_my_autocode.js"
   },
   "files": [
     "dist",
@@ -18,7 +19,7 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
     },
-    "./schema.json": "./dist/oh-my-opencode.schema.json"
+    "./schema.json": "./dist/oh_my_autocode.schema.json"
   },
   "scripts": {
     "build": "bun build src/index.ts --outdir dist --target bun --format esm --external @ast-grep/napi && tsc --emitDeclarationOnly && bun build src/cli/index.ts --outdir dist/cli --target bun --format esm --external @ast-grep/napi && bun run build:schema",
@@ -44,12 +45,12 @@
   "license": "SUL-1.0",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/code-yeongyu/oh-my-opencode.git"
+    "url": "git+https://github.com/sadnow/oh_my_autocode.git"
   },
   "bugs": {
-    "url": "https://github.com/code-yeongyu/oh-my-opencode/issues"
+    "url": "https://github.com/sadnow/oh_my_autocode/issues"
   },
-  "homepage": "https://github.com/code-yeongyu/oh-my-opencode#readme",
+  "homepage": "https://github.com/sadnow/oh_my_autocode#readme",
   "dependencies": {
     "@ast-grep/cli": "^0.40.0",
     "@ast-grep/napi": "^0.40.0",
@@ -78,13 +79,13 @@
     "typescript": "^5.9.3"
   },
   "optionalDependencies": {
-    "oh-my-opencode-darwin-arm64": "3.0.0-beta.8",
-    "oh-my-opencode-darwin-x64": "3.0.0-beta.8",
-    "oh-my-opencode-linux-arm64": "3.0.0-beta.8",
-    "oh-my-opencode-linux-arm64-musl": "3.0.0-beta.8",
-    "oh-my-opencode-linux-x64": "3.0.0-beta.8",
-    "oh-my-opencode-linux-x64-musl": "3.0.0-beta.8",
-    "oh-my-opencode-windows-x64": "3.0.0-beta.8"
+    "oh_my_autocode-darwin-arm64": "3.8.0",
+    "oh_my_autocode-darwin-x64": "3.8.0",
+    "oh_my_autocode-linux-arm64": "3.8.0",
+    "oh_my_autocode-linux-arm64-musl": "3.8.0",
+    "oh_my_autocode-linux-x64": "3.8.0",
+    "oh_my_autocode-linux-x64-musl": "3.8.0",
+    "oh_my_autocode-windows-x64": "3.8.0"
   },
   "trustedDependencies": [
     "@ast-grep/cli",
