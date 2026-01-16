@@ -1,0 +1,6 @@
+# Bun configuration for oh_my_autocode
+# Excludes upstream vanilla folder and autocode extensions from test discovery
+
+[test]
+# Only test files in src/ - exclude nested oh-my-opencode/ and autocode/
+root = "./src"
