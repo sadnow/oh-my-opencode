@@ -58,6 +58,7 @@ import {
   AUTO_ROUTER_TAG_CLOSE,
   AUTO_COMMAND_PATTERN,
   parseAutoCommand,
+  showAutoDeprecationWarning,
 } from "./constants"
 import {
   loadRateLimitState,
@@ -389,19 +390,25 @@ export function createAutoRouterHook(
       return null
     }
 
-    // Use the robust parser function (handles multiline, quotes, etc.)
-    const taskDescription = parseAutoCommand(text)
+    // Use the robust parser function (handles multiline, quotes, /autocode and /auto)
+    const parseResult = parseAutoCommand(text)
 
     // Validate task description is not empty
-    if (!taskDescription) {
-      // Only log if it looked like an /auto command
-      if (text.trim().toLowerCase().startsWith("/auto")) {
+    if (!parseResult) {
+      // Only log if it looked like an /auto or /autocode command
+      const trimmedLower = text.trim().toLowerCase()
+      if (trimmedLower.startsWith("/auto") || trimmedLower.startsWith("/autocode")) {
         log(`[${HOOK_NAME}] Empty or invalid task description rejected`)
       }
       return null
     }
 
-    return { taskDescription }
+    // v3.8.0: Show deprecation warning if using /auto instead of /autocode
+    if (parseResult.isDeprecated) {
+      showAutoDeprecationWarning()
+    }
+
+    return { taskDescription: parseResult.task }
   }
 
   /**
