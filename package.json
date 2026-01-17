@@ -1,6 +1,6 @@
 {
   "name": "oh_my_autocode",
-  "version": "3.8.0",
+  "version": "3.8.2",
   "description": "The Best AI Agent Harness - Batteries-Included OpenCode Plugin with Multi-Model Orchestration, Parallel Background Agents, and Crafted LSP/AST Tools",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -26,6 +26,9 @@
     "build:all": "bun run build && bun run build:binaries",
     "build:binaries": "bun run script/build-binaries.ts",
     "build:schema": "bun run script/build-schema.ts",
+    "build:plugin": "bun build src/index.ts --outdir dist --target bun --format esm --external @ast-grep/napi --minify && bun run build:schema",
+    "build:plugin:dev": "bun build src/index.ts --outdir dist --target bun --format esm --external @ast-grep/napi --sourcemap && bun run build:schema",
+    "build:autocode-only": "bun run script/build-autocode-standalone.ts",
     "clean": "rm -rf dist",
     "postinstall": "node postinstall.mjs",
     "prepublishOnly": "bun run clean && bun run build",
