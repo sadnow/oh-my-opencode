@@ -110,6 +110,11 @@ export interface SubagentExecutionInfo {
   parentSessionId: string
   /** Task description */
   taskDescription: string
+  /** v3.8.2: Completion status for ralph loop tracking */
+  completed?: boolean
+  completedAt?: number
+  failed?: boolean
+  failedAt?: number
 }
 
 export interface AutoRouterHookOptions {

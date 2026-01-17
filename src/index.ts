@@ -247,9 +247,10 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
         },
       })
 
-      // Poll for completion (max 30 seconds)
+      // v3.8.2: Poll for completion with timeout matching judge timeout + buffer
+      // Completion judge timeout is 60s, so poll for 70s to allow completion
       const POLL_INTERVAL_MS = 500
-      const MAX_POLL_TIME_MS = 30000
+      const MAX_POLL_TIME_MS = 70000
       const pollStart = Date.now()
       let responseText = ""
 

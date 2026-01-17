@@ -43,7 +43,9 @@ export const DEFAULT_COMPLETION_JUDGE_CONFIG: CompletionJudgeConfig = {
     "openai/gpt-4o-mini",                 // Cheap via OpenAI API
     "opencode/glm-4.7-free",              // Always free fallback
   ],
-  timeout_ms: 60000,  // 60 second timeout (increased from 30s for complex tasks)
+  // v3.8.2: Increased to 90s to exceed LLM invoker polling timeout (70s)
+  // This ensures the judge timeout doesn't fire before the model finishes responding
+  timeout_ms: 90000,
 }
 
 // ============================================================================

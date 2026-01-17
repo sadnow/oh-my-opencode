@@ -17,6 +17,11 @@ import {
   formatModelUsageToast,
   formatProviderStatusToast,
   toSimpleToast,
+  // v3.8.2: Additional notification formatters
+  formatModelDeploymentToast,
+  formatParallelAgentDeploymentToast,
+  formatSpendingMilestoneToast,
+  formatSubagentErrorToast,
 } from "../../shared/notifications"
 import {
   createAutoRouter,
@@ -93,6 +98,8 @@ import {
   type RateLimitState,
 } from "../../features/auto-router/rate-limit-handler"
 import { BudgetTierSchema, TechniqueComboSchema, AutoRouterConfigSchema } from "../../config/schema"
+// v3.8.2: Import ralph-loop state management for cleanup
+import { clearState as clearRalphLoopState } from "../ralph-loop/storage"
 
 export * from "./types"
 export * from "./constants"
@@ -112,6 +119,8 @@ interface SessionState {
   requiredTools?: string[]
   /** v3.6.4: Session context preserved between /auto commands */
   sessionContext: AutoRouterSessionContext
+  /** v3.8.2: Whether auto-router is actively processing a task (vs just has session history) */
+  active: boolean
 }
 
 interface ProcessedCommand {
@@ -420,18 +429,26 @@ export function createAutoRouterHook(
 
     // First pass: remove stale sessions
     for (const [sessionId, state] of sessions) {
+      // v3.8.2: Don't delete sessions with active ralph loops
+      if (state.ralphLoopEnabled) {
+        continue  // Skip cleanup for active ralph loop sessions
+      }
       if (now - state.createdAt > CLEANUP_INTERVAL_MS) {
         sessions.delete(sessionId)
       }
     }
 
-    // Second pass: enforce max sessions cap by removing oldest
+    // Second pass: enforce max sessions cap by removing oldest (excluding ralph loops)
     if (sessions.size > MAX_SESSIONS) {
+      // v3.8.2: Filter out ralph loop sessions before eviction
+      const evictable = [...sessions.entries()].filter(
+        ([, state]) => !state.ralphLoopEnabled
+      )
       // Sort by createdAt ascending (oldest first)
-      const sorted = [...sessions.entries()].sort(
+      const sorted = evictable.sort(
         (a, b) => a[1].createdAt - b[1].createdAt
       )
-      // Remove oldest sessions until we're at the cap
+      // Remove oldest evictable sessions until we're at the cap
       const toRemove = sorted.slice(0, sessions.size - MAX_SESSIONS)
       for (const [sessionId] of toRemove) {
         sessions.delete(sessionId)
@@ -587,11 +604,31 @@ export function createAutoRouterHook(
           pattern: AUTO_COMMAND_PATTERN.source,
         })
       }
+
+      // v3.8.2: Deactivate any existing session when user sends a non-autocode message
+      // This prevents auto-router from hijacking normal chat messages
+      const prevSession = sessions.get(input.sessionID)
+      if (prevSession?.active) {
+        prevSession.active = false
+        log(`[${HOOK_NAME}] Session deactivated (non-autocode message received)`, {
+          sessionID: input.sessionID,
+        })
+      }
+
+      // v3.8.2: ALWAYS clear ralph-loop state file on non-autocode messages
+      // The ralph-loop state persists on DISK and survives restarts, so we must
+      // clear it regardless of whether there's an in-memory auto-router session
+      if (options?.directory) {
+        clearRalphLoopState(options.directory)
+      }
       return
     }
 
-    // Check if already processed (using timestamp-based Map)
-    const commandKey = `${input.sessionID}:${input.messageID}:auto`
+    // v3.8.2: Include iteration count in deduplication key for ralph loops
+    // This allows re-execution on subsequent ralph loop iterations
+    const existingSession = sessions.get(input.sessionID)
+    const iteration = existingSession?.iteration ?? 0
+    const commandKey = `${input.sessionID}:${input.messageID}:auto:${iteration}`
     if (processedCommands.has(commandKey)) {
       return
     }
@@ -704,6 +741,7 @@ export function createAutoRouterHook(
       }
 
       // Store session state for escalation tracking
+      // v3.8.2: Set active=true so chatParams knows to modify model
       sessions.set(input.sessionID, {
         escalationManager: result.escalationManager,
         taskDescription: detected.taskDescription,
@@ -714,6 +752,7 @@ export function createAutoRouterHook(
         taskIntent: taskIntentResult.primaryIntent,
         requiredTools: taskIntentResult.requiredTools,
         sessionContext: updatedSessionContext,
+        active: true,  // v3.8.2: Mark session as actively processing
       })
 
       // Generate summary for logging
@@ -815,6 +854,18 @@ Continue with the same context unless explicitly overridden by the current task.
 **For subagent tasks**: Use agent="${recommendedAgent}" in sisyphus_task/call_omo_agent
 This ensures appropriate model capability for task complexity.
 Max iterations at this tier: ${budgetConfig.maxIterations}`
+
+      // v3.8.2: Concise banner for quick model/role visibility
+      console.log(`
+================================================================================
+[AUTO-ROUTER] TASK STARTED
+================================================================================
+Complexity Tier: ${result.classification.complexityTier}
+Technique: ${finalTechnique}
+Budget: ${finalBudget.toUpperCase()} | Model: ${budgetConfig.models.primary}
+Available: Oracle (consultant), Librarian (research), Explore (search)
+================================================================================
+`)
 
       // v3.7.0: Auto-spawn subagent for Tier 2-3 tasks
       const autoSpawnConfig = config.auto_spawn_subagents ?? { enabled: true, tier_threshold: 2, verify_models: true, spawn_for_ralph: true }
@@ -947,14 +998,21 @@ Max iterations at this tier: ${budgetConfig.maxIterations}`
             budget: finalBudget,
           })
 
-          // v3.8.1: Show toast notification for subagent deployment
+          // v3.8.2: Enhanced toast notification with detailed formatter
+          const deploymentToast = formatModelDeploymentToast({
+            agent: subagentAgent,
+            model: usedModel,
+            provider: extractProvider(usedModel),
+            purpose: `Tier ${result.classification.complexityTier} task delegation`,
+            budgetTier: finalBudget,
+          })
           await ctx.client.tui
             .showToast({
               body: {
-                title: "Subagent Deployed",
-                message: `${subagentAgent} launched with ${usedModel}${didFallback ? " (fallback)" : ""}`,
-                variant: "info",
-                duration: 4000,
+                title: deploymentToast.title,
+                message: toSimpleToast(deploymentToast).message,
+                variant: deploymentToast.variant,
+                duration: deploymentToast.duration,
               },
             })
             .catch(err => log(`[${HOOK_NAME}] Subagent toast failed`, { error: err?.message || String(err) }))
@@ -1246,6 +1304,25 @@ Use \`background_output\` tool to check their progress before proceeding.`
             },
           })
           .catch(err => log(`[${HOOK_NAME}] Toast failed`, { error: err?.message || String(err) }))
+
+        // v3.8.2: Show separate parallel agent toast in standard mode too (for visibility)
+        if (parallelAgentsLaunched > 0) {
+          const parallelToast = formatParallelAgentDeploymentToast({
+            agents: launchedAgentNames,
+            model: launchedAgentModels[0] ?? "unknown",
+            purpose: `Tier ${result.classification.complexityTier} exploration`,
+          })
+          await ctx.client.tui
+            .showToast({
+              body: {
+                title: parallelToast.title,
+                message: toSimpleToast(parallelToast).message,
+                variant: parallelToast.variant,
+                duration: parallelToast.duration,
+              },
+            })
+            .catch(err => log(`[${HOOK_NAME}] Parallel agent toast failed`, { error: err?.message || String(err) }))
+        }
       }
 
     } catch (err) {
@@ -1315,6 +1392,11 @@ ${AUTO_ROUTER_TAG_CLOSE}`
 
       const sessionState = sessions.get(sessionID)
       if (!sessionState) return
+
+      // v3.8.2: Skip processing if session is not actively processing an /autocode task
+      if (!sessionState.active) {
+        return
+      }
 
       // Track iteration
       sessionState.iteration++
@@ -1436,6 +1518,13 @@ ${AUTO_ROUTER_TAG_CLOSE}`
         sessions.delete(sessionId)
         log(`[${HOOK_NAME}] Session cleaned up`, { sessionID: sessionId })
 
+        // v3.8.2: Clean up completed/failed subagents for this session
+        for (const [taskId, info] of subagentExecutions) {
+          if (info.parentSessionId === sessionId) {
+            subagentExecutions.delete(taskId)
+          }
+        }
+
         // v3.8.0: Show spending summary on session end
         const summary = getSpendingSummary()
         if (summary.requestCount > 0) {
@@ -1499,6 +1588,24 @@ ${AUTO_ROUTER_TAG_CLOSE}`
         console.log(`\n💰 SPENDING MILESTONE: $${milestone.amount}`)
         console.log(`   Main contributor: ${milestone.mainContributor}`)
         console.log(`   Total requests: ${summary.requestCount}`)
+
+        // v3.8.2: Toast notification for UI visibility
+        const spendingToast = formatSpendingMilestoneToast({
+          totalSpent: summary.totalEstimated,
+          currentIncrement: 1,
+          mainModel: milestone.mainContributor,
+          breakdown: summary.byModel,
+        })
+        await ctx.client.tui
+          .showToast({
+            body: {
+              title: spendingToast.title,
+              message: toSimpleToast(spendingToast).message,
+              variant: spendingToast.variant,
+              duration: spendingToast.duration,
+            },
+          })
+          .catch(err => log(`[${HOOK_NAME}] Spending milestone toast failed`, { error: err?.message }))
       }
 
       // Console output for completion
@@ -1523,8 +1630,16 @@ ${AUTO_ROUTER_TAG_CLOSE}`
         modelMatch,
       })
 
-      // Clean up local tracking
-      subagentExecutions.delete(taskId)
+      // v3.8.2: Mark as completed but keep for ralph loop context
+      // Only delete when parent session ends
+      const parentSession = sessions.get(subagentInfo.parentSessionId)
+      if (!parentSession?.ralphLoopEnabled) {
+        subagentExecutions.delete(taskId)
+      } else {
+        // Keep in map but mark as completed for ralph loop visibility
+        subagentInfo.completed = true
+        subagentInfo.completedAt = Date.now()
+      }
     }
 
     // v3.7.0: Handle subagent error for analytics tracking and escalation respawn
@@ -1563,13 +1678,48 @@ ${AUTO_ROUTER_TAG_CLOSE}`
         budget: subagentInfo.budgetTier,
       })
 
-      // Clean up local tracking
-      subagentExecutions.delete(taskId)
+      // v3.8.2: Check if we'll retry before showing toast
+      const sessionState = sessions.get(subagentInfo.parentSessionId)
+      const canEscalate = sessionState && config.auto_escalate !== false && options?.backgroundManager
+      const escalationDecision = canEscalate
+        ? await sessionState.escalationManager.shouldEscalate()
+        : null
+
+      // v3.8.2: Show error toast to user
+      const errorToast = formatSubagentErrorToast({
+        taskId,
+        agent: subagentInfo.agentName || "subagent",
+        model: subagentInfo.intendedModel,
+        error: errorMessage,
+        willRetry: escalationDecision?.shouldEscalate ?? false,
+        retryTier: escalationDecision?.toTier,
+      })
+      await ctx.client.tui
+        .showToast({
+          body: {
+            title: errorToast.title,
+            message: toSimpleToast(errorToast).message,
+            variant: errorToast.variant,
+            duration: errorToast.duration,
+          },
+        })
+        .catch(err => log(`[${HOOK_NAME}] Error toast failed`, { error: err?.message }))
+
+      // v3.8.2: Mark as failed but keep for ralph loop context
+      // Only delete when parent session ends
+      const parentSession = sessions.get(subagentInfo.parentSessionId)
+      if (!parentSession?.ralphLoopEnabled) {
+        subagentExecutions.delete(taskId)
+      } else {
+        // Keep in map but mark as failed for ralph loop visibility
+        subagentInfo.failed = true
+        subagentInfo.failedAt = Date.now()
+      }
 
       // v3.7.0: Attempt escalation respawn if auto_escalate is enabled
-      const sessionState = sessions.get(subagentInfo.parentSessionId)
-      if (sessionState && config.auto_escalate !== false && options?.backgroundManager) {
-        const decision = await sessionState.escalationManager.shouldEscalate()
+      if (canEscalate && escalationDecision && options?.backgroundManager) {
+        const decision = escalationDecision
+        const backgroundManager = options.backgroundManager
 
         if (decision.shouldEscalate && decision.toTier) {
           const fromTier = subagentInfo.budgetTier
@@ -1608,7 +1758,7 @@ ${AUTO_ROUTER_TAG_CLOSE}`
 
             // Spawn new subagent with higher-tier model and technique instructions
             const escalatedModelConfig = parseModelString(newModel)
-            const launchResult = await options.backgroundManager.launch({
+            const launchResult = await backgroundManager.launch({
               description: `[AUTO-ROUTER ESCALATE] ${subagentInfo.taskDescription.substring(0, 40)}`,
               prompt: enhancedPrompt,
               agent: newAgent,
@@ -1665,6 +1815,25 @@ ${AUTO_ROUTER_TAG_CLOSE}`
               newModel,
             })
 
+            // v3.8.2: Show toast notification for escalation respawn
+            const respawnToast = formatModelDeploymentToast({
+              agent: newAgent,
+              model: newModel,
+              provider: extractProvider(newModel),
+              purpose: `Escalation respawn (${fromTier} → ${decision.toTier})`,
+              budgetTier: decision.toTier,
+            })
+            await ctx.client.tui
+              .showToast({
+                body: {
+                  title: respawnToast.title,
+                  message: toSimpleToast(respawnToast).message,
+                  variant: respawnToast.variant,
+                  duration: respawnToast.duration,
+                },
+              })
+              .catch(err => log(`[${HOOK_NAME}] Respawn toast failed`, { error: err?.message }))
+
           } catch (respawnErr) {
             const respawnError = respawnErr instanceof Error ? respawnErr.message : String(respawnErr)
             console.log(`[AUTO-ROUTER] Escalation respawn failed: ${respawnError}`)
@@ -1675,6 +1844,18 @@ ${AUTO_ROUTER_TAG_CLOSE}`
               toTier: decision.toTier,
               error: respawnError,
             })
+
+            // v3.8.2: Show toast for failed respawn
+            await ctx.client.tui
+              .showToast({
+                body: {
+                  title: "Escalation Respawn Failed",
+                  message: `Could not spawn new agent: ${respawnError.substring(0, 80)}`,
+                  variant: "error",
+                  duration: 6000,
+                },
+              })
+              .catch(err => log(`[${HOOK_NAME}] Respawn error toast failed`, { error: err?.message }))
           }
         }
       }
@@ -1720,6 +1901,12 @@ ${AUTO_ROUTER_TAG_CLOSE}`
     const sessionState = sessions.get(sessionID)
     if (!sessionState) {
       // No auto-router session for this chat - don't modify model
+      return
+    }
+
+    // v3.8.2: Only modify model when actively processing an /autocode task
+    // This prevents auto-router from hijacking normal chat messages
+    if (!sessionState.active) {
       return
     }
 
