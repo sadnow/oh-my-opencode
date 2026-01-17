@@ -37,13 +37,13 @@ export type { CompletionJudgeConfig }
 export const DEFAULT_COMPLETION_JUDGE_CONFIG: CompletionJudgeConfig = {
   enabled: true,  // Enabled by default - uses fallback models if primary fails
   min_confidence: 0.8,
-  model: "github-copilot/gpt-4o-mini",  // Primary model (free via Copilot CLI)
+  model: "github-copilot/gpt-4o",       // Primary model (gpt-4o-mini not available via Copilot)
   fallback_models: [
     "google/antigravity-gemini-3-flash",  // Free via Antigravity OAuth (AI Studio)
     "openai/gpt-4o-mini",                 // Cheap via OpenAI API
     "opencode/glm-4.7-free",              // Always free fallback
   ],
-  timeout_ms: 30000,  // 30 second timeout
+  timeout_ms: 60000,  // 60 second timeout (increased from 30s for complex tasks)
 }
 
 // ============================================================================
@@ -144,15 +144,23 @@ export async function verifyCompletionCriteria(
   } catch (error) {
     log("[completion-judge] Error during evaluation", { error: String(error) })
 
-    // On timeout or error, return a conservative result
-    // Default to PASS to avoid infinite loops, but log the failure
+    // On timeout or error, return INCOMPLETE to force retry
+    // v3.8.1: Changed from isComplete: true to isComplete: false
+    // This prevents premature "DONE" acceptance when judge can't verify
+    const isTimeout = String(error).includes("timeout") || String(error).includes("Timeout")
     return {
-      isComplete: true,
+      isComplete: false,  // Changed: Don't auto-pass on errors
       requirements: [],
-      unmetCriteria: [],
+      unmetCriteria: [
+        isTimeout
+          ? "Judge evaluation timed out - unable to verify completion"
+          : `Judge evaluation failed: ${String(error).substring(0, 100)}`
+      ],
       contradictions: [],
-      confidence: 0.5,
-      reasoning: `Judge evaluation failed: ${error}. Defaulting to pass to avoid infinite loop.`,
+      confidence: 0.0,  // Changed: No confidence when evaluation failed
+      reasoning: isTimeout
+        ? `Judge timed out after ${finalConfig.timeout_ms / 1000}s. Retry needed.`
+        : `Judge evaluation error: ${error}. Task marked incomplete for retry.`,
     }
   }
 }
@@ -216,15 +224,16 @@ function parseJudgeResponse(response: string): CompletionJudgeResult {
 
 /**
  * Create a result for when parsing fails
+ * v3.8.1: Changed to return isComplete: false to force retry instead of auto-pass
  */
 function createFailedParseResult(reason: string): CompletionJudgeResult {
   return {
-    isComplete: true,  // Default to pass to avoid infinite loops
+    isComplete: false,  // Changed: Don't auto-pass on parse errors
     requirements: [],
-    unmetCriteria: [],
+    unmetCriteria: [`Judge response parse failed: ${reason}`],
     contradictions: [],
-    confidence: 0.5,
-    reasoning: `Parse failure: ${reason}. Defaulting to pass.`,
+    confidence: 0.0,  // Changed: No confidence when parsing failed
+    reasoning: `Parse failure: ${reason}. Task marked incomplete for retry.`,
   }
 }
 

@@ -6,6 +6,36 @@ Oh-My-AutoCode (formerly Oh-My-OpenCode) is a batteries-included plugin for [Ope
 
 **This fork (sadnow/oh_my_autocode)** adds **Technique Orchestration** - an intelligent auto-router that analyzes tasks and automatically selects optimal technique combinations (direct, ulw, ultrathink, ralph, or combos) with adaptive budget escalation.
 
+## Two-Folder Architecture
+
+This project uses a separated architecture for easy upstream syncing:
+
+```
+oh-my-autocode/
+├── oh-my-opencode/     # Vanilla upstream (git subtree - DON'T MODIFY)
+├── autocode/           # Our extensions (MODIFY HERE)
+│   ├── setup.py        # Main entry point
+│   ├── src/            # Auto-router source
+│   ├── presets/        # Configuration presets
+│   ├── release/        # Built plugin files
+│   └── test/           # 54 comprehensive tests
+├── src/                # Integrated source
+└── dist/               # Build output
+```
+
+### Upstream Sync
+```bash
+git subtree pull --prefix=oh-my-opencode upstream dev --squash
+```
+
+### AutoCode Setup
+```bash
+cd autocode
+python setup.py --options    # Show all options
+python setup.py --fast       # Quick profile selection
+python setup.py --release    # Build release package
+```
+
 ## Quick Start
 
 ```bash
@@ -21,6 +51,34 @@ bun test
 # Run auto-router tests specifically
 npx tsx test-auto-router.ts
 ```
+
+## Build System
+
+### Build Scripts
+
+| Script | Output | Description |
+|--------|--------|-------------|
+| `bun run build` | dist/ | Full build with types, CLI, and schema |
+| `bun run build:plugin` | dist/index.js | Minified plugin for production |
+| `bun run build:plugin:dev` | dist/index.js | Plugin with sourcemaps for debugging |
+| `bun run build:autocode-only` | dist/autocode-standalone.js | Lightweight auto-router bundle (~500KB) |
+
+### Plugin Installation
+
+Three methods to install the plugin in OpenCode:
+
+1. **NPM**: `bun add oh_my_autocode` then add `"oh_my_autocode"` to plugins
+2. **Local file**: `"file:///path/to/dist/index.js"` in opencode.json plugins
+3. **Source reference**: `"file:///path/to/src/index.ts"` (requires Bun)
+
+See `docs/INSTALL.md` for detailed instructions.
+
+### Plugin Manifest
+
+Plugin metadata is defined in `.claude-plugin/plugin.json`:
+- Declares hooks, agents, MCP servers, and commands
+- Used by OpenCode for plugin discovery and configuration
+- Schema validation for plugin structure
 
 ## Architecture
 
@@ -111,14 +169,21 @@ Expected: 54 tests passing
 
 ## Current Focus
 
-**Status**: v3.8.1 - Configuration Profiles & Enhanced Wizard
+**Status**: v3.8.1 - Runtime Bug Fixes
 
-### v3.8.1 Changes
-1. Added: Configuration profiles system (`src/features/auto-router/profiles.ts`)
-2. Added: 11 pre-configured profiles (classic, balanced, quality-first, etc.)
-3. Added: Comprehensive Python wizard (`script/autocode_setup.py`)
-4. Added: Expense tracking by provider
-5. Fixed: Security issue with `os.system()` usage
+### v3.8.1 Changes (Runtime Fixes)
+1. Fixed: `github-copilot/gpt-4o-mini` model not found error
+   - Replaced with `github-copilot/gpt-4o` or `opencode/glm-4.7-free` where appropriate
+   - Affected: `ORCHESTRATOR_MODEL_RECOMMENDATION`, budget tier configs, `PROFILE_BUDGET_CONSCIOUS`
+2. Fixed: Judge feedback missing/empty on errors
+   - Changed timeout handling to return `isComplete: false` instead of auto-passing
+   - Changed parse error handling to return failure instead of fake success
+   - Increased judge timeout from 30s → 60s
+   - Increased API timeout from 3s → 10s
+3. Fixed: Notification system incomplete
+   - Added toast notification after subagent deployment
+   - Added model upgrade notification in standard mode (was verbose-only)
+4. Fixed: Judge auto-passing on timeout/errors causing premature task completion
 
 ### v3.8.0 Changes
 1. Renamed: oh-my-opencode → oh_my_autocode
