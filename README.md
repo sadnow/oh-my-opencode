@@ -1,3 +1,8 @@
+> [!NOTE]
+> **This is a fork**: [sadnow/oh-my-opencode](https://github.com/sadnow/oh-my-opencode)
+>
+> Adds deadlock detection for background agents. See [FORK.md](FORK.md).
+
 > [!WARNING]
 > **Security warning: impersonation site**
 >
