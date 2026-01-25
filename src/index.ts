@@ -189,7 +189,10 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
     ? createThinkingBlockValidatorHook()
     : null;
 
-  const ralphLoop = isHookEnabled("ralph-loop")
+  // Ralph loop is opt-in: requires both hook enabled AND config.enabled = true
+  const isRalphLoopEnabled = isHookEnabled("ralph-loop") &&
+    (pluginConfig.ralph_loop?.enabled ?? false);
+  const ralphLoop = isRalphLoopEnabled
     ? createRalphLoopHook(ctx, {
         config: pluginConfig.ralph_loop,
         checkSessionExists: async (sessionId) => sessionExists(sessionId),

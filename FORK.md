@@ -22,6 +22,18 @@ When deadlock is detected, the session is now properly aborted with a `cancelled
 
 ---
 
+### Ralph Loop Opt-In Config
+
+Ralph loop now requires explicit opt-in (upstream only checks `disabled_hooks`):
+
+```toml
+# oh-my-opencode.toml
+[ralph_loop]
+enabled = true  # Required to enable ralph loop
+```
+
+---
+
 ## Syncing with Upstream
 
 ```bash
