@@ -1287,6 +1287,19 @@ Use \`background_output(task_id="${task.id}")\` to retrieve this result when rea
                 const currentStatus = recheckData[sessionID]
 
                 if (currentStatus?.type !== "idle") {
+                  // Don't count as deadlock if there's recent activity
+                  if (task.progress?.lastUpdate) {
+                    const lastUpdateTime = typeof task.progress.lastUpdate === "string"
+                      ? new Date(task.progress.lastUpdate).getTime()
+                      : task.progress.lastUpdate.getTime()
+                    const timeSinceLastActivity = Date.now() - lastUpdateTime
+                    if (timeSinceLastActivity < 30_000) {
+                      // Agent showed recent activity (within 30s), not a deadlock
+                      task.stablePolls = 0
+                      continue
+                    }
+                  }
+
                   task.stabilityResets = (task.stabilityResets ?? 0) + 1
 
                   // Time-based escalation: after 5 resets, use reduced threshold for faster detection
