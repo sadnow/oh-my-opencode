@@ -123,6 +123,89 @@ git fetch upstream
 git merge upstream/dev
 ```
 
+---
+
+## Changelog (Fork vs Upstream)
+
+This section tracks all changes made in this fork for anti-regression purposes.
+
+### Files Added
+
+| File | Purpose | Tests |
+|------|---------|-------|
+| `src/shared/platform-detection.ts` | Cross-platform binary detection | `src/shared/platform-detection.test.ts` |
+
+### Files Modified
+
+| File | Change | Anti-Regression Test |
+|------|--------|---------------------|
+| `src/cli/doctor/checks/dependencies.ts` | Use `getBinaryLookupCommand()` instead of `"which"` | `src/shared/platform-detection.test.ts` |
+| `src/cli/doctor/checks/gh.ts` | Use `getBinaryLookupCommand()` instead of `"which"` | `src/cli/doctor/checks/gh.test.ts` |
+| `src/hooks/ralph-loop/index.ts` | Condensed continuation prompt, no task re-injection | `src/hooks/ralph-loop/index.test.ts` |
+| `src/features/builtin-commands/templates/ralph-loop.ts` | Added "DO NOT mention iteration" instruction | `src/hooks/ralph-loop/index.test.ts` |
+| `src/config/schema.ts` | Added `verbose_continuations` option | `src/config/schema.test.ts` |
+| `src/features/background-agent/manager.ts` | Deadlock detection: `stabilityResets`, completion lock, max runtime | `src/features/background-agent/manager.test.ts` |
+| `src/features/background-agent/types.ts` | Added `completionInProgress`, `stabilityResets` fields | N/A (type definitions) |
+| `src/shared/index.ts` | Export platform-detection utilities | N/A (re-exports) |
+
+### Configuration Additions
+
+| Config Key | File | Default | Purpose |
+|------------|------|---------|---------|
+| `background_task.maxStabilityResets` | `schema.ts` | 10 | Max stability resets before force-cancel |
+| `ralph_loop.enabled` | `schema.ts` | false | Explicit opt-in required |
+| `ralph_loop.verbose_continuations` | `schema.ts` | false | Use full prompt in continuations |
+
+---
+
+## Running Anti-Regression Tests
+
+```bash
+# Run all tests
+bun test
+
+# Run fork-specific tests
+bun test src/shared/platform-detection.test.ts
+bun test src/hooks/ralph-loop/index.test.ts
+bun test src/features/background-agent/manager.test.ts
+
+# Type check
+bun run typecheck
+```
+
+### Key Test Cases to Verify
+
+1. **Platform Detection** (`platform-detection.test.ts`)
+   - `getBinaryLookupCommand()` returns `"where"` on Windows, `"which"` elsewhere
+   - `isWSL()` correctly detects WSL environment
+   - `getNativePlatform()` distinguishes WSL from native Linux
+
+2. **Ralph Loop Verbosity** (`ralph-loop/index.test.ts`)
+   - Condensed continuation prompt does NOT include original task
+   - `verbose_continuations: true` DOES include original task
+   - Continuation includes "DO NOT mention iteration" instruction
+
+3. **Deadlock Detection** (`background-agent/manager.test.ts`)
+   - `stabilityResets` increments on each stability reset
+   - Task force-cancels after `maxStabilityResets`
+   - `completionInProgress` prevents double-completion
+   - Tasks force-cancel after 25 minutes max runtime
+
+---
+
+## Syncing with Upstream
+
+```bash
+git fetch upstream
+git merge upstream/dev
+# Resolve conflicts, prioritizing fork changes for files listed above
+bun test  # Verify anti-regression tests pass
+```
+
 ## Contributing Back
 
-These fixes should be contributed upstream via PR.
+These fixes should be contributed upstream via PR:
+- [ ] Platform detection utilities (PR ready)
+- [ ] Ralph loop verbosity reduction (PR ready)
+- [ ] Deadlock detection enhancements (PR ready)
+- [ ] Configuration presets (documentation only)
