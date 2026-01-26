@@ -9,41 +9,89 @@ import type { TierConfig, ModelRef } from "./types"
 /**
  * Model tiers with models ordered by preference within each tier.
  * Cost estimates are rough averages for cost comparison.
+ *
+ * Models are listed in priority order - first available model is used.
+ * Includes both current and legacy model names for compatibility.
  */
 export const MODEL_TIERS: Record<ModelTier, TierConfig> = {
   premium: {
     models: [
+      // Anthropic premium
       "anthropic/claude-opus-4-5",
+      "anthropic/claude-4-opus",
+      "anthropic/claude-3-opus",
+      // OpenAI premium
       "openai/gpt-5.2-codex",
+      "openai/gpt-4.5",
+      "openai/gpt-4-turbo",
+      "openai/o1",
+      "openai/o1-preview",
+      // OpenCode premium
       "opencode/kimi-k2-thinking",
+      "opencode/qwen3-coder-480b",
+      // Google premium
+      "google/gemini-2-pro",
+      "google/gemini-ultra",
     ],
     avgCostPer1M: 45, // ~$15 input + $75 output average
   },
   standard: {
     models: [
+      // Anthropic standard
       "anthropic/claude-sonnet-4-5",
+      "anthropic/claude-4-sonnet",
+      "anthropic/claude-3.5-sonnet",
+      "anthropic/claude-3-sonnet",
+      // OpenCode standard
       "opencode/glm-4.7",
+      "opencode/kimi-k2-0905",
+      // OpenAI standard
       "openai/gpt-5.2",
+      "openai/gpt-4o",
+      "openai/gpt-4",
+      // Google standard
+      "google/gemini-2-flash",
+      "google/gemini-1.5-pro",
     ],
     avgCostPer1M: 9, // ~$3 input + $15 output average
   },
   budget: {
     models: [
+      // Google budget
       "google/gemini-3-flash",
+      "google/gemini-1.5-flash",
+      // OpenCode budget
       "opencode/glm-4.6",
       "opencode/big-pickle",
+      // OpenAI budget
+      "openai/gpt-4o-mini",
+      "openai/gpt-3.5-turbo",
     ],
     avgCostPer1M: 1.25, // ~$0.5 input + $2 output average
   },
   economy: {
     models: [
+      // Anthropic economy
       "anthropic/claude-haiku-4-5",
+      "anthropic/claude-4-haiku",
+      "anthropic/claude-3.5-haiku",
+      "anthropic/claude-3-haiku",
+      // OpenAI economy
       "openai/gpt-5-nano",
+      "openai/gpt-4o-mini",
+      // Google economy
       "google/gemini-3-flash",
+      "google/gemini-flash",
     ],
     avgCostPer1M: 0.75, // ~$0.25 input + $1.25 output average
   },
 }
+
+/**
+ * Fallback tier for unknown models.
+ * If a model isn't in MODEL_TIERS, we assume it's standard tier.
+ */
+export const DEFAULT_TIER: ModelTier = "standard"
 
 /**
  * Tier order from most expensive to least expensive.
@@ -52,25 +100,45 @@ export const TIER_ORDER: ModelTier[] = ["premium", "standard", "budget", "econom
 
 /**
  * Get the tier for a given model.
+ * Returns DEFAULT_TIER ("standard") for unknown models rather than null.
+ *
+ * @param model - Model reference or string in "provider/model" format
+ * @param strict - If true, returns null for unknown models instead of default
  */
-export function getModelTier(model: ModelRef | string): ModelTier | null {
+export function getModelTier(model: ModelRef | string, strict: boolean = false): ModelTier | null {
   const modelStr = typeof model === "string" ? model : `${model.providerID}/${model.modelID}`
+  const normalizedStr = modelStr.toLowerCase()
 
   for (const [tier, config] of Object.entries(MODEL_TIERS)) {
-    if (config.models.includes(modelStr)) {
+    // Case-insensitive exact match
+    if (config.models.some(m => m.toLowerCase() === normalizedStr)) {
       return tier as ModelTier
     }
   }
 
   // Try matching by model ID only (for flexibility)
   const modelID = typeof model === "string" ? model.split("/")[1] : model.modelID
-  for (const [tier, config] of Object.entries(MODEL_TIERS)) {
-    if (config.models.some((m) => m.endsWith(`/${modelID}`))) {
-      return tier as ModelTier
+  if (modelID) {
+    const normalizedID = modelID.toLowerCase()
+    for (const [tier, config] of Object.entries(MODEL_TIERS)) {
+      if (config.models.some((m) => m.toLowerCase().endsWith(`/${normalizedID}`))) {
+        return tier as ModelTier
+      }
+    }
+
+    // Partial match on model ID (e.g., "claude-sonnet" matches "claude-4-sonnet")
+    for (const [tier, config] of Object.entries(MODEL_TIERS)) {
+      if (config.models.some((m) => {
+        const tierModelID = m.split("/")[1]?.toLowerCase() ?? ""
+        return tierModelID.includes(normalizedID) || normalizedID.includes(tierModelID)
+      })) {
+        return tier as ModelTier
+      }
     }
   }
 
-  return null
+  // Return default tier for unknown models (unless strict mode)
+  return strict ? null : DEFAULT_TIER
 }
 
 /**

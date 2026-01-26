@@ -132,6 +132,143 @@ export const DEFAULT_ADAPTIVE_CONFIG: AdaptiveBudgetConfig = {
 }
 
 // ============================================================================
+// Config Validation
+// ============================================================================
+
+export interface ConfigValidationResult {
+  valid: boolean
+  warnings: string[]
+  errors: string[]
+}
+
+export function validateAdaptiveConfig(config: Partial<AdaptiveBudgetConfig>): ConfigValidationResult {
+  const warnings: string[] = []
+  const errors: string[] = []
+
+  // Budget validation
+  if (config.totalBudget !== undefined) {
+    if (config.totalBudget < 0) {
+      errors.push("totalBudget cannot be negative")
+    } else if (config.totalBudget < 1) {
+      warnings.push(`totalBudget is very low ($${config.totalBudget}), tier recommendations may be limited`)
+    } else if (config.totalBudget === 0) {
+      errors.push("totalBudget cannot be zero - budget orchestration would have no effect")
+    }
+  }
+
+  // Period validation
+  if (config.periodHours !== undefined) {
+    if (config.periodHours <= 0) {
+      errors.push("periodHours must be positive")
+    } else if (config.periodHours < 24) {
+      warnings.push("periodHours less than 24 hours may cause erratic tier changes")
+    }
+  }
+
+  // Rate validations
+  if (config.creditAccumulationRate !== undefined) {
+    if (config.creditAccumulationRate < 0 || config.creditAccumulationRate > 1) {
+      errors.push("creditAccumulationRate must be between 0 and 1")
+    }
+  }
+
+  if (config.conservativeSpendingFactor !== undefined) {
+    if (config.conservativeSpendingFactor < 0 || config.conservativeSpendingFactor > 1) {
+      errors.push("conservativeSpendingFactor must be between 0 and 1")
+    }
+    if (config.conservativeSpendingFactor > 0.9) {
+      warnings.push("conservativeSpendingFactor > 0.9 may cause aggressive tier upgrades")
+    }
+  }
+
+  if (config.burstAllowancePercent !== undefined) {
+    if (config.burstAllowancePercent < 0 || config.burstAllowancePercent > 1) {
+      errors.push("burstAllowancePercent must be between 0 and 1")
+    }
+    if (config.burstAllowancePercent > 0.5) {
+      warnings.push("burstAllowancePercent > 0.5 may deplete credits too quickly")
+    }
+  }
+
+  return {
+    valid: errors.length === 0,
+    warnings,
+    errors,
+  }
+}
+
+// ============================================================================
+// File Locking
+// ============================================================================
+
+/**
+ * Simple file lock implementation using atomic operations.
+ * Creates a .lock file and uses process ID for ownership.
+ */
+class FileLock {
+  private lockPath: string
+  private locked: boolean = false
+  private readonly LOCK_TIMEOUT_MS = 5000 // 5 second timeout for stale locks
+
+  constructor(filePath: string) {
+    this.lockPath = `${filePath}.lock`
+  }
+
+  async acquire(): Promise<boolean> {
+    const fs = require("fs")
+    const lockData = {
+      pid: process.pid,
+      timestamp: Date.now(),
+    }
+
+    try {
+      // Check for existing lock
+      if (fs.existsSync(this.lockPath)) {
+        const existingLock = JSON.parse(fs.readFileSync(this.lockPath, "utf-8"))
+        const lockAge = Date.now() - existingLock.timestamp
+
+        // If lock is stale (older than timeout), remove it
+        if (lockAge > this.LOCK_TIMEOUT_MS) {
+          log("[file-lock] Removing stale lock:", { lockPath: this.lockPath, age: lockAge })
+          fs.unlinkSync(this.lockPath)
+        } else {
+          // Lock is held by another process
+          return false
+        }
+      }
+
+      // Try to create lock file atomically
+      fs.writeFileSync(this.lockPath, JSON.stringify(lockData), { flag: "wx" })
+      this.locked = true
+      return true
+    } catch (error: unknown) {
+      // EEXIST means another process created the lock first
+      const nodeError = error as NodeJS.ErrnoException
+      if (nodeError.code === "EEXIST") {
+        return false
+      }
+      // Other errors - log but don't fail
+      log("[file-lock] Lock acquisition error:", error)
+      return false
+    }
+  }
+
+  release(): void {
+    if (!this.locked) return
+
+    const fs = require("fs")
+    try {
+      if (fs.existsSync(this.lockPath)) {
+        fs.unlinkSync(this.lockPath)
+      }
+      this.locked = false
+    } catch (error) {
+      log("[file-lock] Lock release error:", error)
+    }
+  }
+}
+
+// ============================================================================
 // Adaptive Budget Manager
 // ============================================================================
 
@@ -139,10 +276,27 @@ export class AdaptiveBudgetManager {
   private state: AdaptiveBudgetState
   private config: AdaptiveBudgetConfig
   private persistPath: string | null
+  private fileLock: FileLock | null = null
 
   constructor(config: Partial<AdaptiveBudgetConfig> = {}, persistPath?: string) {
+    // Validate config
+    const validation = validateAdaptiveConfig(config)
+    if (!validation.valid) {
+      log("[adaptive-budget] Config validation errors:", validation.errors)
+      throw new Error(`Invalid adaptive budget config: ${validation.errors.join(", ")}`)
+    }
+    if (validation.warnings.length > 0) {
+      log("[adaptive-budget] Config warnings:", validation.warnings)
+    }
+
     this.config = { ...DEFAULT_ADAPTIVE_CONFIG, ...config }
     this.persistPath = persistPath ?? null
+
+    // Initialize file lock if persisting
+    if (this.persistPath) {
+      this.fileLock = new FileLock(this.persistPath)
+    }
+
     this.state = this.loadState() ?? this.createInitialState()
 
     log("[adaptive-budget] Initialized:", {
@@ -617,22 +771,88 @@ export class AdaptiveBudgetManager {
   private loadState(): AdaptiveBudgetState | null {
     if (!this.persistPath) return null
 
-    try {
-      const fs = require("fs")
-      if (fs.existsSync(this.persistPath)) {
-        const data = JSON.parse(fs.readFileSync(this.persistPath, "utf-8"))
-        log("[adaptive-budget] Loaded state from:", this.persistPath)
-        return data
+    const fs = require("fs")
+    const backupPath = `${this.persistPath}.backup`
+
+    // Try primary file first
+    const tryLoadFile = (path: string): AdaptiveBudgetState | null => {
+      try {
+        if (fs.existsSync(path)) {
+          const content = fs.readFileSync(path, "utf-8")
+          const data = JSON.parse(content)
+
+          // Basic validation - check required fields exist
+          if (
+            typeof data.lastActivityTimestamp === "number" &&
+            typeof data.accumulatedCredits === "number" &&
+            Array.isArray(data.hourlyPatterns)
+          ) {
+            return data
+          }
+          log("[adaptive-budget] State file corrupted (missing fields):", path)
+        }
+      } catch (error) {
+        log("[adaptive-budget] Failed to load state from:", { path, error })
       }
-    } catch (error) {
-      log("[adaptive-budget] Failed to load state:", error)
+      return null
     }
 
+    // Try primary file
+    let state = tryLoadFile(this.persistPath)
+    if (state) {
+      log("[adaptive-budget] Loaded state from:", this.persistPath)
+      return state
+    }
+
+    // Try backup file
+    state = tryLoadFile(backupPath)
+    if (state) {
+      log("[adaptive-budget] Loaded state from backup:", backupPath)
+      // Restore backup to primary
+      try {
+        fs.copyFileSync(backupPath, this.persistPath)
+        log("[adaptive-budget] Restored backup to primary")
+      } catch (e) {
+        log("[adaptive-budget] Could not restore backup:", e)
+      }
+      return state
+    }
+
+    log("[adaptive-budget] No valid state file found, starting fresh")
     return null
   }
 
-  private saveState(): void {
+  /**
+   * Create a backup of the current state file.
+   * Called periodically to prevent data loss.
+   */
+  createBackup(): void {
     if (!this.persistPath) return
+
+    const fs = require("fs")
+    const backupPath = `${this.persistPath}.backup`
+
+    try {
+      if (fs.existsSync(this.persistPath)) {
+        fs.copyFileSync(this.persistPath, backupPath)
+        log("[adaptive-budget] Backup created:", backupPath)
+      }
+    } catch (error) {
+      log("[adaptive-budget] Failed to create backup:", error)
+    }
+  }
+
+  private async saveStateWithLock(): Promise<void> {
+    if (!this.persistPath) return
+
+    // Try to acquire lock
+    if (this.fileLock) {
+      const acquired = await this.fileLock.acquire()
+      if (!acquired) {
+        log("[adaptive-budget] Could not acquire lock, skipping save")
+        return
+      }
+    }
 
     try {
       const fs = require("fs")
@@ -643,10 +863,22 @@ export class AdaptiveBudgetManager {
         fs.mkdirSync(dir, { recursive: true })
       }
 
-      fs.writeFileSync(this.persistPath, JSON.stringify(this.state, null, 2))
+      // Write to temp file first, then rename (atomic)
+      const tempPath = `${this.persistPath}.tmp`
+      fs.writeFileSync(tempPath, JSON.stringify(this.state, null, 2))
+      fs.renameSync(tempPath, this.persistPath)
     } catch (error) {
       log("[adaptive-budget] Failed to save state:", error)
+    } finally {
+      this.fileLock?.release()
     }
+  }
+
+  private saveState(): void {
+    // Fire-and-forget async save with locking
+    this.saveStateWithLock().catch(err => {
+      log("[adaptive-budget] Async save failed:", err)
+    })
   }
 
   // --------------------------------------------------------------------------
