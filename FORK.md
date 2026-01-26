@@ -134,6 +134,69 @@ enabled = true  # Required to enable ralph loop
 
 ---
 
+### Budget-Aware Auto-Orchestration
+
+**Problem**: Users with multiple AI subscriptions (Claude Max, OpenAI, Google, etc.) have no way to intelligently balance usage across providers based on spending and subscription limits.
+
+**Solution**: Added adaptive budget orchestration with real-time usage tracking.
+
+**Features:**
+- **Budget Orchestrator**: Tracks spending per provider, recommends tier downgrades when limits approach
+- **Adaptive Learning**: Learns spending patterns, accumulates credits during idle time
+- **Model Tiers**: Premium → Standard → Budget → Economy with automatic fallback
+- **CLI Dashboard**: `bunx oh-my-opencode budget` shows status and allows overrides
+- **WebUI Dashboard**: Visual budget tracking at `http://localhost:3847/budget-dashboard`
+
+```toml
+# oh-my-opencode.toml
+[budget]
+enabled = true
+
+[budget.anthropic]
+period = "weekly"
+limit = 20.0
+reset_day = "sunday"
+
+[budget.openai]
+period = "monthly"
+limit = 50.0
+```
+
+---
+
+### Claude Max Real-Time Usage Tracking
+
+**Problem**: Claude Max subscription usage (visible via `/usage` command) was not accessible programmatically for budget orchestration.
+
+**Solution**: Discovered and integrated Anthropic's OAuth usage API endpoint.
+
+**API Endpoint:**
+```
+GET https://api.anthropic.com/api/oauth/usage
+Headers:
+  Authorization: Bearer {oauth_token}
+  anthropic-beta: oauth-2025-04-20
+```
+
+**Response:**
+```json
+{
+  "five_hour": {"utilization": 30, "resets_at": "2026-01-26T22:59:59Z"},
+  "seven_day": {"utilization": 77, "resets_at": "2026-01-30T05:59:59Z"},
+  "seven_day_sonnet": {"utilization": 0, "resets_at": "2026-02-01T20:59:59Z"}
+}
+```
+
+**Dashboard Shows:**
+- Current session usage (5-hour window)
+- Weekly all-models usage with exact reset date
+- Weekly Sonnet-only usage with exact reset date
+- Subscription tier (Pro, Max 5x, Max 20x) auto-detected from credentials
+
+**IMPORTANT**: This uses the OAuth token from `~/.claude/.credentials.json` - the same token Claude Code uses for authentication. The usage data is real-time from Anthropic's servers.
+
+---
+
 ## Syncing with Upstream
 
 ```bash
@@ -152,6 +215,13 @@ This section tracks all changes made in this fork for anti-regression purposes.
 | File | Purpose | Tests |
 |------|---------|-------|
 | `src/shared/platform-detection.ts` | Cross-platform binary detection | `src/shared/platform-detection.test.ts` |
+| `src/features/budget-orchestrator/` | Budget tracking and tier orchestration | `src/features/budget-orchestrator/index.test.ts` |
+| `src/features/claude-max-usage/` | Claude Max real-time usage from Anthropic API | `src/features/claude-max-usage/index.test.ts` |
+| `src/features/usage-tracker/` | Per-provider usage tracking with persistence | `src/features/usage-tracker/index.test.ts` |
+| `src/features/hot-config/` | Hot-reload config with pending changes | `src/features/hot-config/index.test.ts` |
+| `src/webui/` | WebUI server and budget dashboard | `src/webui/server.test.ts` |
+| `src/cli/budget/` | CLI budget command | `src/cli/budget/index.test.ts` |
+| `src/hooks/budget-notification/` | In-session budget toast notifications | N/A |
 
 ### Files Modified
 
@@ -173,6 +243,15 @@ This section tracks all changes made in this fork for anti-regression purposes.
 | `background_task.maxStabilityResets` | `schema.ts` | 10 | Max stability resets before force-cancel |
 | `ralph_loop.enabled` | `schema.ts` | false | Explicit opt-in required |
 | `ralph_loop.verbose_continuations` | `schema.ts` | false | Use full prompt in continuations |
+| `budget.enabled` | `schema.ts` | false | Enable budget tracking |
+| `budget.<provider>.period` | `schema.ts` | "monthly" | Budget period: daily/weekly/monthly |
+| `budget.<provider>.limit` | `schema.ts` | N/A | Spending limit in USD |
+| `budget.<provider>.reset_day` | `schema.ts` | N/A | Reset day for weekly budgets |
+| `usage_tracking.enabled` | `schema.ts` | true | Enable usage tracking |
+| `usage_tracking.persist` | `schema.ts` | true | Persist usage to disk |
+| `webui.enabled` | `schema.ts` | true | Enable WebUI server |
+| `webui.port` | `schema.ts` | 3847 | WebUI server port |
+| `webui.bind` | `schema.ts` | "localhost" | WebUI bind address |
 
 ---
 
@@ -209,6 +288,25 @@ bun run typecheck
    - `completionInProgress` prevents double-completion
    - Tasks force-cancel after 25 minutes max runtime
    - Activity grace period skips stability resets if `lastUpdate` is within 30s
+
+4. **Budget Orchestration** (`budget-orchestrator/index.test.ts`)
+   - Tier recommendations based on spending percentage
+   - Adaptive credits accumulate during idle time
+   - Smart tier changes respect stability requirements
+   - Override system (force tier, lock tier) works correctly
+
+5. **Claude Max Usage** (`claude-max-usage/index.test.ts`)
+   - API endpoint returns valid usage data structure
+   - Tier detection from credentials works correctly
+   - Recommendation logic: normal < 50%, caution 50-70%, reduce 70-90%, critical > 90%
+   - OAuth token is read from `~/.claude/.credentials.json`
+   - **CRITICAL**: Must use `https://api.anthropic.com/api/oauth/usage` endpoint
+   - **CRITICAL**: Must include `anthropic-beta: oauth-2025-04-20` header
+
+6. **WebUI Server** (`webui/server.test.ts`)
+   - Static files served correctly (index.html, budget-dashboard.html)
+   - API routes respond with correct JSON structure
+   - CORS headers present on all responses
 
 ---
 
