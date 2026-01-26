@@ -195,6 +195,17 @@ async function handleAPI(
   if (pathname === "/budget" && method === "GET") {
     return handleGetBudget(ctx.usageCtx)
   }
+  // Budget dashboard routes (before /budget/:provider to avoid conflicts)
+  if (pathname === "/budget/dashboard" && method === "GET") {
+    return handleGetDashboard(ctx.budgetDashCtx)
+  }
+  if (pathname === "/budget/trends" && method === "GET") {
+    return handleGetTrends(ctx.budgetDashCtx)
+  }
+  if (pathname === "/budget/override" && method === "POST") {
+    return handleSetOverride(req, ctx.budgetDashCtx)
+  }
+  // Provider-specific budget routes
   if (pathname.startsWith("/budget/") && method === "GET") {
     const provider = pathname.replace("/budget/", "")
     return handleGetProviderBudget(provider, ctx.usageCtx)
@@ -239,17 +250,6 @@ async function handleAPI(
   }
   if (pathname === "/orchestration/status" && method === "GET") {
     return handleGetStatus(ctx.orchCtx)
-  }
-
-  // Budget dashboard routes
-  if (pathname === "/budget/dashboard" && method === "GET") {
-    return handleGetDashboard(ctx.budgetDashCtx)
-  }
-  if (pathname === "/budget/trends" && method === "GET") {
-    return handleGetTrends(ctx.budgetDashCtx)
-  }
-  if (pathname === "/budget/override" && method === "POST") {
-    return handleSetOverride(req, ctx.budgetDashCtx)
   }
 
   // 404
