@@ -327,6 +327,55 @@ export const TmuxConfigSchema = z.object({
   layout: TmuxLayoutSchema.default('main-vertical'),  // default: main-vertical
   main_pane_size: z.number().min(20).max(80).default(60),  // percentage, default: 60%
 })
+
+// WebUI configuration
+export const WebUIBindSchema = z.enum(["localhost", "0.0.0.0"])
+
+export const WebUIConfigSchema = z.object({
+  /** Enable the WebUI server (default: false) */
+  enabled: z.boolean().default(false),
+  /** Port to run WebUI on (default: 3847) */
+  port: z.number().min(1024).max(65535).default(3847),
+  /** Bind address - "localhost" for local only, "0.0.0.0" for all interfaces (default: "localhost") */
+  bind: WebUIBindSchema.default("localhost"),
+})
+
+// Usage tracking configuration
+export const UsageTrackingConfigSchema = z.object({
+  /** Enable usage tracking (default: true) */
+  enabled: z.boolean().default(true),
+  /** Persist usage data to disk (default: true) */
+  persist: z.boolean().default(true),
+})
+
+// Model tier for budget-aware orchestration
+export const ModelTierSchema = z.enum(["premium", "standard", "budget", "economy"])
+
+// Budget configuration
+export const BudgetConfigSchema = z.object({
+  /** Enable budget-aware orchestration (default: false) */
+  enabled: z.boolean().default(false),
+  /** Target percentage of budget to use before downgrading (default: 0.7 = 70%) */
+  target_percentage: z.number().min(0).max(1).default(0.7),
+  /** Monthly USD budget per provider */
+  provider_budgets: z.record(z.string(), z.number().min(0)).optional(),
+  /** Auto-downgrade to cheaper models when over budget (default: true) */
+  auto_downgrade: z.boolean().default(true),
+  /** Minimum tier to downgrade to (default: "budget") */
+  min_tier: ModelTierSchema.default("budget"),
+  /** Alternative daily USD target (overrides monthly calculation) */
+  daily_target: z.number().min(0).optional(),
+})
+
+// Orchestration preset names
+export const OrchestrationPresetSchema = z.enum([
+  "balanced",
+  "claude-heavy",
+  "budget-conscious",
+  "speed-optimized",
+  "quality-first",
+  "custom",
+])
 export const OhMyOpenCodeConfigSchema = z.object({
   $schema: z.string().optional(),
   disabled_mcps: z.array(AnyMcpNameSchema).optional(),
@@ -348,6 +397,14 @@ export const OhMyOpenCodeConfigSchema = z.object({
   git_master: GitMasterConfigSchema.optional(),
   browser_automation_engine: BrowserAutomationConfigSchema.optional(),
   tmux: TmuxConfigSchema.optional(),
+  /** WebUI configuration for settings management */
+  webui: WebUIConfigSchema.optional(),
+  /** Usage tracking configuration */
+  usage_tracking: UsageTrackingConfigSchema.optional(),
+  /** Budget-aware orchestration configuration */
+  budget: BudgetConfigSchema.optional(),
+  /** Orchestration preset selector */
+  orchestration_preset: OrchestrationPresetSchema.optional(),
 })
 
 export type OhMyOpenCodeConfig = z.infer<typeof OhMyOpenCodeConfigSchema>
@@ -374,5 +431,11 @@ export type BrowserAutomationProvider = z.infer<typeof BrowserAutomationProvider
 export type BrowserAutomationConfig = z.infer<typeof BrowserAutomationConfigSchema>
 export type TmuxConfig = z.infer<typeof TmuxConfigSchema>
 export type TmuxLayout = z.infer<typeof TmuxLayoutSchema>
+export type WebUIConfig = z.infer<typeof WebUIConfigSchema>
+export type WebUIBind = z.infer<typeof WebUIBindSchema>
+export type UsageTrackingConfig = z.infer<typeof UsageTrackingConfigSchema>
+export type BudgetConfig = z.infer<typeof BudgetConfigSchema>
+export type ModelTier = z.infer<typeof ModelTierSchema>
+export type OrchestrationPreset = z.infer<typeof OrchestrationPresetSchema>
 
 export { AnyMcpNameSchema, type AnyMcpName, McpNameSchema, type McpName } from "../mcp/types"

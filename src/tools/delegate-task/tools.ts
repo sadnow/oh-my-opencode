@@ -2,6 +2,7 @@ import { tool, type PluginInput, type ToolDefinition } from "@opencode-ai/plugin
 import { existsSync, readdirSync } from "node:fs"
 import { join } from "node:path"
 import type { BackgroundManager } from "../../features/background-agent"
+import type { BudgetOrchestrator } from "../../features/budget-orchestrator"
 import type { DelegateTaskArgs } from "./types"
 import type { CategoryConfig, CategoriesConfig, GitMasterConfig, BrowserAutomationProvider } from "../../config/schema"
 import { DEFAULT_CATEGORIES, CATEGORY_PROMPT_APPENDS, CATEGORY_DESCRIPTIONS } from "./constants"
@@ -158,6 +159,7 @@ export interface DelegateTaskToolOptions {
   gitMasterConfig?: GitMasterConfig
   sisyphusJuniorModel?: string
   browserProvider?: BrowserAutomationProvider
+  budgetOrchestrator?: BudgetOrchestrator | null
 }
 
 export interface BuildSystemContentInput {
@@ -179,8 +181,62 @@ export function buildSystemContent(input: BuildSystemContentInput): string | und
   return skillContent || categoryPromptAppend
 }
 
+/**
+ * SMART TIER CHANGE: Check if model should be upgraded OR downgraded.
+ *
+ * Uses adaptive budget intelligence to make smart decisions:
+ * - Considers accumulated credits from idle time
+ * - Can UPGRADE when budget headroom allows
+ * - Can DOWNGRADE when overspending predicted
+ */
+function checkSmartTierChange(
+  model: { providerID: string; modelID: string; variant?: string } | undefined,
+  taskDescription: string,
+  budgetOrchestrator: BudgetOrchestrator | null | undefined
+): { providerID: string; modelID: string; variant?: string } | undefined {
+  if (!model || !budgetOrchestrator?.isEnabled()) {
+    return model
+  }
+
+  // Use smart tier change which handles both upgrades and downgrades
+  const result = budgetOrchestrator.getSmartTierChange(model)
+
+  if (result.newModel && result.direction !== "none") {
+    const emoji = result.direction === "upgrade" ? "⬆️" : "⬇️"
+    log(`[delegate_task] AUTO-${result.direction.toUpperCase()} ${emoji}:`, {
+      task: taskDescription,
+      from: `${model.providerID}/${model.modelID}`,
+      to: `${result.newModel.providerID}/${result.newModel.modelID}`,
+      reason: result.reason,
+      originalTier: result.originalTier,
+      targetTier: result.targetTier,
+      confidence: `${(result.confidence * 100).toFixed(0)}%`,
+    })
+
+    return {
+      providerID: result.newModel.providerID,
+      modelID: result.newModel.modelID,
+      variant: model.variant, // Preserve variant if any
+    }
+  }
+
+  return model
+}
+
+/**
+ * Legacy wrapper for backwards compatibility.
+ * @deprecated Use checkSmartTierChange instead
+ */
+function checkBudgetDowngrade(
+  model: { providerID: string; modelID: string; variant?: string } | undefined,
+  taskDescription: string,
+  budgetOrchestrator: BudgetOrchestrator | null | undefined
+): { providerID: string; modelID: string; variant?: string } | undefined {
+  return checkSmartTierChange(model, taskDescription, budgetOrchestrator)
+}
+
 export function createDelegateTask(options: DelegateTaskToolOptions): ToolDefinition {
-  const { manager, client, directory, userCategories, gitMasterConfig, sisyphusJuniorModel, browserProvider } = options
+  const { manager, client, directory, userCategories, gitMasterConfig, sisyphusJuniorModel, browserProvider, budgetOrchestrator } = options
 
   const allCategories = { ...DEFAULT_CATEGORIES, ...userCategories }
   const categoryNames = Object.keys(allCategories)
@@ -364,11 +420,14 @@ Use \`background_output\` with task_id="${task.id}" to check progress.`
               : undefined
           }
 
+          // Check for budget-based model downgrade on sync continuation
+          const effectiveResumeModel = checkBudgetDowngrade(resumeModel, args.description, budgetOrchestrator)
+
           await client.session.prompt({
             path: { id: args.session_id },
             body: {
               ...(resumeAgent !== undefined ? { agent: resumeAgent } : {}),
-              ...(resumeModel !== undefined ? { model: resumeModel } : {}),
+              ...(effectiveResumeModel !== undefined ? { model: effectiveResumeModel } : {}),
               tools: {
                 ...(resumeAgent ? getAgentToolRestrictions(resumeAgent) : {}),
                 task: false,
@@ -875,6 +934,9 @@ To continue this session: session_id="${task.sessionID}"`
           },
         })
 
+        // Check for budget-based model downgrade BEFORE starting the sync task
+        const effectiveModel = checkBudgetDowngrade(categoryModel, args.description, budgetOrchestrator)
+
         try {
           await client.session.prompt({
             path: { id: sessionID },
@@ -887,7 +949,7 @@ To continue this session: session_id="${task.sessionID}"`
                 call_omo_agent: true,
               },
               parts: [{ type: "text", text: args.prompt }],
-              ...(categoryModel ? { model: categoryModel } : {}),
+              ...(effectiveModel ? { model: effectiveModel } : {}),
             },
           })
         } catch (promptError) {

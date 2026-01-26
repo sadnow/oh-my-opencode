@@ -9,6 +9,7 @@ import { log, getAgentToolRestrictions } from "../../shared"
 import { ConcurrencyManager } from "./concurrency"
 import type { BackgroundTaskConfig, TmuxConfig } from "../../config/schema"
 import { isInsideTmux } from "../../shared/tmux"
+import type { BudgetOrchestrator } from "../budget-orchestrator"
 
 import { subagentSessions } from "../claude-code-session-state"
 import { getTaskToastManager } from "../task-toast-manager"
@@ -71,6 +72,7 @@ export class BackgroundManager {
   private shutdownTriggered = false
   private config?: BackgroundTaskConfig
   private tmuxEnabled: boolean
+  private budgetOrchestrator: BudgetOrchestrator | null = null
 
   private queuesByKey: Map<string, QueueItem[]> = new Map()
   private processingKeys: Set<string> = new Set()
@@ -78,7 +80,8 @@ export class BackgroundManager {
   constructor(
     ctx: PluginInput,
     config?: BackgroundTaskConfig,
-    tmuxConfig?: TmuxConfig
+    tmuxConfig?: TmuxConfig,
+    budgetOrchestrator?: BudgetOrchestrator | null
   ) {
     this.tasks = new Map()
     this.notifications = new Map()
@@ -88,7 +91,72 @@ export class BackgroundManager {
     this.concurrencyManager = new ConcurrencyManager(config)
     this.config = config
     this.tmuxEnabled = tmuxConfig?.enabled ?? false
+    this.budgetOrchestrator = budgetOrchestrator ?? null
     this.registerProcessCleanup()
+  }
+
+  /**
+   * Set the budget orchestrator for auto-downgrade support.
+   * Can be called after construction to inject the dependency.
+   */
+  setBudgetOrchestrator(orchestrator: BudgetOrchestrator | null): void {
+    this.budgetOrchestrator = orchestrator
+  }
+
+  /**
+   * SMART TIER CHANGE: Check if model should be upgraded OR downgraded.
+   *
+   * Uses adaptive budget intelligence to make smart decisions:
+   * - Considers accumulated credits from idle time
+   * - Can UPGRADE when budget headroom allows (e.g., haven't run in 8 hours)
+   * - Can DOWNGRADE when overspending predicted
+   * - Learns from spending patterns over time
+   *
+   * This is called BEFORE sending a new request, allowing the current
+   * request to finish gracefully while the next one uses the optimized model.
+   */
+  private checkSmartTierChange(
+    model: { providerID: string; modelID: string; variant?: string } | undefined,
+    taskDescription: string
+  ): { providerID: string; modelID: string; variant?: string } | undefined {
+    if (!model || !this.budgetOrchestrator?.isEnabled()) {
+      return model
+    }
+
+    // Use smart tier change which handles both upgrades and downgrades
+    const result = this.budgetOrchestrator.getSmartTierChange(model)
+
+    if (result.newModel && result.direction !== "none") {
+      const emoji = result.direction === "upgrade" ? "⬆️" : "⬇️"
+      log(`[background-agent] AUTO-${result.direction.toUpperCase()} ${emoji}:`, {
+        task: taskDescription,
+        from: `${model.providerID}/${model.modelID}`,
+        to: `${result.newModel.providerID}/${result.newModel.modelID}`,
+        reason: result.reason,
+        originalTier: result.originalTier,
+        targetTier: result.targetTier,
+        confidence: `${(result.confidence * 100).toFixed(0)}%`,
+      })
+
+      return {
+        providerID: result.newModel.providerID,
+        modelID: result.newModel.modelID,
+        variant: model.variant, // Preserve variant if any
+      }
+    }
+
+    return model
+  }
+
+  /**
+   * Legacy method for backwards compatibility.
+   * @deprecated Use checkSmartTierChange instead
+   */
+  private checkBudgetDowngrade(
+    model: { providerID: string; modelID: string; variant?: string } | undefined,
+    taskDescription: string
+  ): { providerID: string; modelID: string; variant?: string } | undefined {
+    return this.checkSmartTierChange(model, taskDescription)
   }
 
   async launch(input: LaunchInput): Promise<BackgroundTask> {
@@ -254,13 +322,24 @@ export class BackgroundManager {
       toastManager.updateTask(task.id, "running")
     }
 
+    // Check for budget-based model downgrade BEFORE starting the task
+    // This allows graceful degradation - current requests finish, new ones use cheaper models
+    const effectiveModel = this.checkBudgetDowngrade(input.model, input.description)
+
     log("[background-agent] Calling prompt (fire-and-forget) for launch with:", {
       sessionID,
       agent: input.agent,
-      model: input.model,
+      model: effectiveModel,
+      originalModel: input.model,
+      wasDowngraded: effectiveModel !== input.model,
       hasSkillContent: !!input.skillContent,
       promptLength: input.prompt.length,
     })
+
+    // Update task with effective model (so tracking knows what was actually used)
+    if (effectiveModel !== input.model) {
+      task.model = effectiveModel
+    }
 
     // Use prompt() instead of promptAsync() to properly initialize agent loop (fire-and-forget)
     // Include model if caller provided one (e.g., from Sisyphus category configs)
@@ -268,7 +347,7 @@ export class BackgroundManager {
       path: { id: sessionID },
       body: {
         agent: input.agent,
-        ...(input.model ? { model: input.model } : {}),
+        ...(effectiveModel ? { model: effectiveModel } : {}),
         system: input.skillContent,
         tools: {
           ...getAgentToolRestrictions(input.agent),
@@ -502,12 +581,22 @@ export class BackgroundManager {
 
     log("[background-agent] Resuming task:", { taskId: existingTask.id, sessionID: existingTask.sessionID })
 
+    // Check for budget-based model downgrade BEFORE resuming the task
+    const effectiveModel = this.checkBudgetDowngrade(existingTask.model, existingTask.description)
+
     log("[background-agent] Resuming task - calling prompt (fire-and-forget) with:", {
       sessionID: existingTask.sessionID,
       agent: existingTask.agent,
-      model: existingTask.model,
+      model: effectiveModel,
+      originalModel: existingTask.model,
+      wasDowngraded: effectiveModel !== existingTask.model,
       promptLength: input.prompt.length,
     })
+
+    // Update task with effective model (so tracking knows what was actually used)
+    if (effectiveModel !== existingTask.model) {
+      existingTask.model = effectiveModel
+    }
 
     // Use prompt() instead of promptAsync() to properly initialize agent loop
     // Include model if task has one (preserved from original launch with category config)
@@ -515,7 +604,7 @@ export class BackgroundManager {
       path: { id: existingTask.sessionID },
       body: {
         agent: existingTask.agent,
-        ...(existingTask.model ? { model: existingTask.model } : {}),
+        ...(effectiveModel ? { model: effectiveModel } : {}),
         tools: {
           ...getAgentToolRestrictions(existingTask.agent),
           task: false,

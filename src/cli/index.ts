@@ -4,10 +4,12 @@ import { install } from "./install"
 import { run } from "./run"
 import { getLocalVersion } from "./get-local-version"
 import { doctor } from "./doctor"
+import { runWizard } from "./wizard"
 import type { InstallArgs } from "./types"
 import type { RunOptions } from "./run"
 import type { GetLocalVersionOptions } from "./get-local-version/types"
 import type { DoctorOptions } from "./doctor"
+import type { WizardOptions } from "./wizard"
 import packageJson from "../../package.json" with { type: "json" }
 
 const VERSION = packageJson.version
@@ -140,6 +142,32 @@ Categories:
       category: options.category,
     }
     const exitCode = await doctor(doctorOptions)
+    process.exit(exitCode)
+  })
+
+program
+  .command("wizard")
+  .description("Interactive orchestration stack wizard")
+  .option("-y, --yes", "Skip confirmation prompts")
+  .option("--json", "Output configuration as JSON")
+  .addHelpText("after", `
+Examples:
+  $ bunx oh-my-opencode wizard
+  $ bunx oh-my-opencode wizard --yes
+  $ bunx oh-my-opencode wizard --json
+
+The wizard helps you configure:
+  - Provider subscriptions (Claude, GPT, Gemini, Copilot, Zen)
+  - Plan tiers and budgets
+  - Orchestration presets (balanced, claude-heavy, budget-conscious, etc.)
+  - Budget-aware auto-orchestration
+`)
+  .action(async (options) => {
+    const wizardOptions: WizardOptions = {
+      yes: options.yes ?? false,
+      format: options.json ? "json" : "text",
+    }
+    const exitCode = await runWizard(wizardOptions)
     process.exit(exitCode)
   })
 

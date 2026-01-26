@@ -81,6 +81,12 @@ import { loadPluginConfig } from "./plugin-config";
 import { createModelCacheState, getModelLimit } from "./plugin-state";
 import { createConfigHandler } from "./plugin-handlers";
 
+// New auto-orchestration imports
+import { UsageTracker } from "./features/usage-tracker";
+import { BudgetOrchestrator } from "./features/budget-orchestrator";
+import { initHotConfigManager, type HotConfigManager } from "./features/hot-config";
+import { startWebUI, stopWebUI } from "./webui";
+
 const OhMyOpenCodePlugin: Plugin = async (ctx) => {
   log("[OhMyOpenCodePlugin] ENTRY - plugin loading", { directory: ctx.directory })
   // Start background tmux check immediately
@@ -98,6 +104,49 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
   const isHookEnabled = (hookName: HookName) => !disabledHooks.has(hookName);
 
   const modelCacheState = createModelCacheState();
+
+  // Initialize usage tracker
+  const usageTrackingEnabled = pluginConfig.usage_tracking?.enabled ?? true;
+  const usageTracker = usageTrackingEnabled
+    ? new UsageTracker({
+        enabled: true,
+        persist: pluginConfig.usage_tracking?.persist ?? true,
+      })
+    : null;
+
+  // Determine available providers (for budget orchestration)
+  const availableProviders: string[] = ["opencode"]; // opencode always available
+  // Note: Real provider detection would require checking auth status
+
+  // Initialize budget orchestrator
+  const budgetOrchestrator = pluginConfig.budget?.enabled
+    ? new BudgetOrchestrator(pluginConfig.budget, usageTracker, availableProviders)
+    : null;
+
+  // Initialize hot config manager
+  const hotConfigManager = initHotConfigManager({
+    directory: ctx.directory,
+    initialConfig: pluginConfig,
+    watchFiles: false, // Can be enabled via config
+    ctx,
+  });
+
+  // Start WebUI server if enabled
+  let webUIServer: ReturnType<typeof startWebUI> | null = null;
+  if (pluginConfig.webui?.enabled) {
+    try {
+      webUIServer = startWebUI({
+        port: pluginConfig.webui.port ?? 3847,
+        bind: pluginConfig.webui.bind ?? "localhost",
+        configManager: hotConfigManager,
+        usageTracker,
+        budgetOrchestrator,
+      });
+      log("[OhMyOpenCodePlugin] WebUI started on port", pluginConfig.webui.port ?? 3847);
+    } catch (error) {
+      log("[OhMyOpenCodePlugin] Failed to start WebUI:", error);
+    }
+  }
 
   const contextWindowMonitor = isHookEnabled("context-window-monitor")
     ? createContextWindowMonitorHook(ctx)
@@ -223,7 +272,12 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
 
   const taskResumeInfo = createTaskResumeInfoHook();
 
-  const backgroundManager = new BackgroundManager(ctx, pluginConfig.background_task);
+  const backgroundManager = new BackgroundManager(
+    ctx,
+    pluginConfig.background_task,
+    tmuxConfig,
+    budgetOrchestrator
+  );
 
   const tmuxSessionManager = new TmuxSessionManager(ctx, tmuxConfig);
 
@@ -264,6 +318,7 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
     gitMasterConfig: pluginConfig.git_master,
     sisyphusJuniorModel: pluginConfig.agents?.["sisyphus-junior"]?.model,
     browserProvider,
+    budgetOrchestrator,
   });
   const disabledSkills = new Set(pluginConfig.disabled_skills ?? []);
   const systemMcpNames = getSystemMcpServerNames();
@@ -623,6 +678,11 @@ export type {
   McpName,
   HookName,
   BuiltinCommandName,
+  WebUIConfig,
+  UsageTrackingConfig,
+  BudgetConfig,
+  ModelTier,
+  OrchestrationPreset,
 } from "./config";
 
 // NOTE: Do NOT export functions from main index.ts!

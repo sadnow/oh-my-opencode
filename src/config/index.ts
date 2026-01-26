@@ -11,6 +11,11 @@ export {
   RalphLoopConfigSchema,
   TmuxConfigSchema,
   TmuxLayoutSchema,
+  WebUIConfigSchema,
+  UsageTrackingConfigSchema,
+  BudgetConfigSchema,
+  ModelTierSchema,
+  OrchestrationPresetSchema,
 } from "./schema"
 
 export type {
@@ -27,4 +32,9 @@ export type {
   RalphLoopConfig,
   TmuxConfig,
   TmuxLayout,
+  WebUIConfig,
+  UsageTrackingConfig,
+  BudgetConfig,
+  ModelTier,
+  OrchestrationPreset,
 } from "./schema"
