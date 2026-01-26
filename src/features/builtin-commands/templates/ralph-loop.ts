@@ -15,6 +15,13 @@ export const RALPH_LOOP_TEMPLATE = `You are starting a Ralph Loop - a self-refer
 - If stuck, try different approaches
 - Use todos to track your progress
 
+## Communication Style
+
+- NEVER mention iteration numbers, time remaining, or loop status in your output
+- Focus responses on the WORK, not the loop mechanics
+- Do not say "I'm on iteration X" or "Y minutes have elapsed"
+- Avoid meta-commentary about the loop process itself
+
 ## Exit Conditions
 
 1. **Completion**: Output your completion promise tag when fully complete

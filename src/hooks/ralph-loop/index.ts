@@ -43,13 +43,21 @@ interface OpenCodeSessionMessage {
   }>
 }
 
+// Condensed continuation prompt - avoids repeating full task and discourages verbose loop status mentions
 const CONTINUATION_PROMPT = `${SYSTEM_DIRECTIVE_PREFIX} - RALPH LOOP {{ITERATION}}/{{MAX}}]
+
+Continue working. When done: <promise>{{PROMISE}}</promise>
+
+DO NOT mention iteration count, time limits, or elapsed time in your response - focus only on the work.`
+
+// Verbose continuation prompt (legacy behavior) - includes full task re-injection
+const VERBOSE_CONTINUATION_PROMPT = `${SYSTEM_DIRECTIVE_PREFIX} - RALPH LOOP {{ITERATION}}/{{MAX}}]
 
 Your previous attempt did not output the completion promise. Continue working on the task.
 
 IMPORTANT:
 - Review your progress so far
-- Continue from where you left off  
+- Continue from where you left off
 - When FULLY complete, output: <promise>{{PROMISE}}</promise>
 - Do not stop until the task is truly done
 
@@ -318,7 +326,11 @@ export function createRalphLoopHook(
         max: newState.max_iterations,
       })
 
-      const continuationPrompt = CONTINUATION_PROMPT.replace("{{ITERATION}}", String(newState.iteration))
+      // Use verbose prompt if configured, otherwise use condensed (default)
+      const basePrompt = config?.verbose_continuations
+        ? VERBOSE_CONTINUATION_PROMPT
+        : CONTINUATION_PROMPT
+      const continuationPrompt = basePrompt.replace("{{ITERATION}}", String(newState.iteration))
         .replace("{{MAX}}", String(newState.max_iterations))
         .replace("{{PROMISE}}", newState.completion_promise)
         .replace("{{PROMPT}}", newState.prompt)

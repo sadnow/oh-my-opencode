@@ -43,6 +43,8 @@ export interface BackgroundTask {
   stablePolls?: number
   /** Number of times stability was reached but session was not idle (for deadlock detection) */
   stabilityResets?: number
+  /** Guard flag to prevent race conditions during completion */
+  completionInProgress?: boolean
 }
 
 export interface LaunchInput {

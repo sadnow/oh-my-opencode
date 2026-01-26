@@ -1,9 +1,11 @@
 import type { CheckResult, CheckDefinition, DependencyInfo } from "../types"
 import { CHECK_IDS, CHECK_NAMES } from "../constants"
+import { getBinaryLookupCommand } from "../../../shared/platform-detection"
 
 async function checkBinaryExists(binary: string): Promise<{ exists: boolean; path: string | null }> {
   try {
-    const proc = Bun.spawn(["which", binary], { stdout: "pipe", stderr: "pipe" })
+    const lookupCmd = getBinaryLookupCommand()
+    const proc = Bun.spawn([lookupCmd, binary], { stdout: "pipe", stderr: "pipe" })
     const output = await new Response(proc.stdout).text()
     await proc.exited
     if (proc.exitCode === 0) {

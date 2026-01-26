@@ -222,11 +222,11 @@ describe("ralph-loop", () => {
         },
       })
 
-      // #then - continuation should be injected
+      // #then - continuation should be injected with condensed prompt (no task re-injection)
       expect(promptCalls.length).toBe(1)
       expect(promptCalls[0].sessionID).toBe("session-123")
       expect(promptCalls[0].text).toContain("RALPH LOOP")
-      expect(promptCalls[0].text).toContain("Build a feature")
+      expect(promptCalls[0].text).toContain("Continue working")
       expect(promptCalls[0].text).toContain("2/10")
 
       // #then - iteration should be incremented
@@ -424,6 +424,7 @@ describe("ralph-loop", () => {
         config: {
           enabled: true,
           default_max_iterations: 200,
+          verbose_continuations: false,
         },
       })
 
@@ -433,6 +434,31 @@ describe("ralph-loop", () => {
       // #then - should use config defaults
       const state = hook.getState()
       expect(state?.max_iterations).toBe(200)
+    })
+
+    test("should use verbose continuation when verbose_continuations is true", async () => {
+      // #given - hook with verbose_continuations enabled
+      const hook = createRalphLoopHook(createMockPluginInput(), {
+        config: {
+          enabled: true,
+          default_max_iterations: 100,
+          verbose_continuations: true,
+        },
+      })
+      hook.startLoop("session-123", "Build a verbose feature", { maxIterations: 10 })
+
+      // #when - session goes idle
+      await hook.event({
+        event: {
+          type: "session.idle",
+          properties: { sessionID: "session-123" },
+        },
+      })
+
+      // #then - continuation should include the full task (verbose mode)
+      expect(promptCalls.length).toBe(1)
+      expect(promptCalls[0].text).toContain("Build a verbose feature")
+      expect(promptCalls[0].text).toContain("Original task:")
     })
 
     test("should not inject when no loop is active", async () => {
@@ -535,9 +561,9 @@ describe("ralph-loop", () => {
         event: { type: "session.idle", properties: { sessionID: "session-123" } },
       })
 
-      // #then - continuation includes original task and promise
-      expect(promptCalls[0].text).toContain("Create a calculator app")
+      // #then - continuation includes promise (condensed prompt doesn't include task)
       expect(promptCalls[0].text).toContain("<promise>CALCULATOR_DONE</promise>")
+      expect(promptCalls[0].text).toContain("Continue working")
     })
 
     test("should clear loop state on user abort (MessageAbortedError)", async () => {
@@ -657,10 +683,10 @@ describe("ralph-loop", () => {
         event: { type: "session.idle", properties: { sessionID: "session-B" } },
       })
 
-      // #then - continuation should be injected for session B
+      // #then - continuation should be injected for session B (condensed, no task text)
       expect(promptCalls.length).toBe(1)
       expect(promptCalls[0].sessionID).toBe("session-B")
-      expect(promptCalls[0].text).toContain("Second task")
+      expect(promptCalls[0].text).toContain("Continue working")
       expect(promptCalls[0].text).toContain("2/20")
 
       // #then - iteration incremented
@@ -697,9 +723,9 @@ describe("ralph-loop", () => {
         event: { type: "session.idle", properties: { sessionID: "session-A" } },
       })
 
-      // #then - continuation should use new task
+      // #then - continuation should be injected (condensed prompt, no task text)
       expect(promptCalls.length).toBe(1)
-      expect(promptCalls[0].text).toContain("Restarted task")
+      expect(promptCalls[0].text).toContain("Continue working")
       expect(promptCalls[0].text).toContain("2/50")
     })
 

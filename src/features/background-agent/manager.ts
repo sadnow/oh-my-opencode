@@ -17,6 +17,7 @@ import { existsSync, readdirSync } from "node:fs"
 import { join } from "node:path"
 
 const TASK_TTL_MS = 30 * 60 * 1000
+const MAX_TASK_LIFETIME_MS = 25 * 60 * 1000  // 25 minutes - absolute maximum before force cancel
 const MIN_STABILITY_TIME_MS = 10 * 1000  // Must run at least 10s before stability detection kicks in
 const DEFAULT_STALE_TIMEOUT_MS = 180_000  // 3 minutes
 const MIN_RUNTIME_BEFORE_STALE_MS = 30_000  // 30 seconds
@@ -882,6 +883,15 @@ export class BackgroundManager {
       return false
     }
 
+    // Guard: Check if completion is already in progress (prevents race with todo-continuation-enforcer)
+    if (task.completionInProgress) {
+      log("[background-agent] Completion already in progress, skipping:", { taskId: task.id, source })
+      return false
+    }
+
+    // Set lock to prevent concurrent completion attempts
+    task.completionInProgress = true
+
     // Atomically mark as completed to prevent race conditions
     task.status = "completed"
     task.completedAt = new Date()
@@ -1157,13 +1167,48 @@ Use \`background_output(task_id="${task.id}")\` to retrieve this result when rea
 
     for (const task of this.tasks.values()) {
       if (task.status !== "running") continue
-      
+
       const sessionID = task.sessionID
       if (!sessionID) continue
 
+      const startedAt = task.startedAt
+      if (!startedAt) continue
+
+      // Absolute maximum runtime check - force cancel to prevent infinite loops
+      const runtime = Date.now() - startedAt.getTime()
+      if (runtime >= MAX_TASK_LIFETIME_MS) {
+        log("[background-agent] FORCE CANCEL - Max task lifetime exceeded:", {
+          taskId: task.id,
+          runtimeMinutes: Math.round(runtime / 60000),
+          maxMinutes: Math.round(MAX_TASK_LIFETIME_MS / 60000),
+        })
+
+        // Guard: Check if task is still running
+        if (task.status !== "running") continue
+
+        task.status = "cancelled"
+        task.error = `Force cancelled: exceeded maximum runtime (${Math.round(MAX_TASK_LIFETIME_MS / 60000)} minutes)`
+        task.completedAt = new Date()
+
+        if (task.concurrencyKey) {
+          this.concurrencyManager.release(task.concurrencyKey)
+          task.concurrencyKey = undefined
+        }
+
+        this.client.session.abort({ path: { id: sessionID } }).catch(() => {})
+        this.markForNotification(task)
+
+        try {
+          await this.notifyParentSession(task)
+        } catch (err) {
+          log("[background-agent] Error notifying parent for force-cancelled task:", { taskId: task.id, error: err })
+        }
+        continue
+      }
+
       try {
         const sessionStatus = allStatuses[sessionID]
-        
+
         // Don't skip if session not in status - fall through to message-based detection
         if (sessionStatus?.type === "idle") {
           // Edge guard: Validate session has actual output before completing
@@ -1229,9 +1274,7 @@ Use \`background_output(task_id="${task.id}")\` to retrieve this result when rea
 
           // Stability detection: complete when message count unchanged for 3 polls
           const currentMsgCount = messages.length
-          const startedAt = task.startedAt
-          if (!startedAt) continue
-          
+          // startedAt already validated at top of loop
           const elapsedMs = Date.now() - startedAt.getTime()
 
           if (elapsedMs >= MIN_STABILITY_TIME_MS) {
@@ -1242,15 +1285,20 @@ Use \`background_output(task_id="${task.id}")\` to retrieve this result when rea
                 const recheckStatus = await this.client.session.status()
                 const recheckData = (recheckStatus.data ?? {}) as Record<string, { type: string }>
                 const currentStatus = recheckData[sessionID]
-                
+
                 if (currentStatus?.type !== "idle") {
                   task.stabilityResets = (task.stabilityResets ?? 0) + 1
-                  const maxResets = this.config?.maxStabilityResets ?? 10
 
-                  if (task.stabilityResets >= maxResets) {
+                  // Time-based escalation: after 5 resets, use reduced threshold for faster detection
+                  const baseMaxResets = this.config?.maxStabilityResets ?? 10
+                  const currentResets = task.stabilityResets
+                  const escalatedMaxResets = currentResets >= 5 ? Math.max(6, Math.floor(baseMaxResets * 0.6)) : baseMaxResets
+
+                  if (currentResets >= escalatedMaxResets) {
                     log("[background-agent] DEADLOCK - Force cancelling after max stability resets:", {
                       taskId: task.id,
-                      stabilityResets: task.stabilityResets,
+                      stabilityResets: currentResets,
+                      escalatedThreshold: escalatedMaxResets,
                       sessionStatus: currentStatus?.type ?? "not_in_status"
                     })
 
@@ -1259,7 +1307,7 @@ Use \`background_output(task_id="${task.id}")\` to retrieve this result when rea
 
                     // Use "cancelled" status for abnormal termination (matching stale timeout pattern)
                     task.status = "cancelled"
-                    task.error = `Deadlock detected: force-terminated after ${task.stabilityResets} stability resets (session stuck in "${currentStatus?.type ?? "unknown"}")`
+                    task.error = `Deadlock detected: force-terminated after ${currentResets} stability resets (session stuck in "${currentStatus?.type ?? "unknown"}")`
                     task.completedAt = new Date()
 
                     // Release concurrency BEFORE any async operations to prevent slot leaks
