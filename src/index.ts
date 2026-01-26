@@ -33,6 +33,7 @@ import {
   createPrometheusMdOnlyHook,
   createSisyphusJuniorNotepadHook,
   createQuestionLabelTruncatorHook,
+  createBudgetNotificationHook,
 } from "./hooks";
 import {
   contextCollector,
@@ -301,6 +302,22 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
   const backgroundNotificationHook = isHookEnabled("background-notification")
     ? createBackgroundNotificationHook(backgroundManager)
     : null;
+
+  // Budget notification hook
+  const budgetNotificationHook = budgetOrchestrator && pluginConfig.budget_notifications?.enabled !== false
+    ? createBudgetNotificationHook(ctx, {
+        budgetOrchestrator,
+        config: {
+          enabled: pluginConfig.budget_notifications?.enabled ?? true,
+          warningThresholds: pluginConfig.budget_notifications?.warning_thresholds ?? [80, 90, 100],
+          paceWarningDays: pluginConfig.budget_notifications?.pace_warning_days ?? 3,
+          idleCreditHours: pluginConfig.budget_notifications?.idle_credit_hours ?? 12,
+          showTierChanges: pluginConfig.budget_notifications?.show_tier_changes ?? true,
+          debounceMs: 30000,
+        },
+      })
+    : null;
+
   const backgroundTools = createBackgroundTools(backgroundManager, ctx.client);
 
   const callOmoAgent = createCallOmoAgent(ctx, backgroundManager);
@@ -483,6 +500,7 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
       await autoUpdateChecker?.event(input);
       await claudeCodeHooks.event(input);
       await backgroundNotificationHook?.event(input);
+      await budgetNotificationHook?.event(input);
       await sessionNotification?.(input);
       await todoContinuationEnforcer?.handler(input);
       await contextWindowMonitor?.event(input);

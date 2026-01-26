@@ -26,6 +26,7 @@ import {
 } from "./algorithm"
 import { formatModelRef, parseModelRef, getModelTier, TIER_ORDER, findUpgradedModel } from "./tiers"
 import { AdaptiveBudgetManager, type AdaptiveBudgetConfig } from "./adaptive-budget"
+import { BudgetOverrideManager, getOverrideManager } from "./override"
 import { join } from "path"
 import { homedir } from "os"
 
@@ -37,6 +38,9 @@ export class BudgetOrchestrator {
 
   // Adaptive budget managers per provider
   private adaptiveManagers: Map<string, AdaptiveBudgetManager>
+
+  // Override manager for manual tier control
+  private overrideManager: BudgetOverrideManager
 
   // Track current session for learning
   private currentSessionStart: number | null = null
@@ -64,6 +68,9 @@ export class BudgetOrchestrator {
       minTier: config?.min_tier ?? "budget",
       dailyTarget: config?.daily_target,
     }
+
+    // Initialize override manager
+    this.overrideManager = getOverrideManager()
 
     // Initialize adaptive budget managers for each provider
     for (const [provider, budget] of Object.entries(this.config.providerBudgets)) {
@@ -289,10 +296,63 @@ export class BudgetOrchestrator {
    * - Smoothly transitions between tiers (no rapid oscillation)
    * - Can UPGRADE when budget headroom allows
    * - Can DOWNGRADE when overspending predicted
+   * - Respects forced tier and tier lock overrides
    */
   getSmartTierChange(model: ModelRef | string): TierChangeResult {
     const modelRef = typeof model === "string" ? parseModelRef(model) : model
     const originalTier = getModelTier(modelRef) ?? "standard"
+
+    // Check if tier changes are blocked (tier locked)
+    if (this.overrideManager.shouldBlockTierChange()) {
+      log("[budget-orchestrator] Tier change blocked by lock")
+      return {
+        original: modelRef,
+        newModel: null,
+        direction: "none",
+        reason: "Tier changes are locked",
+        originalTier,
+        targetTier: originalTier,
+        confidence: 1.0,
+      }
+    }
+
+    // Check for forced tier override
+    const forcedTier = this.overrideManager.getForcedTier()
+    if (forcedTier && forcedTier !== originalTier) {
+      // Return forced tier change
+      const targetTierIndex = TIER_ORDER.indexOf(forcedTier)
+      const originalTierIndex = TIER_ORDER.indexOf(originalTier)
+      const direction: TierChangeDirection = targetTierIndex < originalTierIndex ? "upgrade" : "downgrade"
+
+      if (direction === "upgrade") {
+        const upgradedModel = findUpgradedModel(modelRef, forcedTier, this.availableProviders)
+        if (upgradedModel) {
+          return {
+            original: modelRef,
+            newModel: upgradedModel,
+            direction: "upgrade",
+            reason: `Forced tier override: ${forcedTier}`,
+            originalTier,
+            targetTier: forcedTier,
+            confidence: 1.0,
+          }
+        }
+      } else {
+        const result = getDowngradedModel(modelRef, { remaining: 0, trend: "over" } as BudgetState,
+          { ...this.config, minTier: forcedTier }, this.availableProviders)
+        if (result.downgraded) {
+          return {
+            original: modelRef,
+            newModel: result.downgraded,
+            direction: "downgrade",
+            reason: `Forced tier override: ${forcedTier}`,
+            originalTier,
+            targetTier: forcedTier,
+            confidence: 1.0,
+          }
+        }
+      }
+    }
 
     if (!this.isEnabled()) {
       return {
@@ -425,8 +485,16 @@ export class BudgetOrchestrator {
 
   /**
    * Get the recommended tier based on all budget states.
+   * Respects forced tier override if set.
    */
   getRecommendedTier(): ModelTier {
+    // Check for forced tier override
+    const forcedTier = this.overrideManager.getForcedTier()
+    if (forcedTier) {
+      log("[budget-orchestrator] Using forced tier:", forcedTier)
+      return forcedTier
+    }
+
     if (!this.isEnabled()) {
       return "standard"
     }
@@ -504,6 +572,74 @@ export class BudgetOrchestrator {
     this.clearCache()
     log("[budget-orchestrator] Config updated:", this.config)
   }
+
+  /**
+   * Get the override manager for manual tier control.
+   */
+  getOverrideManager(): BudgetOverrideManager {
+    return this.overrideManager
+  }
+
+  /**
+   * Reset adaptive learning for a specific provider or all providers.
+   * @param provider Optional provider to reset, or undefined for all
+   */
+  resetAdaptiveLearning(provider?: string): void {
+    if (provider) {
+      const manager = this.adaptiveManagers.get(provider)
+      if (manager) {
+        // Delete the persist file to reset learning
+        const persistPath = join(
+          homedir(),
+          ".config",
+          "opencode",
+          `oh-my-opencode-adaptive-${provider}.json`
+        )
+        try {
+          const fs = require("fs")
+          if (fs.existsSync(persistPath)) {
+            fs.unlinkSync(persistPath)
+          }
+          // Recreate the manager
+          const budget = this.config.providerBudgets[provider]
+          if (budget) {
+            const periodHours = this.getProviderPeriodHours(provider)
+            const adaptiveConfig: Partial<AdaptiveBudgetConfig> = {
+              totalBudget: budget,
+              periodHours,
+              minTier: this.config.minTier,
+              conservativeSpendingFactor: this.config.targetPercentage,
+            }
+            this.adaptiveManagers.set(provider, new AdaptiveBudgetManager(adaptiveConfig, persistPath))
+          }
+          log("[budget-orchestrator] Reset adaptive learning for provider:", provider)
+        } catch (error) {
+          log("[budget-orchestrator] Failed to reset learning:", error)
+        }
+      }
+    } else {
+      // Reset all providers
+      for (const p of this.adaptiveManagers.keys()) {
+        this.resetAdaptiveLearning(p)
+      }
+    }
+
+    this.overrideManager.recordLearningReset()
+  }
+
+  /**
+   * Get configured provider names.
+   */
+  getConfiguredProviders(): string[] {
+    return Object.keys(this.config.providerBudgets)
+  }
+
+  /**
+   * Get provider budget configuration.
+   */
+  getProviderBudgetConfig(provider: string): number | undefined {
+    return this.config.providerBudgets[provider]
+  }
 }
 
 // Re-export types and utilities
@@ -549,3 +685,11 @@ export {
   parseModelRef,
   formatModelRef,
 } from "./tiers"
+
+export {
+  BudgetOverrideManager,
+  getOverrideManager,
+  resetOverrideManager,
+  type BudgetOverrideState,
+  type OverrideOptions,
+} from "./override"

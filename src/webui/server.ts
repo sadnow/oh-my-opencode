@@ -50,7 +50,14 @@ import {
   type OrchestrationRouteContext,
 } from "./routes/orchestration"
 
-import { INDEX_HTML, APP_JS, STYLES_CSS } from "./static-files"
+import {
+  handleGetDashboard,
+  handleGetTrends,
+  handleSetOverride,
+  type BudgetDashboardContext,
+} from "./routes/budget-dashboard"
+
+import { INDEX_HTML, APP_JS, STYLES_CSS, BUDGET_DASHBOARD_HTML, BUDGET_DASHBOARD_JS } from "./static-files"
 
 export interface WebUIOptions {
   port: number
@@ -70,6 +77,7 @@ export function startWebUI(options: WebUIOptions): BunServer {
   const usageCtx: UsageRouteContext = { usageTracker, budgetOrchestrator }
   const wizardCtx: WizardRouteContext = { configManager }
   const orchCtx: OrchestrationRouteContext = { budgetOrchestrator }
+  const budgetDashCtx: BudgetDashboardContext = { budgetOrchestrator, usageTracker }
 
   const server = Bun.serve({
     port,
@@ -111,6 +119,7 @@ export function startWebUI(options: WebUIOptions): BunServer {
           usageCtx,
           wizardCtx,
           orchCtx,
+          budgetDashCtx,
         })
         return respond(apiResponse)
       }
@@ -130,6 +139,7 @@ interface APIContexts {
   usageCtx: UsageRouteContext
   wizardCtx: WizardRouteContext
   orchCtx: OrchestrationRouteContext
+  budgetDashCtx: BudgetDashboardContext
 }
 
 /**
@@ -231,6 +241,17 @@ async function handleAPI(
     return handleGetStatus(ctx.orchCtx)
   }
 
+  // Budget dashboard routes
+  if (pathname === "/budget/dashboard" && method === "GET") {
+    return handleGetDashboard(ctx.budgetDashCtx)
+  }
+  if (pathname === "/budget/trends" && method === "GET") {
+    return handleGetTrends(ctx.budgetDashCtx)
+  }
+  if (pathname === "/budget/override" && method === "POST") {
+    return handleSetOverride(req, ctx.budgetDashCtx)
+  }
+
   // 404
   return Response.json(
     { success: false, error: `Not found: ${method} ${pathname}` },
@@ -248,8 +269,20 @@ function serveStatic(pathname: string): Response {
     })
   }
 
+  if (pathname === "/budget-dashboard" || pathname === "/budget-dashboard.html") {
+    return new Response(BUDGET_DASHBOARD_HTML, {
+      headers: { "Content-Type": "text/html" },
+    })
+  }
+
   if (pathname === "/app.js") {
     return new Response(APP_JS, {
+      headers: { "Content-Type": "application/javascript" },
+    })
+  }
+
+  if (pathname === "/budget-dashboard.js") {
+    return new Response(BUDGET_DASHBOARD_JS, {
       headers: { "Content-Type": "application/javascript" },
     })
   }

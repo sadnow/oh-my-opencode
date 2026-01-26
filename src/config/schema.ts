@@ -367,6 +367,20 @@ export const BudgetConfigSchema = z.object({
   daily_target: z.number().min(0).optional(),
 })
 
+// Budget notification configuration
+export const BudgetNotificationConfigSchema = z.object({
+  /** Enable budget notifications (default: true when budget is enabled) */
+  enabled: z.boolean().default(true),
+  /** Budget percentage thresholds that trigger warnings (default: [80, 90, 100]) */
+  warning_thresholds: z.array(z.number().min(0).max(100)).default([80, 90, 100]),
+  /** Days ahead to predict for pace warnings (default: 3) */
+  pace_warning_days: z.number().min(1).max(30).default(3),
+  /** Hours of idle time before showing idle credit notification (default: 12) */
+  idle_credit_hours: z.number().min(1).max(168).default(12),
+  /** Show notifications for tier changes (default: true) */
+  show_tier_changes: z.boolean().default(true),
+})
+
 // Orchestration preset names
 export const OrchestrationPresetSchema = z.enum([
   "balanced",
@@ -403,6 +417,8 @@ export const OhMyOpenCodeConfigSchema = z.object({
   usage_tracking: UsageTrackingConfigSchema.optional(),
   /** Budget-aware orchestration configuration */
   budget: BudgetConfigSchema.optional(),
+  /** Budget notification configuration */
+  budget_notifications: BudgetNotificationConfigSchema.optional(),
   /** Orchestration preset selector */
   orchestration_preset: OrchestrationPresetSchema.optional(),
 })
@@ -435,6 +451,7 @@ export type WebUIConfig = z.infer<typeof WebUIConfigSchema>
 export type WebUIBind = z.infer<typeof WebUIBindSchema>
 export type UsageTrackingConfig = z.infer<typeof UsageTrackingConfigSchema>
 export type BudgetConfig = z.infer<typeof BudgetConfigSchema>
+export type BudgetNotificationConfig = z.infer<typeof BudgetNotificationConfigSchema>
 export type ModelTier = z.infer<typeof ModelTierSchema>
 export type OrchestrationPreset = z.infer<typeof OrchestrationPresetSchema>
 

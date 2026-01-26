@@ -17,6 +17,7 @@ export const INDEX_HTML = `<!DOCTYPE html>
       <h1>oh-my-opencode</h1>
       <nav>
         <button class="tab-btn active" data-tab="dashboard">Dashboard</button>
+        <a href="/budget-dashboard" class="tab-btn">Budget</a>
         <button class="tab-btn" data-tab="wizard">Wizard</button>
         <button class="tab-btn" data-tab="presets">Presets</button>
         <button class="tab-btn" data-tab="features">Features</button>
@@ -618,5 +619,577 @@ footer {
   .tab-btn {
     width: 100%;
   }
+}
+`
+
+export const BUDGET_DASHBOARD_HTML = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Budget Dashboard - oh-my-opencode</title>
+  <link rel="stylesheet" href="/styles.css">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    .budget-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+      gap: 20px;
+      margin-bottom: 30px;
+    }
+
+    .budget-card {
+      background: var(--bg-card);
+      border-radius: 12px;
+      padding: 24px;
+      border: 1px solid var(--border);
+    }
+
+    .budget-card h3 {
+      color: var(--accent);
+      margin-bottom: 16px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .tier-badge {
+      font-size: 12px;
+      padding: 4px 10px;
+      border-radius: 12px;
+      font-weight: 600;
+      text-transform: uppercase;
+    }
+
+    .tier-premium { background: linear-gradient(135deg, #9d4edd, #7b2cbf); }
+    .tier-standard { background: linear-gradient(135deg, #3a86ff, #0077b6); }
+    .tier-budget { background: linear-gradient(135deg, #f9c74f, #f9844a); }
+    .tier-economy { background: linear-gradient(135deg, #6c757d, #495057); }
+
+    .progress-container {
+      margin: 16px 0;
+    }
+
+    .progress-bar {
+      height: 12px;
+      background: var(--bg-secondary);
+      border-radius: 6px;
+      overflow: hidden;
+      position: relative;
+    }
+
+    .progress-fill {
+      height: 100%;
+      border-radius: 6px;
+      transition: width 0.5s ease;
+    }
+
+    .progress-fill.green { background: linear-gradient(90deg, #4caf50, #81c784); }
+    .progress-fill.yellow { background: linear-gradient(90deg, #ff9800, #ffb74d); }
+    .progress-fill.red { background: linear-gradient(90deg, #f44336, #ef5350); }
+
+    .progress-labels {
+      display: flex;
+      justify-content: space-between;
+      margin-top: 8px;
+      font-size: 14px;
+    }
+
+    .budget-amount { color: var(--text-primary); font-weight: 600; }
+    .budget-total { color: var(--text-secondary); }
+
+    .metrics-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 12px;
+      margin-top: 16px;
+    }
+
+    .metric-item {
+      background: var(--bg-secondary);
+      padding: 12px;
+      border-radius: 8px;
+    }
+
+    .metric-label {
+      font-size: 12px;
+      color: var(--text-secondary);
+      margin-bottom: 4px;
+    }
+
+    .metric-value {
+      font-size: 18px;
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+
+    .adaptive-section {
+      margin-top: 20px;
+      padding-top: 16px;
+      border-top: 1px solid var(--border);
+    }
+
+    .adaptive-section h4 {
+      font-size: 14px;
+      color: var(--text-secondary);
+      margin-bottom: 12px;
+    }
+
+    .chart-container {
+      background: var(--bg-card);
+      border-radius: 12px;
+      padding: 24px;
+      border: 1px solid var(--border);
+      margin-bottom: 30px;
+    }
+
+    .chart-container h3 {
+      margin-bottom: 20px;
+    }
+
+    .controls-section {
+      background: var(--bg-card);
+      border-radius: 12px;
+      padding: 24px;
+      border: 1px solid var(--border);
+    }
+
+    .controls-section h3 {
+      margin-bottom: 20px;
+    }
+
+    .control-group {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-bottom: 16px;
+    }
+
+    .control-group label {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    select {
+      padding: 8px 12px;
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
+      color: var(--text-primary);
+      border-radius: 6px;
+    }
+
+    .override-status {
+      background: var(--bg-secondary);
+      padding: 16px;
+      border-radius: 8px;
+      margin-top: 16px;
+    }
+
+    .override-status.active {
+      border-left: 4px solid var(--warning);
+    }
+
+    .trend-indicator {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 14px;
+    }
+
+    .trend-under { color: #4caf50; }
+    .trend-on-track { color: #3a86ff; }
+    .trend-over { color: #f44336; }
+
+    .global-summary {
+      background: var(--bg-card);
+      border-radius: 12px;
+      padding: 24px;
+      border: 1px solid var(--border);
+      margin-bottom: 30px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 20px;
+    }
+
+    .global-tier {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .global-tier span {
+      font-size: 16px;
+      color: var(--text-secondary);
+    }
+  </style>
+</head>
+<body>
+  <div id="app">
+    <header>
+      <h1>Budget Dashboard</h1>
+      <nav>
+        <a href="/" class="tab-btn">Settings</a>
+        <button class="tab-btn active">Budget Dashboard</button>
+      </nav>
+    </header>
+
+    <main>
+      <div id="loading">Loading budget data...</div>
+
+      <div id="dashboard-content" style="display: none;">
+        <div id="disabled-message" class="card" style="display: none;">
+          <h3>Budget Tracking Disabled</h3>
+          <p>Enable budget tracking in your configuration to use this dashboard.</p>
+        </div>
+
+        <div id="enabled-content">
+          <div class="global-summary" id="global-summary"></div>
+
+          <div class="budget-grid" id="providers-grid"></div>
+
+          <div class="chart-container">
+            <h3>Spending Trends</h3>
+            <canvas id="spending-chart" height="100"></canvas>
+          </div>
+
+          <div class="controls-section">
+            <h3>Override Controls</h3>
+            <div class="control-group">
+              <label>
+                Force Tier:
+                <select id="force-tier-select">
+                  <option value="">Select tier...</option>
+                  <option value="premium">Premium</option>
+                  <option value="standard">Standard</option>
+                  <option value="budget">Budget</option>
+                  <option value="economy">Economy</option>
+                </select>
+              </label>
+              <button onclick="forceTier()">Apply</button>
+            </div>
+            <div class="control-group">
+              <button onclick="lockTier()">Lock Current Tier</button>
+              <button onclick="unlockTier()">Unlock Tier</button>
+              <button onclick="clearOverrides()">Clear All Overrides</button>
+              <button onclick="resetLearning()">Reset Learning</button>
+            </div>
+            <div id="override-status" class="override-status" style="display: none;"></div>
+          </div>
+        </div>
+      </div>
+    </main>
+
+    <footer>
+      <p>oh-my-opencode Budget Dashboard</p>
+    </footer>
+  </div>
+
+  <div id="toast" class="toast hidden"></div>
+
+  <script src="/budget-dashboard.js"></script>
+</body>
+</html>`
+
+export const BUDGET_DASHBOARD_JS = `// Budget Dashboard JavaScript
+const API_BASE = window.location.origin + '/api';
+let spendingChart = null;
+
+document.addEventListener('DOMContentLoaded', () => {
+  loadDashboard();
+  // Refresh every 60 seconds
+  setInterval(loadDashboard, 60000);
+});
+
+async function loadDashboard() {
+  try {
+    const res = await fetch(API_BASE + '/budget/dashboard');
+    const { success, data } = await res.json();
+
+    document.getElementById('loading').style.display = 'none';
+    document.getElementById('dashboard-content').style.display = 'block';
+
+    if (!success || !data.enabled) {
+      document.getElementById('disabled-message').style.display = 'block';
+      document.getElementById('enabled-content').style.display = 'none';
+      return;
+    }
+
+    document.getElementById('disabled-message').style.display = 'none';
+    document.getElementById('enabled-content').style.display = 'block';
+
+    renderGlobalSummary(data);
+    renderProviders(data.providers);
+    renderOverrideStatus(data.override);
+    await loadAndRenderChart();
+  } catch (err) {
+    console.error('Dashboard load error:', err);
+    document.getElementById('loading').textContent = 'Error loading dashboard';
+  }
+}
+
+function renderGlobalSummary(data) {
+  const container = document.getElementById('global-summary');
+  const tierClass = 'tier-' + data.globalTier;
+
+  container.innerHTML = '<div class="global-tier">' +
+    '<span>Recommended Tier:</span>' +
+    '<span class="tier-badge ' + tierClass + '">' + data.globalTier + '</span>' +
+    '</div>' +
+    '<div>' +
+    '<span style="color: var(--text-secondary);">Providers: </span>' +
+    '<span style="font-weight: 600;">' + data.providers.length + '</span>' +
+    '</div>';
+}
+
+function renderProviders(providers) {
+  const container = document.getElementById('providers-grid');
+
+  if (!providers.length) {
+    container.innerHTML = '<div class="card"><p>No providers configured</p></div>';
+    return;
+  }
+
+  container.innerHTML = providers.map(function(p) {
+    const progressClass = p.percentage < 70 ? 'green' : p.percentage < 90 ? 'yellow' : 'red';
+    const trendClass = 'trend-' + p.trend.replace('-', '');
+    const trendIcon = { under: '↓', 'on-track': '→', over: '↑' }[p.trend] || '•';
+    const tierClass = 'tier-' + p.recommendedTier;
+
+    let adaptiveHtml = '';
+    if (p.adaptive) {
+      adaptiveHtml = '<div class="adaptive-section">' +
+        '<h4>Adaptive Intelligence</h4>' +
+        '<div class="metrics-grid">' +
+        '<div class="metric-item">' +
+        '<div class="metric-label">Accumulated Credits</div>' +
+        '<div class="metric-value" style="color: #4caf50;">+$' + p.adaptive.accumulatedCredits.toFixed(2) + '</div>' +
+        '</div>' +
+        '<div class="metric-item">' +
+        '<div class="metric-label">Budget Headroom</div>' +
+        '<div class="metric-value">$' + p.adaptive.budgetHeadroom.toFixed(2) + '</div>' +
+        '</div>' +
+        '<div class="metric-item">' +
+        '<div class="metric-label">Spending Velocity</div>' +
+        '<div class="metric-value">$' + p.adaptive.spendingVelocity.toFixed(2) + '/hr</div>' +
+        '</div>' +
+        '<div class="metric-item">' +
+        '<div class="metric-label">Learning Progress</div>' +
+        '<div class="metric-value">' + (p.adaptive.learningProgress * 100).toFixed(0) + '%</div>' +
+        '</div>' +
+        '</div>' +
+        '</div>';
+    }
+
+    return '<div class="budget-card">' +
+      '<h3>' + p.provider.toUpperCase() +
+      '<span class="tier-badge ' + tierClass + '">' + p.recommendedTier + '</span>' +
+      '</h3>' +
+      '<div class="progress-container">' +
+      '<div class="progress-bar">' +
+      '<div class="progress-fill ' + progressClass + '" style="width: ' + Math.min(100, p.percentage) + '%"></div>' +
+      '</div>' +
+      '<div class="progress-labels">' +
+      '<span class="budget-amount">$' + p.used.toFixed(2) + ' used</span>' +
+      '<span class="budget-total">$' + p.budget.toFixed(2) + ' budget</span>' +
+      '</div>' +
+      '</div>' +
+      '<div class="metrics-grid">' +
+      '<div class="metric-item">' +
+      '<div class="metric-label">Percentage Used</div>' +
+      '<div class="metric-value">' + p.percentage.toFixed(1) + '%</div>' +
+      '</div>' +
+      '<div class="metric-item">' +
+      '<div class="metric-label">Days Remaining</div>' +
+      '<div class="metric-value">' + p.daysRemaining + '</div>' +
+      '</div>' +
+      '<div class="metric-item">' +
+      '<div class="metric-label">Trend</div>' +
+      '<div class="metric-value trend-indicator ' + trendClass + '">' + trendIcon + ' ' + p.trend.replace('-', ' ') + '</div>' +
+      '</div>' +
+      '<div class="metric-item">' +
+      '<div class="metric-label">Period</div>' +
+      '<div class="metric-value">' + p.daysElapsed + ' days</div>' +
+      '</div>' +
+      '</div>' +
+      adaptiveHtml +
+      '</div>';
+  }).join('');
+}
+
+function renderOverrideStatus(override) {
+  const container = document.getElementById('override-status');
+
+  if (!override.forcedTier && !override.tierLocked) {
+    container.style.display = 'none';
+    return;
+  }
+
+  container.style.display = 'block';
+  container.className = 'override-status active';
+
+  let html = '<strong>Override Active</strong><br>';
+  if (override.forcedTier) {
+    html += 'Forced tier: <span class="tier-badge tier-' + override.forcedTier + '">' + override.forcedTier + '</span><br>';
+  }
+  if (override.tierLocked) {
+    html += 'Tier locked: Yes<br>';
+  }
+  if (override.expiresIn) {
+    html += 'Expires in: ' + override.expiresIn + '<br>';
+  }
+  if (override.modifiedBy) {
+    html += 'Set by: ' + override.modifiedBy;
+  }
+
+  container.innerHTML = html;
+}
+
+async function loadAndRenderChart() {
+  try {
+    const res = await fetch(API_BASE + '/budget/trends');
+    const { success, data } = await res.json();
+
+    if (!success || !data.trends.length) return;
+
+    const ctx = document.getElementById('spending-chart').getContext('2d');
+
+    const datasets = data.providers.map(function(provider, i) {
+      const colors = ['#9d4edd', '#3a86ff', '#4caf50', '#ff9800'];
+      return {
+        label: provider,
+        data: data.trends.map(function(t) { return t[provider] || 0; }),
+        borderColor: colors[i % colors.length],
+        backgroundColor: colors[i % colors.length] + '20',
+        fill: true,
+        tension: 0.4,
+      };
+    });
+
+    if (spendingChart) {
+      spendingChart.destroy();
+    }
+
+    spendingChart = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: data.trends.map(function(t) { return t.date; }),
+        datasets: datasets,
+      },
+      options: {
+        responsive: true,
+        plugins: {
+          legend: {
+            labels: { color: '#e0e0e0' }
+          }
+        },
+        scales: {
+          x: {
+            ticks: { color: '#888' },
+            grid: { color: '#333' }
+          },
+          y: {
+            ticks: {
+              color: '#888',
+              callback: function(v) { return '$' + v.toFixed(2); }
+            },
+            grid: { color: '#333' }
+          }
+        }
+      }
+    });
+  } catch (err) {
+    console.error('Chart load error:', err);
+  }
+}
+
+async function forceTier() {
+  const tier = document.getElementById('force-tier-select').value;
+  if (!tier) {
+    showToast('Please select a tier');
+    return;
+  }
+
+  try {
+    const res = await fetch(API_BASE + '/budget/override', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'force-tier', tier: tier }),
+    });
+    const result = await res.json();
+    showToast(result.success ? result.message : result.error);
+    if (result.success) loadDashboard();
+  } catch (err) {
+    showToast('Error: ' + err);
+  }
+}
+
+async function lockTier() {
+  try {
+    const res = await fetch(API_BASE + '/budget/override', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'lock-tier' }),
+    });
+    const result = await res.json();
+    showToast(result.success ? result.message : result.error);
+    if (result.success) loadDashboard();
+  } catch (err) {
+    showToast('Error: ' + err);
+  }
+}
+
+async function unlockTier() {
+  try {
+    const res = await fetch(API_BASE + '/budget/override', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'unlock-tier' }),
+    });
+    const result = await res.json();
+    showToast(result.success ? result.message : result.error);
+    if (result.success) loadDashboard();
+  } catch (err) {
+    showToast('Error: ' + err);
+  }
+}
+
+async function clearOverrides() {
+  try {
+    const res = await fetch(API_BASE + '/budget/override', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'clear' }),
+    });
+    const result = await res.json();
+    showToast(result.success ? result.message : result.error);
+    if (result.success) loadDashboard();
+  } catch (err) {
+    showToast('Error: ' + err);
+  }
+}
+
+async function resetLearning() {
+  try {
+    const res = await fetch(API_BASE + '/budget/override', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'reset-learning' }),
+    });
+    const result = await res.json();
+    showToast(result.success ? result.message : result.error);
+    if (result.success) loadDashboard();
+  } catch (err) {
+    showToast('Error: ' + err);
+  }
+}
+
+function showToast(message) {
+  const toast = document.getElementById('toast');
+  toast.textContent = message;
+  toast.classList.remove('hidden');
+  setTimeout(function() { toast.classList.add('hidden'); }, 3000);
 }
 `
