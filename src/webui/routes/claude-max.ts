@@ -1,6 +1,6 @@
 /**
  * Claude Max Usage Routes
- * API endpoints for Claude Max subscription usage tracking (auto-detected)
+ * API endpoints for Claude Max subscription usage (real-time from Anthropic API)
  */
 
 import type { ClaudeMaxUsageTracker } from "../../features/claude-max-usage"
@@ -19,9 +19,9 @@ export interface ClaudeMaxRouteContext {
 
 /**
  * GET /api/claude-max/usage
- * Get current Claude Max subscription usage (auto-calculated from stats)
+ * Get current Claude Max subscription usage (real-time from Anthropic API)
  */
-export function handleGetClaudeMaxUsage(ctx: ClaudeMaxRouteContext): Response {
+export async function handleGetClaudeMaxUsage(ctx: ClaudeMaxRouteContext): Promise<Response> {
   if (!ctx.claudeMaxTracker) {
     return Response.json({
       success: false,
@@ -29,43 +29,55 @@ export function handleGetClaudeMaxUsage(ctx: ClaudeMaxRouteContext): Response {
     }, { status: 503 })
   }
 
-  const data = ctx.claudeMaxTracker.getData()
-  const recommendation = ctx.claudeMaxTracker.getRecommendation()
-  const shouldDowngrade = ctx.claudeMaxTracker.shouldDowngrade()
+  try {
+    // Use async method for fresh data
+    const data = await ctx.claudeMaxTracker.getDataAsync()
+    const recommendation = ctx.claudeMaxTracker.getRecommendation()
+    const shouldDowngrade = ctx.claudeMaxTracker.shouldDowngrade()
 
-  // Format reset date for display
-  const resetDate = new Date(data.allModels.resetDate)
-  const formattedResetDate = resetDate.toLocaleDateString("en-US", {
-    weekday: "short",
-    month: "short",
-    day: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-  })
+    // Format reset dates for display
+    const formatDate = (isoDate: string) => {
+      try {
+        const date = new Date(isoDate)
+        return date.toLocaleString("en-US", {
+          weekday: "short",
+          month: "short",
+          day: "numeric",
+          hour: "numeric",
+          minute: "2-digit",
+        })
+      } catch {
+        return isoDate
+      }
+    }
 
-  return Response.json({
-    success: true,
-    data: {
-      ...data,
-      formattedResetDate,
-      recommendation,
-      shouldDowngrade,
-      formattedTokens: {
-        total: ctx.claudeMaxTracker.formatTokens(data.allModels.tokensUsed),
-        limit: ctx.claudeMaxTracker.formatTokens(data.allModels.estimatedLimit),
-        opus: ctx.claudeMaxTracker.formatTokens(data.modelBreakdown.opus.tokens),
-        sonnet: ctx.claudeMaxTracker.formatTokens(data.modelBreakdown.sonnet.tokens),
-        haiku: ctx.claudeMaxTracker.formatTokens(data.modelBreakdown.haiku.tokens),
+    return Response.json({
+      success: true,
+      data: {
+        ...data,
+        formatted: {
+          currentSessionReset: formatDate(data.currentSession.resetDate),
+          allModelsReset: formatDate(data.allModels.resetDate),
+          sonnetOnlyReset: formatDate(data.sonnetOnly.resetDate),
+          opusOnlyReset: data.opusOnly ? formatDate(data.opusOnly.resetDate) : null,
+        },
+        recommendation,
+        shouldDowngrade,
       },
-    },
-  })
+    })
+  } catch (err) {
+    return Response.json({
+      success: false,
+      error: String(err),
+    }, { status: 500 })
+  }
 }
 
 /**
  * POST /api/claude-max/refresh
- * Force refresh usage data from stats cache
+ * Force refresh usage data from Anthropic API
  */
-export function handleRefreshClaudeMax(ctx: ClaudeMaxRouteContext): Response {
+export async function handleRefreshClaudeMax(ctx: ClaudeMaxRouteContext): Promise<Response> {
   if (!ctx.claudeMaxTracker) {
     return Response.json({
       success: false,
@@ -73,10 +85,16 @@ export function handleRefreshClaudeMax(ctx: ClaudeMaxRouteContext): Response {
     }, { status: 503 })
   }
 
-  ctx.claudeMaxTracker.refresh()
-
-  return Response.json({
-    success: true,
-    message: "Usage data refreshed from stats",
-  })
+  try {
+    await ctx.claudeMaxTracker.refreshAsync()
+    return Response.json({
+      success: true,
+      message: "Usage data refreshed from Anthropic API",
+    })
+  } catch (err) {
+    return Response.json({
+      success: false,
+      error: String(err),
+    }, { status: 500 })
+  }
 }

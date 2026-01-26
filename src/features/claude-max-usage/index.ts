@@ -1,6 +1,6 @@
 /**
  * Claude Max Usage Tracker
- * Automatically tracks Claude Max subscription usage from local stats
+ * Fetches real-time subscription usage from Anthropic's OAuth API
  */
 
 import * as fs from "fs"
@@ -13,140 +13,143 @@ import { log } from "../../shared"
 // ============================================================================
 
 export interface ClaudeMaxUsageData {
-  // Overall usage (estimated from tokens)
-  allModels: {
+  // Current session (5-hour window)
+  currentSession: {
     percentUsed: number
-    tokensUsed: number
-    estimatedLimit: number
     resetDate: string
   }
-  // Model breakdown
-  modelBreakdown: {
-    opus: { tokens: number; percent: number }
-    sonnet: { tokens: number; percent: number }
-    haiku: { tokens: number; percent: number }
-    other: { tokens: number; percent: number }
+  // Weekly usage (all models)
+  allModels: {
+    percentUsed: number
+    resetDate: string
   }
+  // Sonnet-only weekly usage
+  sonnetOnly: {
+    percentUsed: number
+    resetDate: string
+  }
+  // Opus-only weekly usage (if available)
+  opusOnly: {
+    percentUsed: number
+    resetDate: string
+  } | null
   // Subscription info
   subscription: {
     tier: "free" | "pro" | "max-5x" | "max-20x" | "team" | "enterprise" | "unknown"
     isActive: boolean
+    extraUsageEnabled: boolean
   }
-  // Activity stats
-  activity: {
-    messagesThisWeek: number
-    sessionsThisWeek: number
-    toolCallsThisWeek: number
-  }
-  // Period info
-  periodStart: string
-  periodEnd: string
-  daysRemaining: number
+  // Last update time
   lastUpdated: string
+  // Error if failed to fetch
+  error?: string
 }
 
-export interface ClaudeStatsCache {
-  version: number
-  lastComputedDate: string
-  dailyActivity: Array<{
-    date: string
-    messageCount: number
-    sessionCount: number
-    toolCallCount: number
-  }>
-  dailyModelTokens: Array<{
-    date: string
-    tokensByModel: Record<string, number>
-  }>
-  modelUsage: Record<string, {
-    inputTokens: number
-    outputTokens: number
-    cacheReadInputTokens: number
-    cacheCreationInputTokens: number
-    costUSD: number
-  }>
-  totalSessions: number
-  totalMessages: number
-  firstSessionDate?: string
+interface OAuthUsageResponse {
+  five_hour?: {
+    utilization: number
+    resets_at: string
+  }
+  seven_day?: {
+    utilization: number
+    resets_at: string
+  }
+  seven_day_sonnet?: {
+    utilization: number
+    resets_at: string
+  } | null
+  seven_day_opus?: {
+    utilization: number
+    resets_at: string
+  } | null
+  seven_day_oauth_apps?: unknown
+  seven_day_cowork?: unknown
+  iguana_necktie?: unknown
+  extra_usage?: {
+    is_enabled: boolean
+    monthly_limit: number | null
+    used_credits: number | null
+    utilization: number | null
+  }
 }
 
-// ============================================================================
-// Constants - Estimated Weekly Limits
-// ============================================================================
-
-// Based on research: Max 5x ~140-280 Sonnet hours/week, Max 20x ~240-480 hours
-// Converting to approximate token limits (conservative estimates)
-const WEEKLY_LIMITS = {
-  "max-5x": {
-    // ~200 Sonnet hours = ~43M tokens at 60 tok/sec
-    totalTokens: 40_000_000,
-    opusTokens: 5_000_000,   // Opus is more limited (~40 hours)
-    sonnetTokens: 35_000_000,
-    haikuTokens: 100_000_000,
-  },
-  "max-20x": {
-    // ~400 Sonnet hours = ~86M tokens
-    totalTokens: 80_000_000,
-    opusTokens: 15_000_000,
-    sonnetTokens: 70_000_000,
-    haikuTokens: 200_000_000,
-  },
-  "pro": {
-    totalTokens: 8_000_000,
-    opusTokens: 1_000_000,
-    sonnetTokens: 7_000_000,
-    haikuTokens: 20_000_000,
-  },
+interface ClaudeCredentials {
+  claudeAiOauth?: {
+    accessToken: string
+    refreshToken: string
+    expiresAt: number
+    scopes: string[]
+    subscriptionType?: string
+    rateLimitTier?: string
+  }
 }
 
 // ============================================================================
 // Helper Functions
 // ============================================================================
 
-function getClaudeStatsPath(): string {
+function getCredentialsPath(): string {
   const claudeDir = process.env.CLAUDE_CONFIG_DIR ||
     path.join(homedir(), ".claude")
-  return path.join(claudeDir, "stats-cache.json")
+  return path.join(claudeDir, ".credentials.json")
 }
 
-function getWeekStart(): Date {
-  const now = new Date()
-  const day = now.getDay()
-  const diff = now.getDate() - day // Sunday = 0
-  const weekStart = new Date(now)
-  weekStart.setDate(diff)
-  weekStart.setHours(0, 0, 0, 0)
-  return weekStart
+function loadCredentials(): ClaudeCredentials | null {
+  try {
+    const credPath = getCredentialsPath()
+    if (!fs.existsSync(credPath)) {
+      return null
+    }
+    const content = fs.readFileSync(credPath, "utf-8")
+    return JSON.parse(content)
+  } catch (err) {
+    log("[claude-max-usage] Error loading credentials:", err)
+    return null
+  }
 }
 
-function getWeekEnd(): Date {
-  const weekStart = getWeekStart()
-  const weekEnd = new Date(weekStart)
-  weekEnd.setDate(weekEnd.getDate() + 6)
-  weekEnd.setHours(23, 59, 59, 999)
-  return weekEnd
+function detectTierFromCredentials(creds: ClaudeCredentials): ClaudeMaxUsageData["subscription"]["tier"] {
+  const rateLimitTier = creds.claudeAiOauth?.rateLimitTier || ""
+  const subscriptionType = creds.claudeAiOauth?.subscriptionType || ""
+
+  if (rateLimitTier.includes("max_20x") || rateLimitTier.includes("max-20x")) {
+    return "max-20x"
+  }
+  if (rateLimitTier.includes("max_5x") || rateLimitTier.includes("max-5x")) {
+    return "max-5x"
+  }
+  if (subscriptionType === "max") {
+    // Default to max-5x if not specified
+    return "max-5x"
+  }
+  if (subscriptionType === "pro" || rateLimitTier.includes("pro")) {
+    return "pro"
+  }
+  if (subscriptionType === "team") {
+    return "team"
+  }
+  if (subscriptionType === "enterprise") {
+    return "enterprise"
+  }
+
+  return "unknown"
 }
 
-function getDaysRemaining(): number {
-  const now = new Date()
-  const weekEnd = getWeekEnd()
-  const diff = weekEnd.getTime() - now.getTime()
-  return Math.max(0, Math.ceil(diff / (1000 * 60 * 60 * 24)))
-}
-
-function isInCurrentWeek(dateStr: string): boolean {
-  const date = new Date(dateStr)
-  const weekStart = getWeekStart()
-  const weekEnd = getWeekEnd()
-  return date >= weekStart && date <= weekEnd
-}
-
-function categorizeModel(modelName: string): "opus" | "sonnet" | "haiku" | "other" {
-  const lower = modelName.toLowerCase()
-  if (lower.includes("opus")) return "opus"
-  if (lower.includes("sonnet")) return "sonnet"
-  if (lower.includes("haiku")) return "haiku"
-  return "other"
+function formatResetDate(isoDate: string, timezone?: string): string {
+  try {
+    const date = new Date(isoDate)
+    return date.toLocaleString("en-US", {
+      weekday: "short",
+      month: "short",
+      day: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+      timeZone: timezone,
+      timeZoneName: "short",
+    })
+  } catch {
+    return isoDate
+  }
 }
 
 // ============================================================================
@@ -154,167 +157,154 @@ function categorizeModel(modelName: string): "opus" | "sonnet" | "haiku" | "othe
 // ============================================================================
 
 export class ClaudeMaxUsageTracker {
-  private statsPath: string
   private cachedData: ClaudeMaxUsageData | null = null
   private lastRefresh: number = 0
-  private refreshInterval: number = 30000 // 30 seconds
+  private refreshInterval: number = 60000 // 1 minute cache
 
   constructor() {
-    this.statsPath = getClaudeStatsPath()
+    // Initialize
   }
 
   /**
-   * Get usage data, refreshing from stats if needed
+   * Get usage data, refreshing from API if needed
    */
-  getData(): ClaudeMaxUsageData {
+  async getDataAsync(): Promise<ClaudeMaxUsageData> {
     const now = Date.now()
     if (!this.cachedData || now - this.lastRefresh > this.refreshInterval) {
-      this.refresh()
+      await this.refreshAsync()
     }
     return this.cachedData!
   }
 
   /**
-   * Force refresh from stats cache
+   * Get cached data synchronously (for route handlers)
    */
-  refresh(): void {
-    this.cachedData = this.calculateUsage()
+  getData(): ClaudeMaxUsageData {
+    if (!this.cachedData) {
+      // Return default data, trigger async refresh
+      this.refreshAsync().catch(err => log("[claude-max-usage] Async refresh error:", err))
+      return this.getDefaultData()
+    }
+
+    // Check if cache is stale and trigger background refresh
+    const now = Date.now()
+    if (now - this.lastRefresh > this.refreshInterval) {
+      this.refreshAsync().catch(err => log("[claude-max-usage] Background refresh error:", err))
+    }
+
+    return this.cachedData
+  }
+
+  /**
+   * Force refresh from Anthropic's OAuth API
+   */
+  async refreshAsync(): Promise<void> {
+    this.cachedData = await this.fetchUsageFromAPI()
     this.lastRefresh = Date.now()
   }
 
   /**
-   * Calculate usage from Claude's stats-cache.json
+   * Synchronous refresh (triggers async in background)
    */
-  private calculateUsage(): ClaudeMaxUsageData {
-    const defaultData: ClaudeMaxUsageData = {
-      allModels: {
-        percentUsed: 0,
-        tokensUsed: 0,
-        estimatedLimit: WEEKLY_LIMITS["max-5x"].totalTokens,
-        resetDate: getWeekEnd().toISOString(),
-      },
-      modelBreakdown: {
-        opus: { tokens: 0, percent: 0 },
-        sonnet: { tokens: 0, percent: 0 },
-        haiku: { tokens: 0, percent: 0 },
-        other: { tokens: 0, percent: 0 },
-      },
-      subscription: {
-        tier: "unknown",
-        isActive: false,
-      },
-      activity: {
-        messagesThisWeek: 0,
-        sessionsThisWeek: 0,
-        toolCallsThisWeek: 0,
-      },
-      periodStart: getWeekStart().toISOString(),
-      periodEnd: getWeekEnd().toISOString(),
-      daysRemaining: getDaysRemaining(),
-      lastUpdated: new Date().toISOString(),
-    }
+  refresh(): void {
+    this.refreshAsync().catch(err => log("[claude-max-usage] Refresh error:", err))
+  }
+
+  /**
+   * Fetch usage data from Anthropic's OAuth API
+   */
+  private async fetchUsageFromAPI(): Promise<ClaudeMaxUsageData> {
+    const defaultData = this.getDefaultData()
 
     try {
-      if (!fs.existsSync(this.statsPath)) {
-        log("[claude-max-usage] Stats cache not found:", this.statsPath)
-        return defaultData
-      }
-
-      const content = fs.readFileSync(this.statsPath, "utf-8")
-      const stats: ClaudeStatsCache = JSON.parse(content)
-
-      // Calculate weekly tokens by model category
-      const weeklyTokens = {
-        opus: 0,
-        sonnet: 0,
-        haiku: 0,
-        other: 0,
-      }
-
-      // Sum tokens from daily data for current week
-      for (const day of stats.dailyModelTokens || []) {
-        if (isInCurrentWeek(day.date)) {
-          for (const [model, tokens] of Object.entries(day.tokensByModel)) {
-            const category = categorizeModel(model)
-            weeklyTokens[category] += tokens
-          }
+      const creds = loadCredentials()
+      if (!creds?.claudeAiOauth?.accessToken) {
+        return {
+          ...defaultData,
+          error: "No OAuth credentials found",
         }
       }
 
-      // Also add from modelUsage (cumulative) if no daily data
-      if (stats.dailyModelTokens?.length === 0) {
-        for (const [model, usage] of Object.entries(stats.modelUsage || {})) {
-          const category = categorizeModel(model)
-          weeklyTokens[category] += usage.inputTokens + usage.outputTokens
+      const token = creds.claudeAiOauth.accessToken
+      const tier = detectTierFromCredentials(creds)
+
+      // Call Anthropic's OAuth usage endpoint
+      const response = await fetch("https://api.anthropic.com/api/oauth/usage", {
+        headers: {
+          "Authorization": `Bearer ${token}`,
+          "anthropic-beta": "oauth-2025-04-20",
+        },
+      })
+
+      if (!response.ok) {
+        const errorText = await response.text()
+        log("[claude-max-usage] API error:", { status: response.status, error: errorText })
+        return {
+          ...defaultData,
+          subscription: { tier, isActive: true, extraUsageEnabled: false },
+          error: `API error: ${response.status}`,
         }
       }
 
-      // Calculate activity for current week
-      let messagesThisWeek = 0
-      let sessionsThisWeek = 0
-      let toolCallsThisWeek = 0
-
-      for (const day of stats.dailyActivity || []) {
-        if (isInCurrentWeek(day.date)) {
-          messagesThisWeek += day.messageCount
-          sessionsThisWeek += day.sessionCount
-          toolCallsThisWeek += day.toolCallCount
-        }
-      }
-
-      // Detect subscription tier based on usage patterns
-      const hasOpusUsage = weeklyTokens.opus > 0
-      const hasSonnetUsage = weeklyTokens.sonnet > 0
-      const totalTokens = weeklyTokens.opus + weeklyTokens.sonnet + weeklyTokens.haiku + weeklyTokens.other
-
-      let tier: ClaudeMaxUsageData["subscription"]["tier"] = "unknown"
-      let limits = WEEKLY_LIMITS["max-5x"]
-
-      // Heuristic: If using Opus heavily, likely Max subscription
-      if (hasOpusUsage) {
-        tier = "max-5x" // Assume Max 5x, could be 20x
-        limits = WEEKLY_LIMITS["max-5x"]
-      } else if (hasSonnetUsage) {
-        tier = "pro"
-        limits = WEEKLY_LIMITS["pro"]
-      }
-
-      // Calculate percentages
-      const totalPercent = Math.min(100, (totalTokens / limits.totalTokens) * 100)
-      const opusPercent = limits.opusTokens > 0 ? Math.min(100, (weeklyTokens.opus / limits.opusTokens) * 100) : 0
-      const sonnetPercent = limits.sonnetTokens > 0 ? Math.min(100, (weeklyTokens.sonnet / limits.sonnetTokens) * 100) : 0
-      const haikuPercent = limits.haikuTokens > 0 ? Math.min(100, (weeklyTokens.haiku / limits.haikuTokens) * 100) : 0
+      const data = await response.json() as OAuthUsageResponse
 
       return {
+        currentSession: {
+          percentUsed: data.five_hour?.utilization ?? 0,
+          resetDate: data.five_hour?.resets_at ?? new Date().toISOString(),
+        },
         allModels: {
-          percentUsed: Math.round(totalPercent * 10) / 10,
-          tokensUsed: totalTokens,
-          estimatedLimit: limits.totalTokens,
-          resetDate: getWeekEnd().toISOString(),
+          percentUsed: data.seven_day?.utilization ?? 0,
+          resetDate: data.seven_day?.resets_at ?? new Date().toISOString(),
         },
-        modelBreakdown: {
-          opus: { tokens: weeklyTokens.opus, percent: Math.round(opusPercent * 10) / 10 },
-          sonnet: { tokens: weeklyTokens.sonnet, percent: Math.round(sonnetPercent * 10) / 10 },
-          haiku: { tokens: weeklyTokens.haiku, percent: Math.round(haikuPercent * 10) / 10 },
-          other: { tokens: weeklyTokens.other, percent: 0 },
+        sonnetOnly: {
+          percentUsed: data.seven_day_sonnet?.utilization ?? 0,
+          resetDate: data.seven_day_sonnet?.resets_at ?? new Date().toISOString(),
         },
+        opusOnly: data.seven_day_opus ? {
+          percentUsed: data.seven_day_opus.utilization,
+          resetDate: data.seven_day_opus.resets_at,
+        } : null,
         subscription: {
           tier,
-          isActive: hasOpusUsage || hasSonnetUsage,
+          isActive: true,
+          extraUsageEnabled: data.extra_usage?.is_enabled ?? false,
         },
-        activity: {
-          messagesThisWeek,
-          sessionsThisWeek,
-          toolCallsThisWeek,
-        },
-        periodStart: getWeekStart().toISOString(),
-        periodEnd: getWeekEnd().toISOString(),
-        daysRemaining: getDaysRemaining(),
         lastUpdated: new Date().toISOString(),
       }
     } catch (err) {
-      log("[claude-max-usage] Error reading stats:", err)
-      return defaultData
+      log("[claude-max-usage] Error fetching usage:", err)
+      return {
+        ...defaultData,
+        error: String(err),
+      }
+    }
+  }
+
+  /**
+   * Get default/empty usage data
+   */
+  private getDefaultData(): ClaudeMaxUsageData {
+    return {
+      currentSession: {
+        percentUsed: 0,
+        resetDate: new Date().toISOString(),
+      },
+      allModels: {
+        percentUsed: 0,
+        resetDate: new Date().toISOString(),
+      },
+      sonnetOnly: {
+        percentUsed: 0,
+        resetDate: new Date().toISOString(),
+      },
+      opusOnly: null,
+      subscription: {
+        tier: "unknown",
+        isActive: false,
+        extraUsageEnabled: false,
+      },
+      lastUpdated: new Date().toISOString(),
     }
   }
 
@@ -323,16 +313,18 @@ export class ClaudeMaxUsageTracker {
    */
   getRecommendation(): "normal" | "caution" | "reduce" | "critical" {
     const data = this.getData()
-    const percent = data.allModels.percentUsed
-    const daysRemaining = data.daysRemaining
+    const sessionPercent = data.currentSession.percentUsed
+    const weeklyPercent = data.allModels.percentUsed
 
-    // Factor in days remaining
-    const expectedPercent = ((7 - daysRemaining) / 7) * 100
-    const burnRate = percent / Math.max(1, 7 - daysRemaining)
+    // Check session first (more immediate concern)
+    if (sessionPercent >= 90) return "critical"
+    if (sessionPercent >= 70) return "reduce"
 
-    if (percent >= 90 || burnRate > 20) return "critical"
-    if (percent >= 70 || burnRate > 15) return "reduce"
-    if (percent >= 50 || burnRate > 12) return "caution"
+    // Check weekly
+    if (weeklyPercent >= 90) return "critical"
+    if (weeklyPercent >= 70) return "reduce"
+    if (weeklyPercent >= 50) return "caution"
+
     return "normal"
   }
 
@@ -341,21 +333,15 @@ export class ClaudeMaxUsageTracker {
    */
   shouldDowngrade(): boolean {
     const data = this.getData()
-    // Downgrade if Opus usage is high relative to limit
-    return data.modelBreakdown.opus.percent >= 70
+    // Downgrade if weekly usage is high or session usage is very high
+    return data.allModels.percentUsed >= 80 || data.currentSession.percentUsed >= 85
   }
 
   /**
-   * Format tokens for display
+   * Format reset date for display
    */
-  formatTokens(tokens: number): string {
-    if (tokens >= 1_000_000) {
-      return (tokens / 1_000_000).toFixed(1) + "M"
-    }
-    if (tokens >= 1_000) {
-      return (tokens / 1_000).toFixed(1) + "K"
-    }
-    return tokens.toString()
+  formatResetDate(isoDate: string): string {
+    return formatResetDate(isoDate)
   }
 }
 

@@ -848,52 +848,63 @@ export const BUDGET_DASHBOARD_HTML = `<!DOCTYPE html>
         <div id="enabled-content">
           <div class="global-summary" id="global-summary"></div>
 
-          <!-- Claude Max Subscription Section (Auto-Detected) -->
+          <!-- Claude Max Subscription Section (Real-time from Anthropic API) -->
           <div id="claude-max-section" class="budget-card" style="margin-bottom: 30px; display: none;">
             <h3>
               <span style="color: #ff9d00;">Claude Max</span> Subscription Usage
-              <span class="tier-badge tier-premium" id="claude-max-tier">MAX</span>
-              <span style="font-size: 11px; color: var(--text-secondary); margin-left: 8px;">(Auto-detected from Claude stats)</span>
+              <span class="tier-badge tier-premium" id="claude-max-tier">MAX 20X</span>
+              <span style="font-size: 11px; color: var(--text-secondary); margin-left: 8px;">(Real-time from Anthropic)</span>
             </h3>
-            <!-- Overall Usage -->
-            <div style="margin-bottom: 20px;">
-              <div style="font-size: 14px; color: var(--text-secondary); margin-bottom: 8px;">All Models (Weekly)</div>
-              <div class="progress-container">
-                <div class="progress-bar">
-                  <div class="progress-fill" id="claude-max-all-progress" style="width: 0%;"></div>
+            <!-- Usage Meters -->
+            <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; margin-bottom: 16px;">
+              <!-- Current Session -->
+              <div>
+                <div style="font-size: 13px; color: var(--text-secondary); margin-bottom: 8px;">Current Session</div>
+                <div class="progress-container">
+                  <div class="progress-bar">
+                    <div class="progress-fill" id="claude-max-session-progress" style="width: 0%;"></div>
+                  </div>
+                  <div class="progress-labels">
+                    <span class="budget-amount" id="claude-max-session-percent">0% used</span>
+                  </div>
                 </div>
-                <div class="progress-labels">
-                  <span class="budget-amount" id="claude-max-all-percent">0%</span>
-                  <span class="budget-total" id="claude-max-all-tokens">0 / 0 tokens</span>
+                <div style="font-size: 11px; color: var(--text-secondary); margin-top: 4px;" id="claude-max-session-reset">Resets --</div>
+              </div>
+              <!-- All Models Weekly -->
+              <div>
+                <div style="font-size: 13px; color: var(--text-secondary); margin-bottom: 8px;">Current Week (All Models)</div>
+                <div class="progress-container">
+                  <div class="progress-bar">
+                    <div class="progress-fill" id="claude-max-all-progress" style="width: 0%;"></div>
+                  </div>
+                  <div class="progress-labels">
+                    <span class="budget-amount" id="claude-max-all-percent">0% used</span>
+                  </div>
                 </div>
+                <div style="font-size: 11px; color: var(--text-secondary); margin-top: 4px;" id="claude-max-all-reset">Resets --</div>
               </div>
-              <div style="font-size: 12px; color: var(--text-secondary); margin-top: 4px;" id="claude-max-reset-info">Resets --</div>
-            </div>
-            <!-- Model Breakdown -->
-            <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px;">
-              <div style="padding: 12px; background: var(--bg-secondary); border-radius: 8px;">
-                <div style="font-size: 13px; color: #d4a574; font-weight: 600; margin-bottom: 6px;">Opus</div>
-                <div style="font-size: 18px; font-weight: 600;" id="claude-max-opus-tokens">0</div>
-                <div style="font-size: 11px; color: var(--text-secondary);" id="claude-max-opus-percent">0% of limit</div>
-              </div>
-              <div style="padding: 12px; background: var(--bg-secondary); border-radius: 8px;">
-                <div style="font-size: 13px; color: #7dd3fc; font-weight: 600; margin-bottom: 6px;">Sonnet</div>
-                <div style="font-size: 18px; font-weight: 600;" id="claude-max-sonnet-tokens">0</div>
-                <div style="font-size: 11px; color: var(--text-secondary);" id="claude-max-sonnet-percent">0% of limit</div>
-              </div>
-              <div style="padding: 12px; background: var(--bg-secondary); border-radius: 8px;">
-                <div style="font-size: 13px; color: #86efac; font-weight: 600; margin-bottom: 6px;">Haiku</div>
-                <div style="font-size: 18px; font-weight: 600;" id="claude-max-haiku-tokens">0</div>
-                <div style="font-size: 11px; color: var(--text-secondary);" id="claude-max-haiku-percent">0% of limit</div>
+              <!-- Sonnet Only Weekly -->
+              <div>
+                <div style="font-size: 13px; color: var(--text-secondary); margin-bottom: 8px;">Current Week (Sonnet Only)</div>
+                <div class="progress-container">
+                  <div class="progress-bar">
+                    <div class="progress-fill" id="claude-max-sonnet-progress" style="width: 0%;"></div>
+                  </div>
+                  <div class="progress-labels">
+                    <span class="budget-amount" id="claude-max-sonnet-percent">0% used</span>
+                  </div>
+                </div>
+                <div style="font-size: 11px; color: var(--text-secondary); margin-top: 4px;" id="claude-max-sonnet-reset">Resets --</div>
               </div>
             </div>
-            <!-- Activity & Status -->
-            <div style="margin-top: 16px; display: flex; gap: 12px; flex-wrap: wrap; align-items: center;">
+            <!-- Status & Controls -->
+            <div style="display: flex; gap: 12px; flex-wrap: wrap; align-items: center; padding-top: 12px; border-top: 1px solid var(--border);">
               <span id="claude-max-recommendation" class="trend-indicator trend-under"></span>
               <span id="claude-max-downgrade-hint" style="font-size: 12px; color: var(--warning); display: none;">Consider downgrading to Sonnet</span>
-              <span style="color: var(--text-secondary); font-size: 12px;" id="claude-max-activity">0 messages, 0 sessions this week</span>
-              <button onclick="refreshClaudeMax()" style="margin-left: auto;">Refresh Stats</button>
+              <span style="color: var(--text-secondary); font-size: 12px;" id="claude-max-last-updated">Last updated: --</span>
+              <button onclick="refreshClaudeMax()" style="margin-left: auto;">Refresh</button>
             </div>
+            <div id="claude-max-error" style="display: none; margin-top: 12px; padding: 8px 12px; background: rgba(255,100,100,0.1); border-radius: 6px; color: #ff6b6b; font-size: 12px;"></div>
           </div>
 
           <!-- Provider API Usage Cards -->
@@ -1244,35 +1255,47 @@ function showToast(message) {
   setTimeout(function() { toast.classList.add('hidden'); }, 3000);
 }
 
-// Claude Max Functions (Auto-Detected)
+// Claude Max Functions (Real-time from Anthropic API)
 async function loadClaudeMaxUsage() {
   try {
     const res = await fetch(API_BASE + '/claude-max/usage');
-    const { success, data } = await res.json();
+    const { success, data, error } = await res.json();
 
-    if (!success || !data) {
-      document.getElementById('claude-max-section').style.display = 'none';
+    const section = document.getElementById('claude-max-section');
+    const errorEl = document.getElementById('claude-max-error');
+
+    if (!success) {
+      section.style.display = 'none';
       return;
     }
 
-    document.getElementById('claude-max-section').style.display = 'block';
+    section.style.display = 'block';
 
-    // All models progress
-    const allPercent = data.allModels.percentUsed;
-    const allProgressClass = allPercent < 70 ? 'green' : allPercent < 90 ? 'yellow' : 'red';
-    document.getElementById('claude-max-all-progress').className = 'progress-fill ' + allProgressClass;
-    document.getElementById('claude-max-all-progress').style.width = Math.min(100, allPercent) + '%';
-    document.getElementById('claude-max-all-percent').textContent = allPercent.toFixed(1) + '% used';
-    document.getElementById('claude-max-all-tokens').textContent = data.formattedTokens.total + ' / ' + data.formattedTokens.limit + ' tokens';
-    document.getElementById('claude-max-reset-info').textContent = 'Resets ' + data.formattedResetDate + ' (' + data.daysRemaining + ' days remaining)';
+    // Show error if present but still display cached data
+    if (data.error) {
+      errorEl.textContent = 'API Error: ' + data.error;
+      errorEl.style.display = 'block';
+    } else {
+      errorEl.style.display = 'none';
+    }
 
-    // Model breakdown
-    document.getElementById('claude-max-opus-tokens').textContent = data.formattedTokens.opus;
-    document.getElementById('claude-max-opus-percent').textContent = data.modelBreakdown.opus.percent.toFixed(1) + '% of limit';
-    document.getElementById('claude-max-sonnet-tokens').textContent = data.formattedTokens.sonnet;
-    document.getElementById('claude-max-sonnet-percent').textContent = data.modelBreakdown.sonnet.percent.toFixed(1) + '% of limit';
-    document.getElementById('claude-max-haiku-tokens').textContent = data.formattedTokens.haiku;
-    document.getElementById('claude-max-haiku-percent').textContent = data.modelBreakdown.haiku.percent.toFixed(1) + '% of limit';
+    // Helper to set progress bar
+    function setProgress(prefix, percent, resetText) {
+      const progressClass = percent < 50 ? 'green' : percent < 80 ? 'yellow' : 'red';
+      document.getElementById(prefix + '-progress').className = 'progress-fill ' + progressClass;
+      document.getElementById(prefix + '-progress').style.width = Math.min(100, percent) + '%';
+      document.getElementById(prefix + '-percent').textContent = percent.toFixed(0) + '% used';
+      document.getElementById(prefix + '-reset').textContent = 'Resets ' + resetText;
+    }
+
+    // Current session (5-hour window)
+    setProgress('claude-max-session', data.currentSession.percentUsed, data.formatted.currentSessionReset);
+
+    // All models (weekly)
+    setProgress('claude-max-all', data.allModels.percentUsed, data.formatted.allModelsReset);
+
+    // Sonnet only (weekly)
+    setProgress('claude-max-sonnet', data.sonnetOnly.percentUsed, data.formatted.sonnetOnlyReset);
 
     // Tier badge
     const tier = data.subscription.tier.toUpperCase().replace('-', ' ');
@@ -1292,15 +1315,11 @@ async function loadClaudeMaxUsage() {
 
     // Downgrade hint
     const downgradeEl = document.getElementById('claude-max-downgrade-hint');
-    if (data.shouldDowngrade) {
-      downgradeEl.style.display = 'inline';
-    } else {
-      downgradeEl.style.display = 'none';
-    }
+    downgradeEl.style.display = data.shouldDowngrade ? 'inline' : 'none';
 
-    // Activity info
-    document.getElementById('claude-max-activity').textContent =
-      data.activity.messagesThisWeek + ' messages, ' + data.activity.sessionsThisWeek + ' sessions this week';
+    // Last updated
+    const lastUpdated = new Date(data.lastUpdated);
+    document.getElementById('claude-max-last-updated').textContent = 'Updated: ' + lastUpdated.toLocaleTimeString();
   } catch (err) {
     console.error('Claude Max load error:', err);
     document.getElementById('claude-max-section').style.display = 'none';
@@ -1311,7 +1330,7 @@ async function refreshClaudeMax() {
   try {
     const res = await fetch(API_BASE + '/claude-max/refresh', { method: 'POST' });
     const result = await res.json();
-    showToast(result.success ? 'Stats refreshed from Claude cache' : result.error);
+    showToast(result.success ? 'Usage refreshed from Anthropic' : result.error);
     if (result.success) loadClaudeMaxUsage();
   } catch (err) {
     showToast('Refresh error: ' + err);
