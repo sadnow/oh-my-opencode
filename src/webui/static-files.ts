@@ -902,7 +902,23 @@ export const BUDGET_DASHBOARD_HTML = `<!DOCTYPE html>
               <span id="claude-max-recommendation" class="trend-indicator trend-under"></span>
               <span id="claude-max-downgrade-hint" style="font-size: 12px; color: var(--warning); display: none;">Consider downgrading to Sonnet</span>
               <span style="color: var(--text-secondary); font-size: 12px;" id="claude-max-last-updated">Last updated: --</span>
-              <button onclick="refreshClaudeMax()" style="margin-left: auto;">Refresh</button>
+              <button onclick="toggleClaudeMaxHistory()" id="claude-max-history-toggle" style="margin-left: auto;">Show 24h History</button>
+              <button onclick="refreshClaudeMax()">Refresh</button>
+            </div>
+            <!-- 24h History Chart (Expandable) -->
+            <div id="claude-max-history-container" style="display: none; margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--border);">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                <h4 style="margin: 0; font-size: 14px; color: var(--text-secondary);">Usage History (Last 24 Hours)</h4>
+                <span style="font-size: 11px; color: var(--text-secondary);" id="claude-max-history-info">-- data points</span>
+              </div>
+              <div style="height: 150px; position: relative;">
+                <canvas id="claude-max-history-chart"></canvas>
+              </div>
+              <div style="display: flex; justify-content: center; gap: 20px; margin-top: 8px; font-size: 11px;">
+                <span><span style="display: inline-block; width: 12px; height: 3px; background: #ff9d00; margin-right: 4px;"></span>Session</span>
+                <span><span style="display: inline-block; width: 12px; height: 3px; background: #7dd3fc; margin-right: 4px;"></span>All Models</span>
+                <span><span style="display: inline-block; width: 12px; height: 3px; background: #86efac; margin-right: 4px;"></span>Sonnet</span>
+              </div>
             </div>
             <div id="claude-max-error" style="display: none; margin-top: 12px; padding: 8px 12px; background: rgba(255,100,100,0.1); border-radius: 6px; color: #ff6b6b; font-size: 12px;"></div>
           </div>
@@ -1331,9 +1347,164 @@ async function refreshClaudeMax() {
     const res = await fetch(API_BASE + '/claude-max/refresh', { method: 'POST' });
     const result = await res.json();
     showToast(result.success ? 'Usage refreshed from Anthropic' : result.error);
-    if (result.success) loadClaudeMaxUsage();
+    if (result.success) {
+      loadClaudeMaxUsage();
+      // Also refresh history if visible
+      if (claudeMaxHistoryVisible) {
+        loadClaudeMaxHistory();
+      }
+    }
   } catch (err) {
     showToast('Refresh error: ' + err);
+  }
+}
+
+// Claude Max History Chart
+let claudeMaxHistoryChart = null;
+let claudeMaxHistoryVisible = false;
+let claudeMaxHistoryInterval = null;
+
+function toggleClaudeMaxHistory() {
+  const container = document.getElementById('claude-max-history-container');
+  const button = document.getElementById('claude-max-history-toggle');
+  claudeMaxHistoryVisible = !claudeMaxHistoryVisible;
+
+  if (claudeMaxHistoryVisible) {
+    container.style.display = 'block';
+    button.textContent = 'Hide 24h History';
+    loadClaudeMaxHistory();
+    // Auto-refresh every 60 seconds while visible
+    claudeMaxHistoryInterval = setInterval(loadClaudeMaxHistory, 60000);
+  } else {
+    container.style.display = 'none';
+    button.textContent = 'Show 24h History';
+    if (claudeMaxHistoryInterval) {
+      clearInterval(claudeMaxHistoryInterval);
+      claudeMaxHistoryInterval = null;
+    }
+  }
+}
+
+async function loadClaudeMaxHistory() {
+  try {
+    const res = await fetch(API_BASE + '/claude-max/history');
+    const { success, data, error } = await res.json();
+
+    if (!success || !data || !data.points || data.points.length === 0) {
+      document.getElementById('claude-max-history-info').textContent = 'No history data yet';
+      return;
+    }
+
+    document.getElementById('claude-max-history-info').textContent = data.pointCount + ' data points';
+
+    // Prepare chart data
+    const labels = data.points.map(p => p.formattedTime);
+    const sessionData = data.points.map(p => p.sessionPercent);
+    const allModelsData = data.points.map(p => p.allModelsPercent);
+    const sonnetData = data.points.map(p => p.sonnetPercent);
+
+    const ctx = document.getElementById('claude-max-history-chart').getContext('2d');
+
+    // Destroy existing chart if any
+    if (claudeMaxHistoryChart) {
+      claudeMaxHistoryChart.destroy();
+    }
+
+    claudeMaxHistoryChart = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: labels,
+        datasets: [
+          {
+            label: 'Session',
+            data: sessionData,
+            borderColor: '#ff9d00',
+            backgroundColor: 'rgba(255, 157, 0, 0.1)',
+            borderWidth: 2,
+            tension: 0.3,
+            pointRadius: 0,
+            pointHoverRadius: 4,
+            fill: false,
+          },
+          {
+            label: 'All Models',
+            data: allModelsData,
+            borderColor: '#7dd3fc',
+            backgroundColor: 'rgba(125, 211, 252, 0.1)',
+            borderWidth: 2,
+            tension: 0.3,
+            pointRadius: 0,
+            pointHoverRadius: 4,
+            fill: false,
+          },
+          {
+            label: 'Sonnet',
+            data: sonnetData,
+            borderColor: '#86efac',
+            backgroundColor: 'rgba(134, 239, 172, 0.1)',
+            borderWidth: 2,
+            tension: 0.3,
+            pointRadius: 0,
+            pointHoverRadius: 4,
+            fill: false,
+          }
+        ]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        interaction: {
+          intersect: false,
+          mode: 'index',
+        },
+        plugins: {
+          legend: {
+            display: false,
+          },
+          tooltip: {
+            backgroundColor: 'rgba(30, 30, 30, 0.9)',
+            titleColor: '#fff',
+            bodyColor: '#ccc',
+            borderColor: '#444',
+            borderWidth: 1,
+            callbacks: {
+              label: function(context) {
+                return context.dataset.label + ': ' + context.parsed.y.toFixed(0) + '%';
+              }
+            }
+          }
+        },
+        scales: {
+          x: {
+            display: true,
+            grid: {
+              color: 'rgba(255, 255, 255, 0.05)',
+            },
+            ticks: {
+              color: '#888',
+              maxTicksLimit: 8,
+              font: { size: 10 }
+            }
+          },
+          y: {
+            display: true,
+            min: 0,
+            max: 100,
+            grid: {
+              color: 'rgba(255, 255, 255, 0.05)',
+            },
+            ticks: {
+              color: '#888',
+              callback: function(value) { return value + '%'; },
+              font: { size: 10 }
+            }
+          }
+        }
+      }
+    });
+  } catch (err) {
+    console.error('Claude Max history error:', err);
+    document.getElementById('claude-max-history-info').textContent = 'Error loading history';
   }
 }
 `

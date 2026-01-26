@@ -60,6 +60,7 @@ import {
 import {
   handleGetClaudeMaxUsage,
   handleRefreshClaudeMax,
+  handleGetClaudeMaxHistory,
   type ClaudeMaxRouteContext,
 } from "./routes/claude-max"
 
@@ -267,6 +268,9 @@ async function handleAPI(
   // Claude Max routes
   if (pathname === "/claude-max/usage" && method === "GET") {
     return handleGetClaudeMaxUsage(ctx.claudeMaxCtx)
+  }
+  if (pathname === "/claude-max/history" && method === "GET") {
+    return handleGetClaudeMaxHistory(ctx.claudeMaxCtx)
   }
   if (pathname === "/claude-max/refresh" && method === "POST") {
     return handleRefreshClaudeMax(ctx.claudeMaxCtx)

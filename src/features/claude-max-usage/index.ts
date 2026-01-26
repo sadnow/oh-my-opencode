@@ -1,6 +1,7 @@
 /**
  * Claude Max Usage Tracker
  * Fetches real-time subscription usage from Anthropic's OAuth API
+ * Includes 24-hour history tracking with automatic polling
  */
 
 import * as fs from "fs"
@@ -11,6 +12,18 @@ import { log } from "../../shared"
 // ============================================================================
 // Types
 // ============================================================================
+
+export interface UsageHistoryPoint {
+  timestamp: string
+  sessionPercent: number
+  allModelsPercent: number
+  sonnetPercent: number
+}
+
+export interface UsageHistory {
+  points: UsageHistoryPoint[]
+  lastUpdated: string
+}
 
 export interface ClaudeMaxUsageData {
   // Current session (5-hour window)
@@ -152,6 +165,11 @@ function formatResetDate(isoDate: string, timezone?: string): string {
   }
 }
 
+function getHistoryPath(): string {
+  const configDir = path.join(homedir(), ".config", "opencode")
+  return path.join(configDir, "claude-max-history.json")
+}
+
 // ============================================================================
 // ClaudeMaxUsageTracker Class
 // ============================================================================
@@ -160,9 +178,128 @@ export class ClaudeMaxUsageTracker {
   private cachedData: ClaudeMaxUsageData | null = null
   private lastRefresh: number = 0
   private refreshInterval: number = 60000 // 1 minute cache
+  private history: UsageHistory = { points: [], lastUpdated: new Date().toISOString() }
+  private historyInterval: ReturnType<typeof setInterval> | null = null
+  private readonly HISTORY_POLL_INTERVAL = 5 * 60 * 1000 // 5 minutes
+  private readonly MAX_HISTORY_POINTS = 288 // 24 hours at 5-min intervals
 
   constructor() {
-    // Initialize
+    this.loadHistory()
+    this.startHistoryPolling()
+  }
+
+  /**
+   * Load history from disk
+   */
+  private loadHistory(): void {
+    try {
+      const historyPath = getHistoryPath()
+      if (fs.existsSync(historyPath)) {
+        const content = fs.readFileSync(historyPath, "utf-8")
+        const loaded = JSON.parse(content) as UsageHistory
+        // Filter to only keep last 24 hours
+        const cutoff = Date.now() - 24 * 60 * 60 * 1000
+        this.history = {
+          points: loaded.points.filter(p => new Date(p.timestamp).getTime() > cutoff),
+          lastUpdated: loaded.lastUpdated,
+        }
+      }
+    } catch (err) {
+      log("[claude-max-usage] Error loading history:", err)
+    }
+  }
+
+  /**
+   * Save history to disk
+   */
+  private saveHistory(): void {
+    try {
+      const historyPath = getHistoryPath()
+      const dir = path.dirname(historyPath)
+      if (!fs.existsSync(dir)) {
+        fs.mkdirSync(dir, { recursive: true })
+      }
+      fs.writeFileSync(historyPath, JSON.stringify(this.history, null, 2))
+    } catch (err) {
+      log("[claude-max-usage] Error saving history:", err)
+    }
+  }
+
+  /**
+   * Start automatic history polling
+   */
+  private startHistoryPolling(): void {
+    // Record initial point
+    this.recordHistoryPoint()
+
+    // Poll every 5 minutes
+    this.historyInterval = setInterval(() => {
+      this.recordHistoryPoint()
+    }, this.HISTORY_POLL_INTERVAL)
+  }
+
+  /**
+   * Stop history polling (for cleanup)
+   */
+  stopHistoryPolling(): void {
+    if (this.historyInterval) {
+      clearInterval(this.historyInterval)
+      this.historyInterval = null
+    }
+  }
+
+  /**
+   * Record a history point from current data
+   */
+  private async recordHistoryPoint(): Promise<void> {
+    try {
+      const data = await this.getDataAsync()
+      if (data.error) return // Don't record errors
+
+      const point: UsageHistoryPoint = {
+        timestamp: new Date().toISOString(),
+        sessionPercent: data.currentSession.percentUsed,
+        allModelsPercent: data.allModels.percentUsed,
+        sonnetPercent: data.sonnetOnly.percentUsed,
+      }
+
+      this.history.points.push(point)
+      this.history.lastUpdated = point.timestamp
+
+      // Trim to max points (keep last 24 hours)
+      const cutoff = Date.now() - 24 * 60 * 60 * 1000
+      this.history.points = this.history.points.filter(
+        p => new Date(p.timestamp).getTime() > cutoff
+      )
+
+      // Also enforce max points limit
+      if (this.history.points.length > this.MAX_HISTORY_POINTS) {
+        this.history.points = this.history.points.slice(-this.MAX_HISTORY_POINTS)
+      }
+
+      this.saveHistory()
+    } catch (err) {
+      log("[claude-max-usage] Error recording history point:", err)
+    }
+  }
+
+  /**
+   * Get usage history for the last 24 hours
+   */
+  getHistory(): UsageHistory {
+    // Filter to only last 24 hours
+    const cutoff = Date.now() - 24 * 60 * 60 * 1000
+    return {
+      points: this.history.points.filter(p => new Date(p.timestamp).getTime() > cutoff),
+      lastUpdated: this.history.lastUpdated,
+    }
+  }
+
+  /**
+   * Force record a history point now
+   */
+  async recordNow(): Promise<void> {
+    await this.recordHistoryPoint()
   }
 
   /**
