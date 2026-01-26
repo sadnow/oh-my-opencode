@@ -57,6 +57,15 @@ import {
   type BudgetDashboardContext,
 } from "./routes/budget-dashboard"
 
+import {
+  handleGetClaudeMaxUsage,
+  handleUpdateClaudeMaxUsage,
+  handleSyncClaudeMax,
+  type ClaudeMaxRouteContext,
+} from "./routes/claude-max"
+
+import type { ClaudeMaxUsageTracker } from "../features/claude-max-usage"
+
 import { INDEX_HTML, APP_JS, STYLES_CSS, BUDGET_DASHBOARD_HTML, BUDGET_DASHBOARD_JS } from "./static-files"
 
 export interface WebUIOptions {
@@ -65,19 +74,21 @@ export interface WebUIOptions {
   configManager: HotConfigManager
   usageTracker: UsageTracker | null
   budgetOrchestrator: BudgetOrchestrator | null
+  claudeMaxTracker?: ClaudeMaxUsageTracker | null
 }
 
 /**
  * Start the WebUI server.
  */
 export function startWebUI(options: WebUIOptions): BunServer {
-  const { port, bind, configManager, usageTracker, budgetOrchestrator } = options
+  const { port, bind, configManager, usageTracker, budgetOrchestrator, claudeMaxTracker } = options
 
   const configCtx: ConfigRouteContext = { configManager }
   const usageCtx: UsageRouteContext = { usageTracker, budgetOrchestrator }
   const wizardCtx: WizardRouteContext = { configManager }
   const orchCtx: OrchestrationRouteContext = { budgetOrchestrator }
   const budgetDashCtx: BudgetDashboardContext = { budgetOrchestrator, usageTracker }
+  const claudeMaxCtx: ClaudeMaxRouteContext = { claudeMaxTracker: claudeMaxTracker ?? null }
 
   const server = Bun.serve({
     port,
@@ -120,6 +131,7 @@ export function startWebUI(options: WebUIOptions): BunServer {
           wizardCtx,
           orchCtx,
           budgetDashCtx,
+          claudeMaxCtx,
         })
         return respond(apiResponse)
       }
@@ -140,6 +152,7 @@ interface APIContexts {
   wizardCtx: WizardRouteContext
   orchCtx: OrchestrationRouteContext
   budgetDashCtx: BudgetDashboardContext
+  claudeMaxCtx: ClaudeMaxRouteContext
 }
 
 /**
@@ -250,6 +263,17 @@ async function handleAPI(
   }
   if (pathname === "/orchestration/status" && method === "GET") {
     return handleGetStatus(ctx.orchCtx)
+  }
+
+  // Claude Max routes
+  if (pathname === "/claude-max/usage" && method === "GET") {
+    return handleGetClaudeMaxUsage(ctx.claudeMaxCtx)
+  }
+  if (pathname === "/claude-max/usage" && method === "POST") {
+    return handleUpdateClaudeMaxUsage(req, ctx.claudeMaxCtx)
+  }
+  if (pathname === "/claude-max/sync" && method === "POST") {
+    return handleSyncClaudeMax(ctx.claudeMaxCtx)
   }
 
   // 404

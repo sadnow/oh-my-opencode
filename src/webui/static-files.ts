@@ -848,6 +848,55 @@ export const BUDGET_DASHBOARD_HTML = `<!DOCTYPE html>
         <div id="enabled-content">
           <div class="global-summary" id="global-summary"></div>
 
+          <!-- Claude Max Subscription Section -->
+          <div id="claude-max-section" class="budget-card" style="margin-bottom: 30px; display: none;">
+            <h3>
+              <span style="color: #ff9d00;">Claude Max</span> Subscription Usage
+              <span class="tier-badge tier-premium" id="claude-max-tier">MAX</span>
+            </h3>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+              <div>
+                <div style="font-size: 14px; color: var(--text-secondary); margin-bottom: 8px;">All Models (Weekly)</div>
+                <div class="progress-container">
+                  <div class="progress-bar">
+                    <div class="progress-fill" id="claude-max-all-progress" style="width: 0%;"></div>
+                  </div>
+                  <div class="progress-labels">
+                    <span class="budget-amount" id="claude-max-all-percent">0%</span>
+                    <span class="budget-total" id="claude-max-all-reset">Resets --</span>
+                  </div>
+                </div>
+              </div>
+              <div>
+                <div style="font-size: 14px; color: var(--text-secondary); margin-bottom: 8px;">Sonnet Only (Weekly)</div>
+                <div class="progress-container">
+                  <div class="progress-bar">
+                    <div class="progress-fill" id="claude-max-sonnet-progress" style="width: 0%;"></div>
+                  </div>
+                  <div class="progress-labels">
+                    <span class="budget-amount" id="claude-max-sonnet-percent">0%</span>
+                    <span class="budget-total" id="claude-max-sonnet-reset">Resets --</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div style="margin-top: 16px; display: flex; gap: 12px; flex-wrap: wrap; align-items: center;">
+              <span id="claude-max-recommendation" class="trend-indicator trend-under"></span>
+              <span style="color: var(--text-secondary); font-size: 12px;" id="claude-max-sync-info">Last synced: Never</span>
+              <button onclick="syncClaudeMax()" style="margin-left: auto;">Sync Stats</button>
+            </div>
+            <div style="margin-top: 12px; padding: 12px; background: var(--bg-secondary); border-radius: 8px;">
+              <div style="font-size: 12px; color: var(--text-secondary); margin-bottom: 8px;">Update Usage Manually</div>
+              <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+                <input type="number" id="claude-max-all-input" placeholder="All models %" min="0" max="100" style="width: 100px; padding: 6px; background: var(--bg-card); border: 1px solid var(--border); color: var(--text-primary); border-radius: 4px;">
+                <input type="number" id="claude-max-sonnet-input" placeholder="Sonnet %" min="0" max="100" style="width: 100px; padding: 6px; background: var(--bg-card); border: 1px solid var(--border); color: var(--text-primary); border-radius: 4px;">
+                <button onclick="updateClaudeMaxUsage()">Update</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Provider API Usage Cards -->
+          <div style="font-size: 14px; color: var(--text-secondary); margin-bottom: 12px;">API Usage by Provider</div>
           <div class="budget-grid" id="providers-grid"></div>
 
           <div class="chart-container">
@@ -924,6 +973,7 @@ async function loadDashboard() {
     renderProviders(data.providers);
     renderOverrideStatus(data.override);
     await loadAndRenderChart();
+    await loadClaudeMaxUsage();
   } catch (err) {
     console.error('Dashboard load error:', err);
     document.getElementById('loading').textContent = 'Error loading dashboard';
@@ -1191,5 +1241,103 @@ function showToast(message) {
   toast.textContent = message;
   toast.classList.remove('hidden');
   setTimeout(function() { toast.classList.add('hidden'); }, 3000);
+}
+
+// Claude Max Functions
+async function loadClaudeMaxUsage() {
+  try {
+    const res = await fetch(API_BASE + '/claude-max/usage');
+    const { success, data } = await res.json();
+
+    if (!success || !data) {
+      document.getElementById('claude-max-section').style.display = 'none';
+      return;
+    }
+
+    document.getElementById('claude-max-section').style.display = 'block';
+
+    // All models progress
+    const allPercent = data.allModels.percentUsed;
+    const allProgressClass = allPercent < 70 ? 'green' : allPercent < 90 ? 'yellow' : 'red';
+    document.getElementById('claude-max-all-progress').className = 'progress-fill ' + allProgressClass;
+    document.getElementById('claude-max-all-progress').style.width = Math.min(100, allPercent) + '%';
+    document.getElementById('claude-max-all-percent').textContent = allPercent.toFixed(0) + '% used';
+    document.getElementById('claude-max-all-reset').textContent = 'Resets ' + (data.allModels.formattedResetDate || data.allModels.resetDate);
+
+    // Sonnet progress
+    const sonnetPercent = data.sonnetOnly.percentUsed;
+    const sonnetProgressClass = sonnetPercent < 70 ? 'green' : sonnetPercent < 90 ? 'yellow' : 'red';
+    document.getElementById('claude-max-sonnet-progress').className = 'progress-fill ' + sonnetProgressClass;
+    document.getElementById('claude-max-sonnet-progress').style.width = Math.min(100, sonnetPercent) + '%';
+    document.getElementById('claude-max-sonnet-percent').textContent = sonnetPercent.toFixed(0) + '% used';
+    document.getElementById('claude-max-sonnet-reset').textContent = 'Resets ' + (data.sonnetOnly.formattedResetDate || data.sonnetOnly.resetDate);
+
+    // Tier badge
+    const tier = data.subscription.tier.toUpperCase();
+    document.getElementById('claude-max-tier').textContent = tier;
+
+    // Recommendation
+    const recEl = document.getElementById('claude-max-recommendation');
+    const recommendations = {
+      normal: { text: '✓ Normal usage', class: 'trend-under' },
+      caution: { text: '⚠ Moderate usage', class: 'trend-on-track' },
+      reduce: { text: '↓ Consider reducing', class: 'trend-over' },
+      critical: { text: '⛔ Near limit!', class: 'trend-over' }
+    };
+    const rec = recommendations[data.recommendation] || recommendations.normal;
+    recEl.textContent = rec.text;
+    recEl.className = 'trend-indicator ' + rec.class;
+
+    // Sync info
+    if (data.lastSynced) {
+      const syncDate = new Date(data.lastSynced);
+      document.getElementById('claude-max-sync-info').textContent = 'Last synced: ' + syncDate.toLocaleString();
+    }
+  } catch (err) {
+    console.error('Claude Max load error:', err);
+    document.getElementById('claude-max-section').style.display = 'none';
+  }
+}
+
+async function syncClaudeMax() {
+  try {
+    const res = await fetch(API_BASE + '/claude-max/sync', { method: 'POST' });
+    const result = await res.json();
+    showToast(result.success ? 'Stats synced' : result.error);
+    if (result.success) loadClaudeMaxUsage();
+  } catch (err) {
+    showToast('Sync error: ' + err);
+  }
+}
+
+async function updateClaudeMaxUsage() {
+  const allInput = document.getElementById('claude-max-all-input').value;
+  const sonnetInput = document.getElementById('claude-max-sonnet-input').value;
+
+  if (!allInput && !sonnetInput) {
+    showToast('Enter at least one percentage value');
+    return;
+  }
+
+  try {
+    const body = {};
+    if (allInput) body.allModelsPercent = parseInt(allInput, 10);
+    if (sonnetInput) body.sonnetPercent = parseInt(sonnetInput, 10);
+
+    const res = await fetch(API_BASE + '/claude-max/usage', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    const result = await res.json();
+    showToast(result.success ? 'Usage updated' : result.error);
+    if (result.success) {
+      document.getElementById('claude-max-all-input').value = '';
+      document.getElementById('claude-max-sonnet-input').value = '';
+      loadClaudeMaxUsage();
+    }
+  } catch (err) {
+    showToast('Update error: ' + err);
+  }
 }
 `
