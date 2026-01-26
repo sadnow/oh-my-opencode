@@ -1,6 +1,6 @@
 /**
  * Claude Max Usage Routes
- * API endpoints for Claude Max subscription usage tracking
+ * API endpoints for Claude Max subscription usage tracking (auto-detected)
  */
 
 import type { ClaudeMaxUsageTracker } from "../../features/claude-max-usage"
@@ -19,7 +19,7 @@ export interface ClaudeMaxRouteContext {
 
 /**
  * GET /api/claude-max/usage
- * Get current Claude Max subscription usage
+ * Get current Claude Max subscription usage (auto-calculated from stats)
  */
 export function handleGetClaudeMaxUsage(ctx: ClaudeMaxRouteContext): Response {
   if (!ctx.claudeMaxTracker) {
@@ -31,38 +31,41 @@ export function handleGetClaudeMaxUsage(ctx: ClaudeMaxRouteContext): Response {
 
   const data = ctx.claudeMaxTracker.getData()
   const recommendation = ctx.claudeMaxTracker.getRecommendation()
+  const shouldDowngrade = ctx.claudeMaxTracker.shouldDowngrade()
+
+  // Format reset date for display
+  const resetDate = new Date(data.allModels.resetDate)
+  const formattedResetDate = resetDate.toLocaleDateString("en-US", {
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  })
 
   return Response.json({
     success: true,
     data: {
-      allModels: {
-        ...data.allModels,
-        daysUntilReset: ctx.claudeMaxTracker.getDaysUntilReset("allModels"),
-        formattedResetDate: ctx.claudeMaxTracker.formatResetDate("allModels"),
-      },
-      sonnetOnly: {
-        ...data.sonnetOnly,
-        daysUntilReset: ctx.claudeMaxTracker.getDaysUntilReset("sonnet"),
-        formattedResetDate: ctx.claudeMaxTracker.formatResetDate("sonnet"),
-      },
-      subscription: data.subscription,
-      localStats: data.localStats,
-      lastSynced: data.lastSynced,
-      syncSource: data.syncSource,
+      ...data,
+      formattedResetDate,
       recommendation,
-      shouldDowngrade: ctx.claudeMaxTracker.shouldDowngrade(80),
+      shouldDowngrade,
+      formattedTokens: {
+        total: ctx.claudeMaxTracker.formatTokens(data.allModels.tokensUsed),
+        limit: ctx.claudeMaxTracker.formatTokens(data.allModels.estimatedLimit),
+        opus: ctx.claudeMaxTracker.formatTokens(data.modelBreakdown.opus.tokens),
+        sonnet: ctx.claudeMaxTracker.formatTokens(data.modelBreakdown.sonnet.tokens),
+        haiku: ctx.claudeMaxTracker.formatTokens(data.modelBreakdown.haiku.tokens),
+      },
     },
   })
 }
 
 /**
- * POST /api/claude-max/usage
- * Update Claude Max usage manually
+ * POST /api/claude-max/refresh
+ * Force refresh usage data from stats cache
  */
-export async function handleUpdateClaudeMaxUsage(
-  req: Request,
-  ctx: ClaudeMaxRouteContext
-): Promise<Response> {
+export function handleRefreshClaudeMax(ctx: ClaudeMaxRouteContext): Response {
   if (!ctx.claudeMaxTracker) {
     return Response.json({
       success: false,
@@ -70,64 +73,10 @@ export async function handleUpdateClaudeMaxUsage(
     }, { status: 503 })
   }
 
-  try {
-    const body = await req.json() as {
-      allModelsPercent?: number
-      sonnetPercent?: number
-      allModelsResetDate?: string
-      sonnetResetDate?: string
-      tier?: "free" | "pro" | "max" | "team" | "enterprise"
-      usageText?: string
-    }
-
-    // If raw usage text is provided, try to parse it
-    if (body.usageText) {
-      const parsed = ctx.claudeMaxTracker.parseUsageText(body.usageText)
-      if (!parsed) {
-        return Response.json({
-          success: false,
-          error: "Could not parse usage text",
-        }, { status: 400 })
-      }
-    } else {
-      // Direct update
-      ctx.claudeMaxTracker.updateUsage({
-        allModelsPercent: body.allModelsPercent,
-        sonnetPercent: body.sonnetPercent,
-        allModelsResetDate: body.allModelsResetDate,
-        sonnetResetDate: body.sonnetResetDate,
-        tier: body.tier,
-      })
-    }
-
-    return Response.json({
-      success: true,
-      data: ctx.claudeMaxTracker.getData(),
-    })
-  } catch (err) {
-    return Response.json({
-      success: false,
-      error: err instanceof Error ? err.message : "Unknown error",
-    }, { status: 400 })
-  }
-}
-
-/**
- * POST /api/claude-max/sync
- * Sync from Claude stats cache
- */
-export function handleSyncClaudeMax(ctx: ClaudeMaxRouteContext): Response {
-  if (!ctx.claudeMaxTracker) {
-    return Response.json({
-      success: false,
-      error: "Claude Max tracking not available",
-    }, { status: 503 })
-  }
-
-  ctx.claudeMaxTracker.syncFromStats()
+  ctx.claudeMaxTracker.refresh()
 
   return Response.json({
     success: true,
-    data: ctx.claudeMaxTracker.getLocalStats(),
+    message: "Usage data refreshed from stats",
   })
 }

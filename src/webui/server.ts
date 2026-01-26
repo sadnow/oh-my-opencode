@@ -59,8 +59,7 @@ import {
 
 import {
   handleGetClaudeMaxUsage,
-  handleUpdateClaudeMaxUsage,
-  handleSyncClaudeMax,
+  handleRefreshClaudeMax,
   type ClaudeMaxRouteContext,
 } from "./routes/claude-max"
 
@@ -269,11 +268,8 @@ async function handleAPI(
   if (pathname === "/claude-max/usage" && method === "GET") {
     return handleGetClaudeMaxUsage(ctx.claudeMaxCtx)
   }
-  if (pathname === "/claude-max/usage" && method === "POST") {
-    return handleUpdateClaudeMaxUsage(req, ctx.claudeMaxCtx)
-  }
-  if (pathname === "/claude-max/sync" && method === "POST") {
-    return handleSyncClaudeMax(ctx.claudeMaxCtx)
+  if (pathname === "/claude-max/refresh" && method === "POST") {
+    return handleRefreshClaudeMax(ctx.claudeMaxCtx)
   }
 
   // 404
