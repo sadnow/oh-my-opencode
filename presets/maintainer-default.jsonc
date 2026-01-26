@@ -1,0 +1,94 @@
+// MAINTAINER DEFAULT PRESET
+// Based on oh-my-opencode maintainer recommendations
+// Best for: Users with full provider access who want official recommended experience
+// Cost: High (prioritizes Claude Opus)
+// 
+// Sources:
+// - https://github.com/code-yeongyu/oh-my-opencode/blob/dev/docs/configurations.md
+// - https://github.com/code-yeongyu/oh-my-opencode/blob/dev/AGENTS.md
+{
+  "": "https://raw.githubusercontent.com/code-yeongyu/oh-my-opencode/master/assets/oh-my-opencode.schema.json",
+  
+  // Maintainer strongly recommends Claude Opus for primary agents
+  "categories": {
+    "visual-engineering": { "model": "anthropic/claude-sonnet-4-5" },
+    "artistry": { "model": "anthropic/claude-opus-4-5", "variant": "max" },
+    "writing": { "model": "anthropic/claude-sonnet-4-5" },
+    "quick": { "model": "anthropic/claude-haiku-4-5" },
+    "ultrabrain": { "model": "anthropic/claude-opus-4-5", "variant": "max" },
+    "unspecified-high": { "model": "anthropic/claude-sonnet-4-5" },
+    "unspecified-low": { "model": "anthropic/claude-haiku-4-5" }
+  },
+
+  // Official maintainer agent recommendations
+  "agents": {
+    "explore": { "model": "opencode/gpt-5-nano" },
+    "librarian": { "model": "opencode/big-pickle" },
+    "codebase": { "model": "anthropic/claude-haiku-4-5" },
+    "search": { "model": "anthropic/claude-haiku-4-5" },
+    "debug": { "model": "anthropic/claude-sonnet-4-5" },
+    "test": { "model": "anthropic/claude-sonnet-4-5" },
+    "refactor": { "model": "anthropic/claude-sonnet-4-5" },
+    "implement": { "model": "anthropic/claude-sonnet-4-5" },
+    "review": { "model": "anthropic/claude-sonnet-4-5" },
+    "plan": { "model": "anthropic/claude-opus-4-5", "variant": "max" },
+    // Maintainer: "using other models may degrade the experience"
+    "oracle": { "model": "openai/gpt-5.2", "variant": "high" },
+    "sisyphus": { "model": "anthropic/claude-opus-4-5", "variant": "max" },
+    "sisyphus-junior": { "model": "anthropic/claude-haiku-4-5" },
+    "background": { "model": "anthropic/claude-haiku-4-5" },
+    "multimodal-looker": { "model": "google/gemini-3-flash" }
+  },
+
+  "background_task": {
+    "defaultConcurrency": 4,
+    "providerConcurrency": {
+      "anthropic": 2,
+      "openai": 2,
+      "google": 2,
+      "github-copilot": 2,
+      "opencode": 2,
+      "zai-coding-plan": 2
+    },
+    "modelConcurrency": {
+      "claude-opus-4-5": 1,
+      "claude-sonnet-4-5": 2,
+      "claude-haiku-4-5": 3,
+      "gpt-5.2": 2,
+      "gpt-5-nano": 4,
+      "big-pickle": 2,
+      "gemini-3-flash": 2
+    },
+    "staleTimeoutMs": 600000,
+    "maxStabilityResets": 10
+  },
+
+  "ralph_loop": {
+    "enabled": true,
+    "default_max_iterations": 20,
+    "iteration_timeout_ms": 300000
+  },
+
+  "sisyphus_agent": {
+    "planner_enabled": true,
+    "default_builder_enabled": false,
+    "planner_model": "anthropic/claude-opus-4-5",
+    "builder_model": "anthropic/claude-sonnet-4-5"
+  },
+
+  "experimental": {
+    "aggressive_truncation": true,
+    "dynamic_context_pruning": {
+      "enabled": true,
+      "notification": "minimal",
+      "turn_protection": { "enabled": true, "turns": 3 },
+      "strategies": {
+        "deduplication": { "enabled": true },
+        "supersede_writes": { "enabled": true, "aggressive": false },
+        "purge_errors": { "enabled": true, "turns": 5 }
+      }
+    }
+  },
+
+  "disabled_hooks": []
+}

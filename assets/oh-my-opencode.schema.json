@@ -2150,6 +2150,11 @@
         "staleTimeoutMs": {
           "type": "number",
           "minimum": 60000
+        },
+        "maxStabilityResets": {
+          "type": "number",
+          "minimum": 1,
+          "maximum": 100
         }
       }
     },

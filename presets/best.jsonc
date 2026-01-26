@@ -1,0 +1,114 @@
+// BEST QUALITY PRESET
+// Uses the absolute best model for each task regardless of cost
+// Best for: Critical projects, production code, complex debugging
+// Cost: Very High (Claude Opus + GPT-5.2 Codex heavy usage)
+//
+// Model Selection Rationale (based on benchmarks):
+// - Claude Opus 4.5: 80.9% SWE-bench, best abstract reasoning
+// - GPT-5.2 Codex: Strong code generation, good tool use
+// - Kimi K2 Thinking: 60.2% BrowseComp, 200+ tool calls
+// - Gemini 3 Pro: 2M context, multimodal excellence
+{
+  "": "https://raw.githubusercontent.com/code-yeongyu/oh-my-opencode/master/assets/oh-my-opencode.schema.json",
+
+  "categories": {
+    "visual-engineering": { "model": "anthropic/claude-opus-4-5", "variant": "max" },
+    "artistry": { "model": "anthropic/claude-opus-4-5", "variant": "max" },
+    "writing": { "model": "anthropic/claude-opus-4-5", "variant": "max" },
+    "quick": { "model": "anthropic/claude-sonnet-4-5" },
+    "ultrabrain": { "model": "anthropic/claude-opus-4-5", "variant": "max" },
+    "unspecified-high": { "model": "anthropic/claude-opus-4-5", "variant": "max" },
+    "unspecified-low": { "model": "anthropic/claude-sonnet-4-5" }
+  },
+
+  "agents": {
+    // Exploration: Gemini 3 Pro for 2M context + multimodal
+    "explore": { "model": "google/antigravity-gemini-3-pro-high" },
+    // Librarian: Claude Opus for best research quality
+    "librarian": { "model": "anthropic/claude-opus-4-5", "variant": "max" },
+    // Codebase: Claude Sonnet for pattern recognition
+    "codebase": { "model": "anthropic/claude-sonnet-4-5" },
+    // Search: Gemini Pro for speed + multimodal
+    "search": { "model": "google/antigravity-gemini-3-pro-high" },
+    // Debug: GPT-5.2 Codex with high reasoning
+    "debug": { "model": "openai/gpt-5.2-codex", "variant": "high" },
+    // Test: Claude Opus for comprehensive test generation
+    "test": { "model": "anthropic/claude-opus-4-5", "variant": "max" },
+    // Refactor: Claude Opus (80.9% SWE-bench)
+    "refactor": { "model": "anthropic/claude-opus-4-5", "variant": "max" },
+    // Implement: Claude Opus for best code quality
+    "implement": { "model": "anthropic/claude-opus-4-5", "variant": "max" },
+    // Review: Kimi K2 Thinking for deep analysis
+    "review": { "model": "opencode/kimi-k2-thinking" },
+    // Plan: Claude Opus for strategic planning
+    "plan": { "model": "anthropic/claude-opus-4-5", "variant": "max" },
+    // Oracle: Claude Opus for hardest problems
+    "oracle": { "model": "anthropic/claude-opus-4-5", "variant": "max" },
+    // Sisyphus: Claude Opus as maintainer recommends
+    "sisyphus": { "model": "anthropic/claude-opus-4-5", "variant": "max" },
+    // Junior: Claude Sonnet (still high quality)
+    "sisyphus-junior": { "model": "anthropic/claude-sonnet-4-5" },
+    // Background: Claude Sonnet
+    "background": { "model": "anthropic/claude-sonnet-4-5" },
+    // Multimodal: Gemini Pro High for vision
+    "multimodal-looker": { "model": "google/antigravity-gemini-3-pro-high" }
+  },
+
+  "background_task": {
+    "defaultConcurrency": 4,
+    "providerConcurrency": {
+      "anthropic": 2,
+      "openai": 2,
+      "google": 1,
+      "github-copilot": 2,
+      "opencode": 2,
+      "zai-coding-plan": 2
+    },
+    "modelConcurrency": {
+      "claude-opus-4-5": 2,
+      "claude-sonnet-4-5": 2,
+      "gpt-5.2-codex": 2,
+      "kimi-k2-thinking": 1,
+      "antigravity-gemini-3-pro-high": 1
+    },
+    "staleTimeoutMs": 600000,
+    "maxStabilityResets": 10
+  },
+
+  "ralph_loop": {
+    "enabled": true,
+    "default_max_iterations": 30,
+    "iteration_timeout_ms": 600000,
+    "model_rotation": {
+      "enabled": true,
+      "models": [
+        "anthropic/claude-opus-4-5",
+        "openai/gpt-5.2-codex",
+        "anthropic/claude-sonnet-4-5"
+      ]
+    }
+  },
+
+  "sisyphus_agent": {
+    "planner_enabled": true,
+    "default_builder_enabled": false,
+    "planner_model": "anthropic/claude-opus-4-5",
+    "builder_model": "anthropic/claude-opus-4-5"
+  },
+
+  "experimental": {
+    "aggressive_truncation": false,
+    "dynamic_context_pruning": {
+      "enabled": true,
+      "notification": "detailed",
+      "turn_protection": { "enabled": true, "turns": 5 },
+      "strategies": {
+        "deduplication": { "enabled": true },
+        "supersede_writes": { "enabled": true, "aggressive": false },
+        "purge_errors": { "enabled": true, "turns": 10 }
+      }
+    }
+  },
+
+  "disabled_hooks": []
+}

@@ -1,0 +1,147 @@
+// BALANCED PRESET
+// Optimizes for quality/cost ratio across all available providers
+// Best for: Daily development, parallel agent workflows, budget-conscious but quality-focused
+// Cost: Moderate (spreads load to minimize expensive provider usage)
+//
+// Provider Distribution Target:
+// - OpenCode/Zen (0 balance): ~45%
+// - Antigravity (free):         ~25%
+// - ChatGPT Plus OAuth:         ~15%
+// - Claude:                     ~10%
+// - GitHub Copilot:              ~5%
+//
+// Model Selection Rationale:
+// - GLM 4.7: 73.8% SWE-bench, strong all-around (main worker)
+// - Qwen Coder 480B: 61.8% Aider, excellent agentic coding
+// - Kimi K2 Thinking: Extended reasoning, 200+ tool calls
+// - Gemini 3 Flash: 78% SWE-bench, 1M context, fast
+// - Claude Opus: Reserved for oracle/artistry only (expensive)
+{
+  "": "https://raw.githubusercontent.com/code-yeongyu/oh-my-opencode/master/assets/oh-my-opencode.schema.json",
+
+  "categories": {
+    // Visual work: GPT Codex from ChatGPT Plus (good for UI)
+    "visual-engineering": { "model": "openai/gpt-5.2-codex", "variant": "high" },
+    // Artistry: Claude for creative work (worth the cost)
+    "artistry": { "model": "anthropic/claude-sonnet-4-5" },
+    // Writing: GitHub Copilot (free Claude access)
+    "writing": { "model": "github-copilot/claude-sonnet-4.5" },
+    // Quick tasks: GPT-5-nano (ultra cheap)
+    "quick": { "model": "opencode/gpt-5-nano" },
+    // Complex reasoning: Claude Opus (when needed)
+    "ultrabrain": { "model": "anthropic/claude-opus-4-5", "variant": "max" },
+    // General high: GLM 4.7 (good balance)
+    "unspecified-high": { "model": "opencode/glm-4.7" },
+    // General low: Gemini Flash (fast, free)
+    "unspecified-low": { "model": "opencode/gemini-3-flash" }
+  },
+
+  "agents": {
+    // Exploration: Antigravity Gemini Flash (FREE, fast, 1M context)
+    "explore": { "model": "google/antigravity-gemini-3-flash" },
+    // Librarian: Big Pickle (free Zen, good for research)
+    "librarian": { "model": "opencode/big-pickle" },
+    // Codebase: Big Pickle (reasoning for pattern detection)
+    "codebase": { "model": "opencode/big-pickle" },
+    // Search: Antigravity Gemini Flash (FREE, multimodal)
+    "search": { "model": "google/antigravity-gemini-3-flash" },
+    // Debug: GPT-5.2 Codex (ChatGPT Plus, strong debugging)
+    "debug": { "model": "openai/gpt-5.2-codex", "variant": "high" },
+    // Test: GLM 4.7 (good quality, Zen balance)
+    "test": { "model": "opencode/glm-4.7" },
+    // Refactor: Qwen Coder 480B (excellent code understanding)
+    "refactor": { "model": "opencode/qwen-coder-480b" },
+    // Implement: GLM 4.7 (reliable, 73.8% SWE-bench)
+    "implement": { "model": "opencode/glm-4.7" },
+    // Review: Kimi K2 Thinking (deep analysis)
+    "review": { "model": "opencode/kimi-k2-thinking" },
+    // Plan: Antigravity Gemini Pro (FREE, thinking mode)
+    "plan": { "model": "google/antigravity-gemini-3-pro-low" },
+    // Oracle: Claude Opus (reserved for hardest problems)
+    "oracle": { "model": "anthropic/claude-opus-4-5", "variant": "max" },
+    // Sisyphus: GLM 4.7 (main worker, balanced)
+    "sisyphus": { "model": "opencode/glm-4.7" },
+    // Junior: Zen Gemini Flash (fast helper)
+    "sisyphus-junior": { "model": "opencode/gemini-3-flash" },
+    // Background: GPT-5-nano (ultra cheap)
+    "background": { "model": "opencode/gpt-5-nano" },
+    // Multimodal: Antigravity Gemini Flash (FREE, vision)
+    "multimodal-looker": { "model": "google/antigravity-gemini-3-flash" }
+  },
+
+  "background_task": {
+    // Higher concurrency for parallel agent workflows
+    "defaultConcurrency": 8,
+    "providerConcurrency": {
+      "anthropic": 1,
+      "openai": 2,
+      "google": 1,
+      "github-copilot": 2,
+      "opencode": 4,
+      "zai-coding-plan": 2
+    },
+    "modelConcurrency": {
+      "claude-opus-4-5": 1,
+      "claude-sonnet-4-5": 2,
+      "claude-haiku-4-5": 2,
+      "gpt-5.2-codex": 2,
+      "gpt-5.2": 2,
+      "gpt-5-nano": 5,
+      "big-pickle": 2,
+      "gemini-3-flash": 3,
+      "glm-4.6": 2,
+      "glm-4.7": 2,
+      "kimi-k2-0905": 2,
+      "kimi-k2-thinking": 1,
+      "qwen-coder-480b": 2,
+      "antigravity-gemini-3-pro-high": 1,
+      "antigravity-gemini-3-pro-low": 1,
+      "antigravity-gemini-3-flash": 1
+    },
+    "staleTimeoutMs": 600000,
+    "maxStabilityResets": 10
+  },
+
+  "ralph_loop": {
+    "enabled": true,
+    "default_max_iterations": 20,
+    "iteration_timeout_ms": 300000,
+    "model_rotation": {
+      "enabled": true,
+      "models": [
+        "opencode/glm-4.7",
+        "openai/gpt-5.2-codex",
+        "opencode/qwen-coder-480b",
+        "github-copilot/claude-sonnet-4.5"
+      ]
+    }
+  },
+
+  "sisyphus_agent": {
+    "planner_enabled": true,
+    "default_builder_enabled": false,
+    "planner_model": "opencode/kimi-k2-thinking",
+    "builder_model": "opencode/glm-4.7"
+  },
+
+  "experimental": {
+    "aggressive_truncation": true,
+    "dynamic_context_pruning": {
+      "enabled": true,
+      "notification": "minimal",
+      "turn_protection": { "enabled": true, "turns": 3 },
+      "strategies": {
+        "deduplication": { "enabled": true },
+        "supersede_writes": { "enabled": true, "aggressive": false },
+        "purge_errors": { "enabled": true, "turns": 5 }
+      }
+    },
+    "model_load_balancing": {
+      "enabled": true,
+      "prefer_underutilized": true,
+      "claude_budget_percent": 15
+    }
+  },
+
+  "disabled_hooks": []
+}

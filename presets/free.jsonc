@@ -1,0 +1,129 @@
+// FREE PRESET
+// Uses only free providers: Antigravity (Gemini), GitHub Copilot, OpenCode free tier
+// Best for: Budget-conscious users, learning, experimentation
+// Cost: /bin/bash (completely free)
+//
+// Available Free Models:
+// - Antigravity: gemini-3-pro-high, gemini-3-pro-low, gemini-3-flash (rate-limited)
+// - GitHub Copilot: claude-sonnet-4.5, gpt-5-mini (requires Copilot subscription)
+// - OpenCode Zen: big-pickle, gpt-5-nano (free tier)
+//
+// Limitations:
+// - Antigravity: ~1 concurrent request, rate limits
+// - Quality may be lower for complex tasks
+// - No Claude Opus access
+{
+  "": "https://raw.githubusercontent.com/code-yeongyu/oh-my-opencode/master/assets/oh-my-opencode.schema.json",
+
+  "categories": {
+    // GitHub Copilot provides free Claude Sonnet access
+    "visual-engineering": { "model": "github-copilot/claude-sonnet-4.5" },
+    "artistry": { "model": "github-copilot/claude-sonnet-4.5" },
+    "writing": { "model": "github-copilot/claude-sonnet-4.5" },
+    // Fast/cheap tasks use free Gemini Flash
+    "quick": { "model": "google/antigravity-gemini-3-flash" },
+    // Complex reasoning: Gemini Pro with thinking
+    "ultrabrain": { "model": "google/antigravity-gemini-3-pro-high" },
+    "unspecified-high": { "model": "github-copilot/claude-sonnet-4.5" },
+    "unspecified-low": { "model": "google/antigravity-gemini-3-flash" }
+  },
+
+  "agents": {
+    // Exploration: Gemini Flash (fast, free, 1M context)
+    "explore": { "model": "google/antigravity-gemini-3-flash" },
+    // Librarian: Big Pickle (free GLM 4.6 on Zen)
+    "librarian": { "model": "opencode/big-pickle" },
+    // Codebase: GPT-5-nano (free, fast)
+    "codebase": { "model": "opencode/gpt-5-nano" },
+    // Search: Gemini Flash (multimodal, free)
+    "search": { "model": "google/antigravity-gemini-3-flash" },
+    // Debug: GitHub Copilot Claude (free)
+    "debug": { "model": "github-copilot/claude-sonnet-4.5" },
+    // Test: Copilot GPT-5-mini (free)
+    "test": { "model": "github-copilot/gpt-5-mini" },
+    // Refactor: Copilot Claude Sonnet
+    "refactor": { "model": "github-copilot/claude-sonnet-4.5" },
+    // Implement: Copilot Claude Sonnet
+    "implement": { "model": "github-copilot/claude-sonnet-4.5" },
+    // Review: Gemini Pro Low (thinking, free)
+    "review": { "model": "google/antigravity-gemini-3-pro-low" },
+    // Plan: Gemini Pro High (thinking, free)
+    "plan": { "model": "google/antigravity-gemini-3-pro-high" },
+    // Oracle: Gemini Pro High (best free reasoning)
+    "oracle": { "model": "google/antigravity-gemini-3-pro-high" },
+    // Sisyphus: Copilot Claude Sonnet
+    "sisyphus": { "model": "github-copilot/claude-sonnet-4.5" },
+    // Junior: GPT-5-nano (free, fast)
+    "sisyphus-junior": { "model": "opencode/gpt-5-nano" },
+    // Background: GPT-5-nano (free)
+    "background": { "model": "opencode/gpt-5-nano" },
+    // Multimodal: Gemini Flash (free, vision)
+    "multimodal-looker": { "model": "google/antigravity-gemini-3-flash" }
+  },
+
+  "background_task": {
+    // Lower concurrency due to rate limits
+    "defaultConcurrency": 4,
+    "providerConcurrency": {
+      "anthropic": 0,
+      "openai": 0,
+      "google": 1,
+      "github-copilot": 2,
+      "opencode": 3,
+      "zai-coding-plan": 1
+    },
+    "modelConcurrency": {
+      "claude-sonnet-4-5": 2,
+      "gpt-5-mini": 2,
+      "gpt-5-nano": 4,
+      "big-pickle": 2,
+      "antigravity-gemini-3-pro-high": 1,
+      "antigravity-gemini-3-pro-low": 1,
+      "antigravity-gemini-3-flash": 1
+    },
+    "staleTimeoutMs": 600000,
+    "maxStabilityResets": 10
+  },
+
+  "ralph_loop": {
+    "enabled": true,
+    "default_max_iterations": 15,
+    "iteration_timeout_ms": 300000,
+    "model_rotation": {
+      "enabled": true,
+      "models": [
+        "github-copilot/claude-sonnet-4.5",
+        "google/antigravity-gemini-3-pro-low",
+        "opencode/big-pickle"
+      ]
+    }
+  },
+
+  "sisyphus_agent": {
+    "planner_enabled": true,
+    "default_builder_enabled": false,
+    "planner_model": "google/antigravity-gemini-3-pro-high",
+    "builder_model": "github-copilot/claude-sonnet-4.5"
+  },
+
+  "experimental": {
+    "aggressive_truncation": true,
+    "dynamic_context_pruning": {
+      "enabled": true,
+      "notification": "minimal",
+      "turn_protection": { "enabled": true, "turns": 3 },
+      "strategies": {
+        "deduplication": { "enabled": true },
+        "supersede_writes": { "enabled": true, "aggressive": true },
+        "purge_errors": { "enabled": true, "turns": 3 }
+      }
+    },
+    "model_load_balancing": {
+      "enabled": true,
+      "prefer_underutilized": true,
+      "claude_budget_percent": 0
+    }
+  },
+
+  "disabled_hooks": []
+}
