@@ -102,6 +102,24 @@ Added multiple layers of deadlock prevention:
 3. **Time-Based Escalation**: After 5 stability resets, threshold reduces to 60%
    - Speeds up deadlock detection for persistently stuck sessions
 
+4. **Activity-Based Grace Period** (v1.x.x+): 30-second window for recent activity
+   - If `task.progress.lastUpdate` is within 30s, stability resets are skipped
+   - Prevents false deadlock detection for agents processing complex tasks
+   - Agents in "busy" state with recent tool calls won't be terminated prematurely
+
+**Recommended config for parallel agents:**
+
+```json
+{
+  "background_task": {
+    "staleTimeoutMs": 600000,
+    "maxStabilityResets": 25
+  }
+}
+```
+
+With `maxStabilityResets: 25`, the escalated threshold becomes 15 (vs 6 with default 10), giving agents ~90-120 seconds of processing time instead of ~30-60 seconds.
+
 ---
 
 ### Ralph Loop Opt-In Config
@@ -144,7 +162,7 @@ This section tracks all changes made in this fork for anti-regression purposes.
 | `src/hooks/ralph-loop/index.ts` | Condensed continuation prompt, no task re-injection | `src/hooks/ralph-loop/index.test.ts` |
 | `src/features/builtin-commands/templates/ralph-loop.ts` | Added "DO NOT mention iteration" instruction | `src/hooks/ralph-loop/index.test.ts` |
 | `src/config/schema.ts` | Added `verbose_continuations` option | `src/config/schema.test.ts` |
-| `src/features/background-agent/manager.ts` | Deadlock detection: `stabilityResets`, completion lock, max runtime | `src/features/background-agent/manager.test.ts` |
+| `src/features/background-agent/manager.ts` | Deadlock detection: `stabilityResets`, completion lock, max runtime, activity grace period | `src/features/background-agent/manager.test.ts` |
 | `src/features/background-agent/types.ts` | Added `completionInProgress`, `stabilityResets` fields | N/A (type definitions) |
 | `src/shared/index.ts` | Export platform-detection utilities | N/A (re-exports) |
 
@@ -190,6 +208,7 @@ bun run typecheck
    - Task force-cancels after `maxStabilityResets`
    - `completionInProgress` prevents double-completion
    - Tasks force-cancel after 25 minutes max runtime
+   - Activity grace period skips stability resets if `lastUpdate` is within 30s
 
 ---
 
