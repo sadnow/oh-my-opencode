@@ -523,6 +523,13 @@ document.addEventListener('DOMContentLoaded', () => {
   loadQuickStatus();
   // Refresh quick status every 60 seconds
   setInterval(loadQuickStatus, 60000);
+
+  // Handle ?tab= query parameter from budget-dashboard links
+  const urlParams = new URLSearchParams(window.location.search);
+  const tabParam = urlParams.get('tab');
+  if (tabParam && ['presets', 'features', 'advanced', 'docs'].includes(tabParam)) {
+    switchTab(tabParam);
+  }
 });
 
 // Keyboard shortcuts
@@ -1805,10 +1812,19 @@ export const BUDGET_DASHBOARD_HTML = `<!DOCTYPE html>
       <nav>
         <a href="/" class="tab-btn">Overview</a>
         <span class="tab-btn active" style="cursor: default;">Usage & Budget</span>
+        <a href="/?tab=presets" class="tab-btn">Presets</a>
+        <a href="/?tab=features" class="tab-btn">Features</a>
+        <a href="/?tab=advanced" class="tab-btn">Config</a>
+        <a href="/?tab=docs" class="tab-btn">Docs</a>
       </nav>
     </header>
 
     <main>
+      <div style="margin-bottom: 24px;">
+        <h2 style="margin: 0 0 8px 0;">Usage & Budget Dashboard</h2>
+        <p style="color: var(--text-secondary); margin: 0; font-size: 14px;">Monitor your AI subscription usage, manage quota targets, and control automatic tier switching. Real-time data from Claude Max and GitHub Copilot APIs.</p>
+      </div>
+
       <div id="loading">Loading budget data...</div>
 
       <div id="dashboard-content" style="display: none;">
@@ -2025,6 +2041,7 @@ export const BUDGET_DASHBOARD_HTML = `<!DOCTYPE html>
                       <input type="range" id="claude-quota-slider" min="0" max="100" value="70" oninput="updateQuotaDisplay('claude')">
                       <span id="claude-quota-value" style="min-width: 40px;">70%</span>
                     </div>
+                    <div id="claude-quota-warning" style="display: none; margin-top: 8px; padding: 8px; background: rgba(244, 67, 54, 0.15); border: 1px solid var(--error); border-radius: 4px; font-size: 12px; color: var(--error);"></div>
                   </div>
                   <div class="quota-target" style="background: var(--bg-secondary); padding: 12px; border-radius: 8px;">
                     <label style="font-size: 13px; display: block; margin-bottom: 6px;">Copilot Monthly</label>
@@ -2032,9 +2049,25 @@ export const BUDGET_DASHBOARD_HTML = `<!DOCTYPE html>
                       <input type="range" id="copilot-quota-slider" min="0" max="100" value="80" oninput="updateQuotaDisplay('copilot')">
                       <span id="copilot-quota-value" style="min-width: 40px;">80%</span>
                     </div>
+                    <div id="copilot-quota-warning" style="display: none; margin-top: 8px; padding: 8px; background: rgba(244, 67, 54, 0.15); border: 1px solid var(--error); border-radius: 4px; font-size: 12px; color: var(--error);"></div>
                   </div>
                 </div>
                 <button onclick="saveQuotaTargets()" style="margin-top: 12px;">Save Quota Targets</button>
+
+                <!-- Quota Warning Banner (shown when exceeding targets) -->
+                <div id="quota-warning-banner" style="display: none; margin-top: 16px; padding: 16px; background: rgba(244, 67, 54, 0.1); border: 1px solid var(--error); border-radius: 8px;">
+                  <div style="display: flex; align-items: flex-start; gap: 12px;">
+                    <span style="font-size: 20px;">⚠️</span>
+                    <div>
+                      <div style="font-weight: 600; color: var(--error); margin-bottom: 8px;">Usage Exceeds Quota Targets</div>
+                      <div id="quota-warning-details" style="font-size: 13px; color: var(--text-secondary); margin-bottom: 12px;"></div>
+                      <div style="font-size: 13px; color: var(--text-primary);">
+                        <strong>Recommendations:</strong>
+                        <ul id="quota-recommendations" style="margin: 8px 0 0 0; padding-left: 20px;"></ul>
+                      </div>
+                    </div>
+                  </div>
+                </div>
               </div>
 
               <!-- Stability Status Display -->
@@ -3073,14 +3106,18 @@ async function loadAdaptiveSettings() {
     });
 
     // Set quota sliders
+    let claudeTarget = 70;
+    let copilotTarget = 80;
     if (data.quotaTargets) {
       if (data.quotaTargets.claude_max_weekly_percent !== undefined) {
-        document.getElementById('claude-quota-slider').value = data.quotaTargets.claude_max_weekly_percent;
-        document.getElementById('claude-quota-value').textContent = data.quotaTargets.claude_max_weekly_percent + '%';
+        claudeTarget = data.quotaTargets.claude_max_weekly_percent;
+        document.getElementById('claude-quota-slider').value = claudeTarget;
+        document.getElementById('claude-quota-value').textContent = claudeTarget + '%';
       }
       if (data.quotaTargets.copilot_monthly_percent !== undefined) {
-        document.getElementById('copilot-quota-slider').value = data.quotaTargets.copilot_monthly_percent;
-        document.getElementById('copilot-quota-value').textContent = data.quotaTargets.copilot_monthly_percent + '%';
+        copilotTarget = data.quotaTargets.copilot_monthly_percent;
+        document.getElementById('copilot-quota-slider').value = copilotTarget;
+        document.getElementById('copilot-quota-value').textContent = copilotTarget + '%';
       }
     }
 
@@ -3097,8 +3134,88 @@ async function loadAdaptiveSettings() {
     } else {
       stabilityEl.style.display = 'none';
     }
+
+    // Check quota warnings after loading settings
+    checkQuotaWarnings(claudeTarget, copilotTarget);
   } catch (err) {
     console.error('Load adaptive settings error:', err);
+  }
+}
+
+// Check if current usage exceeds quota targets and show warnings
+async function checkQuotaWarnings(claudeTarget, copilotTarget) {
+  try {
+    const [claudeRes, copilotRes] = await Promise.all([
+      fetch(API_BASE + '/claude-max/usage').then(r => r.json()).catch(() => null),
+      fetch(API_BASE + '/copilot/usage').then(r => r.json()).catch(() => null),
+    ]);
+
+    let warnings = [];
+    let recommendations = [];
+
+    // Check Claude Max usage vs target
+    const claudeWarningEl = document.getElementById('claude-quota-warning');
+    if (claudeRes?.success && claudeRes.data?.allModels) {
+      const claudeUsage = claudeRes.data.allModels.percentUsed || 0;
+      if (claudeUsage > claudeTarget) {
+        const overBy = (claudeUsage - claudeTarget).toFixed(0);
+        claudeWarningEl.innerHTML = '⚠️ <strong>Over target!</strong> Current usage: ' + claudeUsage.toFixed(0) + '% (target: ' + claudeTarget + '%, over by ' + overBy + '%)';
+        claudeWarningEl.style.display = 'block';
+        warnings.push('Claude Max weekly usage (' + claudeUsage.toFixed(0) + '%) exceeds your target (' + claudeTarget + '%)');
+
+        if (claudeUsage >= 90) {
+          recommendations.push('Consider switching to Sonnet-only mode to preserve Opus quota');
+          recommendations.push('Enable auto-downgrade to automatically use cheaper models');
+        } else if (claudeUsage >= 80) {
+          recommendations.push('Reduce usage of premium models (Opus) for non-critical tasks');
+          recommendations.push('Use the "budget-conscious" or "speed-optimized" preset temporarily');
+        } else {
+          recommendations.push('Monitor usage closely - you may hit the limit before reset');
+        }
+      } else {
+        claudeWarningEl.style.display = 'none';
+      }
+    }
+
+    // Check Copilot usage vs target
+    const copilotWarningEl = document.getElementById('copilot-quota-warning');
+    if (copilotRes?.success && copilotRes.data) {
+      const copilotUsage = copilotRes.data.percentUsed || 0;
+      if (copilotUsage > copilotTarget) {
+        const overBy = (copilotUsage - copilotTarget).toFixed(0);
+        copilotWarningEl.innerHTML = '⚠️ <strong>Over target!</strong> Current usage: ' + copilotUsage.toFixed(0) + '% (target: ' + copilotTarget + '%, over by ' + overBy + '%)';
+        copilotWarningEl.style.display = 'block';
+        warnings.push('Copilot monthly usage (' + copilotUsage.toFixed(0) + '%) exceeds your target (' + copilotTarget + '%)');
+
+        const daysLeft = copilotRes.data.daysUntilReset || 0;
+        if (copilotUsage >= 95) {
+          recommendations.push('Premium requests nearly exhausted - switch to non-Copilot models');
+          recommendations.push('Wait for monthly reset (' + daysLeft + ' days) or use free-tier models');
+        } else if (copilotUsage >= 80) {
+          recommendations.push('Reduce Copilot premium model usage (o1, Claude via Copilot)');
+          recommendations.push('Prefer direct API access for remaining critical work');
+        } else {
+          recommendations.push('Pace your Copilot usage - ' + daysLeft + ' days until reset');
+        }
+      } else {
+        copilotWarningEl.style.display = 'none';
+      }
+    }
+
+    // Show/hide the main warning banner
+    const bannerEl = document.getElementById('quota-warning-banner');
+    const detailsEl = document.getElementById('quota-warning-details');
+    const recsEl = document.getElementById('quota-recommendations');
+
+    if (warnings.length > 0) {
+      bannerEl.style.display = 'block';
+      detailsEl.innerHTML = warnings.join('<br>');
+      recsEl.innerHTML = recommendations.map(r => '<li>' + r + '</li>').join('');
+    } else {
+      bannerEl.style.display = 'none';
+    }
+  } catch (err) {
+    console.error('Check quota warnings error:', err);
   }
 }
 
@@ -3152,6 +3269,11 @@ function updateQuotaDisplay(provider) {
   const slider = document.getElementById(provider + '-quota-slider');
   const valueEl = document.getElementById(provider + '-quota-value');
   valueEl.textContent = slider.value + '%';
+
+  // Re-check warnings with new target values
+  const claudeTarget = parseInt(document.getElementById('claude-quota-slider').value);
+  const copilotTarget = parseInt(document.getElementById('copilot-quota-slider').value);
+  checkQuotaWarnings(claudeTarget, copilotTarget);
 }
 
 async function saveQuotaTargets() {
