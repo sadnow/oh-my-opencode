@@ -250,6 +250,60 @@ node ~/.copilot/pkg/win32-x64/0.0.394/index.js -p "your prompt" --allow-all-tool
 
 ---
 
+### Copilot Model Integration in Orchestration
+
+**Problem**: GitHub Copilot Pro+ subscribers have access to multiple free models (GPT-4o, Claude 3.5 Sonnet, o1, etc.) but the orchestration system didn't leverage them for load distribution or as fallbacks.
+
+**Solution**: Integrated Copilot models throughout the orchestration stack:
+
+**USE_CASE_FALLBACKS (global-override.ts):**
+Copilot models added to all use-case fallback lists with strategic positioning:
+
+| Use Case | Copilot Position | Rationale |
+|----------|------------------|-----------|
+| `explorer` | High (2nd) | Speed + load distribution |
+| `quick` | High (2nd) | Speed + load distribution |
+| `parallel-worker` | **Primary** (1st) | Optimal for parallel tasks |
+| `librarian` | Medium (3rd-4th) | Good tool use |
+| `implementation` | Medium (3rd-5th) | Strong coding |
+| `orchestrator` | Medium (4th-6th) | Good orchestration |
+| `oracle` | Lower (4th+) | Quality reasoning first |
+| `ultrabrain` | Lower (4th+) | Premium models prioritized |
+
+**Presets Updated:**
+All major presets now include `parallel-worker` category with Copilot models:
+
+| Preset | parallel-worker Model | Benefit |
+|--------|----------------------|---------|
+| `default` | `github-copilot/gpt-4o-mini` | Free load distribution |
+| `balanced` | `github-copilot/gpt-4o-mini` | Free load distribution |
+| `budget-conscious` | `github-copilot/gpt-4o-mini` | Zero-cost parallel tasks |
+| `speed-optimized` | `github-copilot/gpt-4o-mini` | Fast + free |
+| `parallel-agent-optimized` | `github-copilot/gpt-4o-mini` | Maximum parallel throughput |
+| `claude-heavy` | `github-copilot/claude-3.5-sonnet` | Quality + free |
+
+**Available Copilot Models:**
+```typescript
+// Premium tier (included in Pro+ subscription)
+"github-copilot/o1"              // Premium reasoning
+"github-copilot/claude-3.5-sonnet" // Quality coding
+
+// Standard tier
+"github-copilot/gpt-4o"          // General purpose
+
+// Budget tier
+"github-copilot/gpt-4o-mini"     // Fast, optimal for parallel
+"github-copilot/o1-mini"         // Budget reasoning
+```
+
+**Key Files Modified:**
+- `src/features/budget-orchestrator/global-override.ts` - USE_CASE_FALLBACKS
+- `src/cli/wizard/presets.ts` - All preset configurations
+
+**Bug Fix:** Fixed shallow copy mutation in `GlobalOverrideManager` that caused state pollution between instances. The `disabledProviders` array was being shared due to JavaScript's shallow spread operator.
+
+---
+
 ### WebUI Enhanced Dashboard
 
 **New Features Added to Budget Dashboard:**
@@ -328,6 +382,8 @@ This section tracks all changes made in this fork for anti-regression purposes.
 | `src/hooks/budget-notification/` | In-session budget toast notifications | N/A |
 | `src/webui/routes/stats.ts` | Stats API endpoints for analytics dashboard | N/A |
 | `src/webui/routes/adaptive-settings.ts` | Adaptive budget settings API endpoints | N/A |
+| `src/shared/test-utils.ts` | Test utilities including `createMockToolContext()` | N/A |
+| `src/features/budget-orchestrator/global-override.test.ts` | Tests for global override system + copilot integration | `bun test global-override.test.ts` |
 
 ### Files Modified
 
@@ -351,6 +407,12 @@ This section tracks all changes made in this fork for anti-regression purposes.
 | `src/webui/server.ts` | Registered stats and adaptive settings routes | N/A |
 | `src/webui/routes/wizard.ts` | Added handleGetLearningModes, PRESET_BADGES in responses | N/A |
 | `src/webui/static-files.ts` | Added Tier Management and Analytics UI sections with interactive controls | N/A |
+| `src/features/budget-orchestrator/global-override.ts` | Added copilot models to USE_CASE_FALLBACKS, fixed shallow copy mutation bug | `global-override.test.ts` |
+| `src/cli/wizard/presets.ts` | Added `parallel-worker` category with copilot models to all presets | N/A |
+| `src/tools/session-manager/tools.test.ts` | Updated to use `createMockToolContext()` | N/A |
+| `src/tools/skill-mcp/tools.test.ts` | Updated to use `createMockToolContext()` | N/A |
+| `src/tools/skill/tools.test.ts` | Updated to use `createMockToolContext()` | N/A |
+| `src/webui/integration.test.ts` | Added `ApiResponse` type for proper typing | N/A |
 
 ### Configuration Additions
 
