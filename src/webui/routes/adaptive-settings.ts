@@ -4,11 +4,13 @@
  */
 
 import type { BudgetOrchestrator } from "../../features/budget-orchestrator"
-import type { LearningMode, AdaptiveConfig, QuotaTargets } from "../../config/schema"
+import type { HotConfigManager } from "../../features/hot-config"
+import type { LearningMode, AdaptiveConfig, QuotaTargets, OhMyOpenCodeConfig } from "../../config/schema"
 import { LEARNING_MODE_PRESETS } from "../../cli/wizard/generator"
 
 export interface AdaptiveSettingsRouteContext {
   budgetOrchestrator: BudgetOrchestrator | null
+  configManager?: HotConfigManager
 }
 
 /**
@@ -95,16 +97,32 @@ export async function handleUpdateAdaptiveSettings(
       )
     }
 
-    // Apply settings
+    // Apply settings to runtime
     ctx.budgetOrchestrator.applyAdaptiveSettings(body)
+
+    // Persist to config file if configManager is available
+    if (ctx.configManager) {
+      const configChange: Partial<OhMyOpenCodeConfig> = {
+        budget: {
+          ...(body.autoUpgrade !== undefined ? { auto_upgrade: body.autoUpgrade } : {}),
+          ...(body.autoDowngrade !== undefined ? { auto_downgrade: body.autoDowngrade } : {}),
+          ...(body.learningMode ? { learning_mode: body.learningMode } : {}),
+          ...(body.adaptiveConfig ? { adaptive_config: body.adaptiveConfig } : {}),
+          ...(body.quotaTargets ? { quota_targets: body.quotaTargets } : {}),
+        } as OhMyOpenCodeConfig["budget"],
+      }
+      ctx.configManager.queueChange(configChange, "adaptive-settings")
+      ctx.configManager.applyPendingChanges()
+    }
 
     // Return updated settings
     const settings = ctx.budgetOrchestrator.getAdaptiveSettings()
 
     return Response.json({
       success: true,
-      message: "Adaptive settings updated",
+      message: "Adaptive settings updated" + (ctx.configManager ? " and persisted" : " (runtime only)"),
       data: settings,
+      persisted: !!ctx.configManager,
     })
   } catch (error) {
     return Response.json(

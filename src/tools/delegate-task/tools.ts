@@ -540,6 +540,7 @@ To continue this session: session_id="${args.session_id}"`
        let agentToUse: string
        let categoryModel: { providerID: string; modelID: string; variant?: string } | undefined
        let categoryPromptAppend: string | undefined
+       let categoryTools: Record<string, boolean> | undefined
 
        const inheritedModel = parentModel
          ? `${parentModel.providerID}/${parentModel.modelID}`
@@ -613,11 +614,12 @@ To continue this session: session_id="${args.session_id}"`
          }
 
          agentToUse = SISYPHUS_JUNIOR_AGENT
-         if (!categoryModel) {
-           const parsedModel = parseModelString(actualModel)
-           categoryModel = parsedModel ?? undefined
-         }
-         categoryPromptAppend = resolved.promptAppend || undefined
+          if (!categoryModel) {
+            const parsedModel = parseModelString(actualModel)
+            categoryModel = parsedModel ?? undefined
+          }
+          categoryPromptAppend = resolved.promptAppend || undefined
+          categoryTools = resolved.config.tools
 
          const isUnstableAgent = resolved.config.is_unstable_agent === true || actualModel.toLowerCase().includes("gemini")
         // Handle both boolean false and string "false" due to potential serialization
@@ -648,6 +650,7 @@ To continue this session: session_id="${args.session_id}"`
               model: categoryModel,
               skills: args.load_skills.length > 0 ? args.load_skills : undefined,
               skillContent: systemContent,
+              tools: categoryTools,
             })
 
             // Wait for sessionID to be set (task transitions from pending to running)
@@ -841,6 +844,7 @@ Sisyphus-Junior is spawned automatically when you specify a category. Pick the a
             model: categoryModel,
             skills: args.load_skills.length > 0 ? args.load_skills : undefined,
             skillContent: systemContent,
+            tools: categoryTools,
           })
 
           ctx.metadata?.({
@@ -938,16 +942,22 @@ To continue this session: session_id="${task.sessionID}"`
         const effectiveModel = checkBudgetDowngrade(categoryModel, args.description, budgetOrchestrator)
 
         try {
+          // Merge tools: agent restrictions -> category tools -> hardcoded restrictions
+          // Order ensures security: hardcoded restrictions always win
+          const mergedTools = {
+            ...getAgentToolRestrictions(agentToUse), // Base: agent-level restrictions
+            ...(categoryTools ?? {}),                // Override: category-specific tools
+            task: false,                             // Final: hardcoded security restrictions
+            delegate_task: false,
+            call_omo_agent: true,
+          }
+
           await client.session.prompt({
             path: { id: sessionID },
             body: {
               agent: agentToUse,
               system: systemContent,
-              tools: {
-                task: false,
-                delegate_task: false,
-                call_omo_agent: true,
-              },
+              tools: mergedTools,
               parts: [{ type: "text", text: args.prompt }],
               ...(effectiveModel ? { model: effectiveModel } : {}),
             },

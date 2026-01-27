@@ -531,32 +531,112 @@ export class GlobalOverrideManager {
    * @param useCase The use case (librarian, explorer, oracle, etc.)
    * @param preferredModel Optional preferred model to try first
    * @param availableProviders List of providers that are authenticated
+   * @param usagePercentByProvider Map of provider -> current usage percentage (0-100)
+   * @param quotaTargets Provider-specific quota targets from config
    * @returns The best available model string ("provider/model")
    */
   getBestAvailableModel(
     useCase: UseCase,
     preferredModel?: string,
-    availableProviders: string[] = []
+    availableProviders: string[] = [],
+    usagePercentByProvider: Record<string, number> = {},
+    quotaTargets: Record<string, number> = {}
   ): string {
     const fallbackList = USE_CASE_FALLBACKS[useCase]
+    
+    // Calculate overall usage for premium reservation check
+    const overallUsage = this.calculateOverallUsage(usagePercentByProvider)
+    
+    // Check if we should reserve premium models for critical use cases
+    const shouldBlockPremium = this.shouldReservePremium(useCase, overallUsage)
     
     // Try preferred model first if provided and valid
     if (preferredModel) {
       const [provider] = preferredModel.split("/")
-      if (this.isModelAllowed(preferredModel, availableProviders)) {
+      if (this.isModelAllowedForUseCase(
+        preferredModel,
+        availableProviders,
+        usagePercentByProvider,
+        quotaTargets,
+        shouldBlockPremium
+      )) {
         return preferredModel
       }
     }
     
     // Go through fallback list
     for (const model of fallbackList) {
-      if (this.isModelAllowed(model, availableProviders)) {
+      if (this.isModelAllowedForUseCase(
+        model,
+        availableProviders,
+        usagePercentByProvider,
+        quotaTargets,
+        shouldBlockPremium
+      )) {
         return model
       }
     }
     
     // Ultimate fallback - opencode/big-pickle is always available
     return "opencode/big-pickle"
+  }
+  
+  /**
+   * Calculate overall usage percentage across all providers.
+   * Uses the maximum usage among all providers.
+   */
+  private calculateOverallUsage(usagePercentByProvider: Record<string, number>): number {
+    const values = Object.values(usagePercentByProvider)
+    return values.length > 0 ? Math.max(...values) : 0
+  }
+  
+  /**
+   * Check if a model is allowed for a specific use case, considering quota targets.
+   */
+  private isModelAllowedForUseCase(
+    model: string,
+    availableProviders: string[],
+    usagePercentByProvider: Record<string, number>,
+    quotaTargets: Record<string, number>,
+    shouldBlockPremium: boolean
+  ): boolean {
+    // First check basic allowance
+    if (!this.isModelAllowed(model, availableProviders)) {
+      return false
+    }
+    
+    const [provider, modelId] = model.split("/")
+    
+    // Check provider-specific quota target
+    const providerUsage = usagePercentByProvider[provider] ?? 0
+    const providerQuotaTarget = quotaTargets[provider]
+    
+    if (providerQuotaTarget !== undefined && providerUsage >= providerQuotaTarget) {
+      log("[global-override] Model blocked by quota target:", {
+        model,
+        provider,
+        usage: providerUsage.toFixed(1),
+        quotaTarget: providerQuotaTarget,
+      })
+      return false
+    }
+    
+    // Check if premium models are reserved for critical use cases
+    if (shouldBlockPremium && this.isPremiumModel(modelId)) {
+      log("[global-override] Premium model reserved for critical use cases:", { model })
+      return false
+    }
+    
+    return true
+  }
+  
+  /**
+   * Check if a model is a premium tier model.
+   */
+  private isPremiumModel(modelId: string): boolean {
+    const premiumPatterns = ["opus", "o3", "gpt-5.2-codex", "gpt-5.2-pro", "gemini-3-pro"]
+    const lowerModel = modelId.toLowerCase()
+    return premiumPatterns.some(p => lowerModel.includes(p))
   }
   
   /**

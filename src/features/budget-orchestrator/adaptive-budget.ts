@@ -98,7 +98,6 @@ export interface AdaptiveBudgetConfig {
   // Learning parameters
   velocityAlpha: number            // EMA alpha for velocity (0.2 default)
   minSamplesForPrediction: number  // Min samples before trusting predictions (10)
-  patternDecayDays: number         // How old patterns become less relevant (30 days)
 
   // Tier management
   minTier: ModelTier
@@ -123,7 +122,6 @@ export const DEFAULT_ADAPTIVE_CONFIG: AdaptiveBudgetConfig = {
 
   velocityAlpha: 0.2,
   minSamplesForPrediction: 10,
-  patternDecayDays: 30,
 
   minTier: "budget",
   tierUpgradeThreshold: 1.5,

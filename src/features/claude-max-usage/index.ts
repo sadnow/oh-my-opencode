@@ -97,6 +97,18 @@ interface ClaudeCredentials {
   }
 }
 
+interface OAuthRefreshResponse {
+  token_type: string
+  access_token: string
+  expires_in: number
+  refresh_token: string
+  scope: string
+}
+
+// Claude Code OAuth client ID (official)
+const CLAUDE_OAUTH_CLIENT_ID = "9d1c250a-e61b-44d9-88ed-5944d1962f5e"
+const CLAUDE_OAUTH_TOKEN_URL = "https://api.anthropic.com/v1/oauth/token"
+
 // ============================================================================
 // Helper Functions
 // ============================================================================
@@ -117,6 +129,60 @@ function loadCredentials(): ClaudeCredentials | null {
     return JSON.parse(content)
   } catch (err) {
     log("[claude-max-usage] Error loading credentials:", err)
+    return null
+  }
+}
+
+function saveCredentials(creds: ClaudeCredentials): void {
+  try {
+    const credPath = getCredentialsPath()
+    fs.writeFileSync(credPath, JSON.stringify(creds, null, 2))
+    log("[claude-max-usage] Credentials saved successfully")
+  } catch (err) {
+    log("[claude-max-usage] Error saving credentials:", err)
+  }
+}
+
+function isTokenExpired(expiresAt?: number): boolean {
+  if (!expiresAt) return false
+  // Consider expired if less than 5 minutes remaining
+  const bufferMs = 5 * 60 * 1000
+  return Date.now() + bufferMs >= expiresAt
+}
+
+async function refreshAccessToken(refreshToken: string): Promise<{
+  accessToken: string
+  refreshToken: string
+  expiresAt: number
+} | null> {
+  try {
+    const params = new URLSearchParams({
+      grant_type: "refresh_token",
+      refresh_token: refreshToken,
+      client_id: CLAUDE_OAUTH_CLIENT_ID,
+    })
+
+    const response = await fetch(CLAUDE_OAUTH_TOKEN_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: params.toString(),
+    })
+
+    if (!response.ok) {
+      const errorText = await response.text()
+      log("[claude-max-usage] Token refresh failed:", { status: response.status, error: errorText })
+      return null
+    }
+
+    const data = await response.json() as OAuthRefreshResponse
+
+    return {
+      accessToken: data.access_token,
+      refreshToken: data.refresh_token,
+      expiresAt: Date.now() + data.expires_in * 1000,
+    }
+  } catch (err) {
+    log("[claude-max-usage] Error refreshing token:", err)
     return null
   }
 }
@@ -354,11 +420,31 @@ export class ClaudeMaxUsageTracker {
     const defaultData = this.getDefaultData()
 
     try {
-      const creds = loadCredentials()
+      let creds = loadCredentials()
       if (!creds?.claudeAiOauth?.accessToken) {
         return {
           ...defaultData,
           error: "No OAuth credentials found",
+        }
+      }
+
+      // Check if token is expired and refresh if needed
+      if (isTokenExpired(creds.claudeAiOauth.expiresAt) && creds.claudeAiOauth.refreshToken) {
+        log("[claude-max-usage] Token expired, refreshing...")
+        const refreshed = await refreshAccessToken(creds.claudeAiOauth.refreshToken)
+        if (refreshed) {
+          // Update credentials with new tokens
+          creds.claudeAiOauth.accessToken = refreshed.accessToken
+          creds.claudeAiOauth.refreshToken = refreshed.refreshToken
+          creds.claudeAiOauth.expiresAt = refreshed.expiresAt
+          saveCredentials(creds)
+          log("[claude-max-usage] Token refreshed successfully")
+        } else {
+          log("[claude-max-usage] Token refresh failed")
+          return {
+            ...defaultData,
+            error: "Token expired and refresh failed. Please re-authenticate with Claude.",
+          }
         }
       }
 
@@ -376,6 +462,30 @@ export class ClaudeMaxUsageTracker {
       if (!response.ok) {
         const errorText = await response.text()
         log("[claude-max-usage] API error:", { status: response.status, error: errorText })
+        
+        // If 401, token might have expired between check and use - try refresh once more
+        if (response.status === 401 && creds.claudeAiOauth.refreshToken) {
+          log("[claude-max-usage] Got 401, attempting token refresh...")
+          const refreshed = await refreshAccessToken(creds.claudeAiOauth.refreshToken)
+          if (refreshed) {
+            creds.claudeAiOauth.accessToken = refreshed.accessToken
+            creds.claudeAiOauth.refreshToken = refreshed.refreshToken
+            creds.claudeAiOauth.expiresAt = refreshed.expiresAt
+            saveCredentials(creds)
+            // Retry the API call
+            const retryResponse = await fetch("https://api.anthropic.com/api/oauth/usage", {
+              headers: {
+                "Authorization": `Bearer ${refreshed.accessToken}`,
+                "anthropic-beta": "oauth-2025-04-20",
+              },
+            })
+            if (retryResponse.ok) {
+              const data = await retryResponse.json() as OAuthUsageResponse
+              return this.parseUsageResponse(data, tier)
+            }
+          }
+        }
+        
         return {
           ...defaultData,
           subscription: { tier, isActive: true, extraUsageEnabled: false },
@@ -384,37 +494,46 @@ export class ClaudeMaxUsageTracker {
       }
 
       const data = await response.json() as OAuthUsageResponse
-
-      return {
-        currentSession: {
-          percentUsed: data.five_hour?.utilization ?? 0,
-          resetDate: data.five_hour?.resets_at ?? new Date().toISOString(),
-        },
-        allModels: {
-          percentUsed: data.seven_day?.utilization ?? 0,
-          resetDate: data.seven_day?.resets_at ?? new Date().toISOString(),
-        },
-        sonnetOnly: {
-          percentUsed: data.seven_day_sonnet?.utilization ?? 0,
-          resetDate: data.seven_day_sonnet?.resets_at ?? new Date().toISOString(),
-        },
-        opusOnly: data.seven_day_opus ? {
-          percentUsed: data.seven_day_opus.utilization,
-          resetDate: data.seven_day_opus.resets_at,
-        } : null,
-        subscription: {
-          tier,
-          isActive: true,
-          extraUsageEnabled: data.extra_usage?.is_enabled ?? false,
-        },
-        lastUpdated: new Date().toISOString(),
-      }
+      return this.parseUsageResponse(data, tier)
     } catch (err) {
       log("[claude-max-usage] Error fetching usage:", err)
       return {
         ...defaultData,
         error: String(err),
       }
+    }
+  }
+
+  /**
+   * Parse the OAuth usage response into our data structure
+   */
+  private parseUsageResponse(
+    data: OAuthUsageResponse,
+    tier: ClaudeMaxUsageData["subscription"]["tier"]
+  ): ClaudeMaxUsageData {
+    return {
+      currentSession: {
+        percentUsed: data.five_hour?.utilization ?? 0,
+        resetDate: data.five_hour?.resets_at ?? new Date().toISOString(),
+      },
+      allModels: {
+        percentUsed: data.seven_day?.utilization ?? 0,
+        resetDate: data.seven_day?.resets_at ?? new Date().toISOString(),
+      },
+      sonnetOnly: {
+        percentUsed: data.seven_day_sonnet?.utilization ?? 0,
+        resetDate: data.seven_day_sonnet?.resets_at ?? new Date().toISOString(),
+      },
+      opusOnly: data.seven_day_opus ? {
+        percentUsed: data.seven_day_opus.utilization,
+        resetDate: data.seven_day_opus.resets_at,
+      } : null,
+      subscription: {
+        tier,
+        isActive: true,
+        extraUsageEnabled: data.extra_usage?.is_enabled ?? false,
+      },
+      lastUpdated: new Date().toISOString(),
     }
   }
 

@@ -144,9 +144,13 @@ export const ClaudeCodeConfigSchema = z.object({
 })
 
 export const SisyphusAgentConfigSchema = z.object({
+  /** Disable the Sisyphus agent entirely */
   disabled: z.boolean().optional(),
+  /** @deprecated Not implemented - reserved for future use */
   default_builder_enabled: z.boolean().optional(),
+  /** @deprecated Not implemented - reserved for future use */
   planner_enabled: z.boolean().optional(),
+  /** Replace the plan agent behavior (reserved for customization) */
   replace_plan: z.boolean().optional(),
 })
 
@@ -229,7 +233,9 @@ export const DynamicContextPruningConfigSchema = z.object({
 })
 
 export const ExperimentalConfigSchema = z.object({
+  /** @deprecated Not implemented - reserved for future use */
   aggressive_truncation: z.boolean().optional(),
+  /** @deprecated Not implemented - reserved for future use */
   auto_resume: z.boolean().optional(),
   /** Truncate all tool outputs, not just whitelisted tools (default: false). Tool output truncator is enabled by default - disable via disabled_hooks. */
   truncate_all_tool_outputs: z.boolean().optional(),

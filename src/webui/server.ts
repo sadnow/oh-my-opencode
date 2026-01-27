@@ -144,7 +144,7 @@ export function startWebUI(options: WebUIOptions): BunServer {
   const claudeMaxCtx: ClaudeMaxRouteContext = { claudeMaxTracker: claudeMaxTracker ?? null }
   const copilotCtx: CopilotRouteContext = { copilotTracker: copilotTracker ?? null }
   const statsCtx: StatsRouteContext = { usageTracker, budgetOrchestrator }
-  const adaptiveCtx: AdaptiveSettingsRouteContext = { budgetOrchestrator }
+  const adaptiveCtx: AdaptiveSettingsRouteContext = { budgetOrchestrator, configManager }
   const globalOverrideCtx: GlobalOverrideRouteContext = { budgetOrchestrator }
 
   const server = Bun.serve({

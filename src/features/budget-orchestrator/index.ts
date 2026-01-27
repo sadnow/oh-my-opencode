@@ -475,6 +475,20 @@ export class BudgetOrchestrator {
 
     // UPGRADE: Current tier is lower (cheaper) than recommended
     if (originalTierIndex > targetTierIndex) {
+      // Check if auto-upgrade is disabled
+      if (!this.autoUpgrade) {
+        log("[budget-orchestrator] Upgrade blocked - auto_upgrade is disabled")
+        return {
+          original: modelRef,
+          newModel: null,
+          direction: "none",
+          reason: "Auto-upgrade is disabled in budget configuration",
+          originalTier,
+          targetTier: originalTier,
+          confidence,
+        }
+      }
+
       const upgradedModel = findUpgradedModel(modelRef, targetTier, this.availableProviders)
 
       if (upgradedModel) {
@@ -513,6 +527,20 @@ export class BudgetOrchestrator {
 
     // DOWNGRADE: Current tier is higher (more expensive) than recommended
     if (originalTierIndex < targetTierIndex) {
+      // Check if auto-downgrade is disabled
+      if (!this.autoDowngrade) {
+        log("[budget-orchestrator] Downgrade blocked - auto_downgrade is disabled")
+        return {
+          original: modelRef,
+          newModel: null,
+          direction: "none",
+          reason: "Auto-downgrade is disabled in budget configuration",
+          originalTier,
+          targetTier: originalTier,
+          confidence,
+        }
+      }
+
       const result = getDowngradedModel(modelRef, budgetState, this.config, this.availableProviders)
 
       if (result.downgraded) {
@@ -933,16 +961,42 @@ export class BudgetOrchestrator {
   /**
    * Get best available model for a use case, respecting all overrides.
    * This is the primary method for selecting models with fallback logic.
+   * 
+   * Now also considers:
+   * - quotaTargets: Provider-specific usage limits
+   * - preserveForCritical: Reserve premium models for critical use cases
    */
   getBestModelForUseCase(
     useCase: UseCase,
     preferredModel?: string
   ): string {
+    // Calculate current usage percentage for quota checks
+    const usagePercentByProvider = this.calculateUsagePercentages()
+    
     return this.globalOverrideManager.getBestAvailableModel(
       useCase,
       preferredModel,
-      this.availableProviders
+      this.availableProviders,
+      usagePercentByProvider,
+      this.quotaTargets
     )
+  }
+  
+  /**
+   * Calculate usage percentages for all configured providers.
+   * Returns a map of provider -> usage percentage (0-100).
+   */
+  private calculateUsagePercentages(): Record<string, number> {
+    const result: Record<string, number> = {}
+    
+    for (const provider of Object.keys(this.config.providerBudgets)) {
+      const state = this.getBudgetState(provider)
+      if (state && state.totalBudget > 0) {
+        result[provider] = (state.used / state.totalBudget) * 100
+      }
+    }
+    
+    return result
   }
   
   /**

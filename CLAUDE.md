@@ -131,6 +131,20 @@ When modifying usage tracking:
 3. Verify data matches official UI output
 4. Add test cases for any new response fields
 
+## Troubleshooting
+
+### Claude Max 401 "Token expired" Error
+
+OAuth tokens expire after ~8 hours. The tracker auto-refreshes using:
+- Endpoint: `https://api.anthropic.com/v1/oauth/token`
+- Client ID: `9d1c250a-e61b-44d9-88ed-5944d1962f5e`
+
+If refresh fails:
+1. Check `~/.claude/.credentials.json` has valid `refreshToken`
+2. Refresh tokens are **single-use** - if you test with curl, you must save the new tokens
+3. Manual refresh: `curl -X POST "https://api.anthropic.com/v1/oauth/token" -H "Content-Type: application/x-www-form-urlencoded" -d "grant_type=refresh_token&refresh_token=YOUR_REFRESH_TOKEN&client_id=9d1c250a-e61b-44d9-88ed-5944d1962f5e"`
+4. Update credentials file with new `accessToken`, `refreshToken`, and `expiresAt` (Date.now() + expires_in * 1000)
+
 ## Reference Documentation
 
 - **API Details**: @docs/claude-max-api.md, @docs/copilot-api.md

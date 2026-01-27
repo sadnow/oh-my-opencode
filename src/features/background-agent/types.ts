@@ -58,6 +58,8 @@ export interface LaunchInput {
   model?: { providerID: string; modelID: string; variant?: string }
   skills?: string[]
   skillContent?: string
+  /** Custom tool restrictions from category config. Merged with agent restrictions. */
+  tools?: Record<string, boolean>
 }
 
 export interface ResumeInput {

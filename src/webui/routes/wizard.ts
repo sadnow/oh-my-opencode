@@ -224,6 +224,18 @@ export function handleGetFeatures(ctx: WizardRouteContext): Response {
 }
 
 /**
+ * Features that require a restart to take effect.
+ * These are initialized once at plugin startup and cannot be hot-reloaded.
+ */
+const FEATURES_REQUIRING_RESTART = new Set([
+  "usage_tracking",  // UsageTracker is instantiated at startup
+  "budget",          // BudgetOrchestrator is instantiated at startup
+  "webui",           // WebUI server is started at startup (can't stop self)
+  "ralph_loop",      // Ralph loop hook is created at startup
+  "tmux",            // TmuxSessionManager is created at startup
+])
+
+/**
  * POST /api/features/:name
  * Enable or disable a feature
  */
@@ -270,10 +282,16 @@ export async function handleToggleFeature(
     ctx.configManager.queueChange(change, "webui-feature")
     const config = ctx.configManager.applyPendingChanges()
 
+    const requiresRestart = FEATURES_REQUIRING_RESTART.has(name)
+
     return Response.json({
       success: true,
       data: config,
       message: `Feature "${name}" ${body.enabled ? "enabled" : "disabled"}`,
+      requiresRestart,
+      restartWarning: requiresRestart
+        ? `This change will take effect after restarting opencode. The ${name} feature is initialized at startup.`
+        : undefined,
     })
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown error"

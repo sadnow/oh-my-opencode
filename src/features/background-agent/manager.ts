@@ -343,18 +343,23 @@ export class BackgroundManager {
 
     // Use prompt() instead of promptAsync() to properly initialize agent loop (fire-and-forget)
     // Include model if caller provided one (e.g., from Sisyphus category configs)
+    // Merge tools: agent restrictions -> category tools -> hardcoded restrictions
+    // Order ensures security: hardcoded restrictions always win
+    const mergedTools = {
+      ...getAgentToolRestrictions(input.agent), // Base: agent-level restrictions
+      ...(input.tools ?? {}),                   // Override: category-specific tools
+      task: false,                              // Final: hardcoded security restrictions
+      delegate_task: false,
+      call_omo_agent: true,
+    }
+
     this.client.session.prompt({
       path: { id: sessionID },
       body: {
         agent: input.agent,
         ...(effectiveModel ? { model: effectiveModel } : {}),
         system: input.skillContent,
-        tools: {
-          ...getAgentToolRestrictions(input.agent),
-          task: false,
-          delegate_task: false,
-          call_omo_agent: true,
-        },
+        tools: mergedTools,
         parts: [{ type: "text", text: input.prompt }],
       },
     }).catch((error) => {

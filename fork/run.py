@@ -29,6 +29,59 @@ def get_project_root() -> Path:
     return Path(__file__).parent.parent.resolve()
 
 
+def kill_process_on_port(port: int) -> bool:
+    """Kill any process using the specified port.
+    
+    Returns True if a process was killed, False otherwise.
+    """
+    import platform
+    
+    try:
+        if platform.system() == "Windows":
+            # Find PID using netstat
+            result = subprocess.run(
+                f'netstat -ano | findstr :{port} | findstr LISTENING',
+                capture_output=True,
+                text=True,
+                shell=True
+            )
+            
+            if result.returncode == 0 and result.stdout.strip():
+                # Parse PIDs from output
+                pids = set()
+                for line in result.stdout.strip().split('\n'):
+                    parts = line.split()
+                    if len(parts) >= 5:
+                        pids.add(parts[-1])
+                
+                # Kill each PID
+                for pid in pids:
+                    if pid and pid.isdigit():
+                        subprocess.run(f'taskkill /F /PID {pid}', shell=True, capture_output=True)
+                        print(f"Killed process {pid} on port {port}")
+                return bool(pids)
+        else:
+            # Unix/Linux/macOS - use lsof
+            result = subprocess.run(
+                f'lsof -ti :{port}',
+                capture_output=True,
+                text=True,
+                shell=True
+            )
+            
+            if result.returncode == 0 and result.stdout.strip():
+                pids = result.stdout.strip().split('\n')
+                for pid in pids:
+                    if pid.isdigit():
+                        subprocess.run(f'kill -9 {pid}', shell=True, capture_output=True)
+                        print(f"Killed process {pid} on port {port}")
+                return bool(pids)
+    except Exception as e:
+        print(f"Warning: Could not check/kill process on port {port}: {e}")
+    
+    return False
+
+
 def check_bun_installed() -> bool:
     """Check if bun is installed."""
     try:
@@ -57,6 +110,10 @@ def start_webui(port: int = 3847, bind: str = "localhost", open_browser: bool = 
     """
     project_root = get_project_root()
     fork_dir = project_root / "fork"
+
+    # Auto-kill any existing process on the port
+    if kill_process_on_port(port):
+        sleep(0.5)  # Brief pause to let port release
 
     # Check bun is installed
     if not check_bun_installed():

@@ -88,6 +88,8 @@ import { UsageTracker } from "./features/usage-tracker";
 import { BudgetOrchestrator } from "./features/budget-orchestrator";
 import { initHotConfigManager, type HotConfigManager } from "./features/hot-config";
 import { startWebUI, stopWebUI } from "./webui";
+import { getClaudeMaxUsageTracker } from "./features/claude-max-usage";
+import { getCopilotUsageTracker } from "./features/copilot-usage";
 
 const OhMyOpenCodePlugin: Plugin = async (ctx) => {
   log("[OhMyOpenCodePlugin] ENTRY - plugin loading", { directory: ctx.directory })
@@ -133,6 +135,13 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
     ctx,
   });
 
+  // Initialize Claude Max usage tracker
+  const claudeMaxTracker = getClaudeMaxUsageTracker();
+
+  // Initialize Copilot usage tracker
+  const copilotTracker = getCopilotUsageTracker();
+  copilotTracker.startLiveRefresh(); // Refresh usage from API every 60 seconds
+
   // Start WebUI server if enabled
   let webUIServer: ReturnType<typeof startWebUI> | null = null;
   if (pluginConfig.webui?.enabled) {
@@ -143,6 +152,8 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
         configManager: hotConfigManager,
         usageTracker,
         budgetOrchestrator,
+        claudeMaxTracker,
+        copilotTracker,
       });
       log("[OhMyOpenCodePlugin] WebUI started on port", pluginConfig.webui.port ?? 3847);
     } catch (error) {

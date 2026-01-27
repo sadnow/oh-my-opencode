@@ -2117,6 +2117,10 @@
         },
         "state_dir": {
           "type": "string"
+        },
+        "verbose_continuations": {
+          "default": false,
+          "type": "boolean"
         }
       }
     },
@@ -2150,6 +2154,11 @@
         "staleTimeoutMs": {
           "type": "number",
           "minimum": 60000
+        },
+        "maxStabilityResets": {
+          "type": "number",
+          "minimum": 1,
+          "maximum": 100
         }
       }
     },
@@ -2212,6 +2221,199 @@
           "maximum": 80
         }
       }
+    },
+    "webui": {
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "default": false,
+          "type": "boolean"
+        },
+        "port": {
+          "default": 3847,
+          "type": "number",
+          "minimum": 1024,
+          "maximum": 65535
+        },
+        "bind": {
+          "default": "localhost",
+          "type": "string",
+          "enum": [
+            "localhost",
+            "0.0.0.0"
+          ]
+        }
+      }
+    },
+    "usage_tracking": {
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "default": true,
+          "type": "boolean"
+        },
+        "persist": {
+          "default": true,
+          "type": "boolean"
+        }
+      }
+    },
+    "budget": {
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "default": false,
+          "type": "boolean"
+        },
+        "target_percentage": {
+          "default": 0.7,
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "provider_budgets": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string"
+          },
+          "additionalProperties": {
+            "type": "number",
+            "minimum": 0
+          }
+        },
+        "auto_downgrade": {
+          "default": true,
+          "type": "boolean"
+        },
+        "min_tier": {
+          "default": "budget",
+          "type": "string",
+          "enum": [
+            "premium",
+            "standard",
+            "budget",
+            "economy"
+          ]
+        },
+        "daily_target": {
+          "type": "number",
+          "minimum": 0
+        },
+        "auto_upgrade": {
+          "default": true,
+          "type": "boolean"
+        },
+        "learning_mode": {
+          "type": "string",
+          "enum": [
+            "conservative",
+            "balanced",
+            "aggressive"
+          ]
+        },
+        "adaptive_config": {
+          "type": "object",
+          "properties": {
+            "velocity_alpha": {
+              "type": "number",
+              "minimum": 0.05,
+              "maximum": 0.5
+            },
+            "min_samples_for_prediction": {
+              "type": "number",
+              "minimum": 3,
+              "maximum": 50
+            },
+            "stability_checks_before_upgrade": {
+              "type": "number",
+              "minimum": 1,
+              "maximum": 10
+            },
+            "tier_upgrade_threshold": {
+              "type": "number",
+              "minimum": 1,
+              "maximum": 3
+            },
+            "tier_downgrade_threshold": {
+              "type": "number",
+              "minimum": 0.2,
+              "maximum": 1
+            }
+          }
+        },
+        "quota_targets": {
+          "type": "object",
+          "properties": {
+            "claude_max_weekly_percent": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 100
+            },
+            "copilot_monthly_percent": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 100
+            },
+            "zen_monthly_dollars": {
+              "type": "number",
+              "minimum": 0
+            }
+          }
+        }
+      }
+    },
+    "budget_notifications": {
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "default": true,
+          "type": "boolean"
+        },
+        "warning_thresholds": {
+          "default": [
+            80,
+            90,
+            100
+          ],
+          "type": "array",
+          "items": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 100
+          }
+        },
+        "pace_warning_days": {
+          "default": 3,
+          "type": "number",
+          "minimum": 1,
+          "maximum": 30
+        },
+        "idle_credit_hours": {
+          "default": 12,
+          "type": "number",
+          "minimum": 1,
+          "maximum": 168
+        },
+        "show_tier_changes": {
+          "default": true,
+          "type": "boolean"
+        }
+      }
+    },
+    "orchestration_preset": {
+      "type": "string",
+      "enum": [
+        "default",
+        "balanced",
+        "claude-heavy",
+        "budget-conscious",
+        "free-tier",
+        "speed-optimized",
+        "quality-first",
+        "parallel-agent-optimized",
+        "hybrid-reasoning",
+        "custom"
+      ]
     }
   }
 }
