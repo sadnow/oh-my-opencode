@@ -28,6 +28,7 @@ import {
 import { formatModelRef, parseModelRef, getModelTier, TIER_ORDER, findUpgradedModel } from "./tiers"
 import { AdaptiveBudgetManager, type AdaptiveBudgetConfig } from "./adaptive-budget"
 import { BudgetOverrideManager, getOverrideManager } from "./override"
+import { getRoutingLogger } from "./routing-logger"
 import { join } from "path"
 import { homedir } from "os"
 
