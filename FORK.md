@@ -250,6 +250,56 @@ node ~/.copilot/pkg/win32-x64/0.0.394/index.js -p "your prompt" --allow-all-tool
 
 ---
 
+### WebUI Enhanced Dashboard
+
+**New Features Added to Budget Dashboard:**
+
+**Tier Management Section:**
+- **Auto-Upgrade/Auto-Downgrade Toggles**: Control automatic tier switching with visual toggle switches
+- **Learning Mode Selector**: Choose from Conservative (slow learning, high stability), Balanced (default), or Aggressive (fast learning)
+- **Quota Target Sliders**: Set target usage percentages for Claude Max (weekly) and Copilot (monthly)
+- **Stability Status Display**: Shows upgrade readiness per provider (e.g., "anthropic: 2 of 3 checks")
+
+**Analytics Section:**
+- **Period Summary**: Total cost, % change vs previous period, daily average with Weekly/Monthly selector
+- **Sessions Card**: Session count, average cost per session, average duration
+- **Cost by Category**: Visual breakdown of spending by task category (ultrabrain, quick, etc.)
+- **Model Efficiency**: Tokens per dollar by model for cost optimization
+
+**New API Endpoints:**
+
+| Endpoint | Method | Purpose |
+|----------|--------|---------|
+| `/api/stats/summary` | GET | Period totals with comparison |
+| `/api/stats/by-category` | GET | Cost breakdown by category |
+| `/api/stats/efficiency` | GET | Model cost/quality metrics |
+| `/api/stats/trends/:provider` | GET | Provider-specific daily trends |
+| `/api/stats/sessions` | GET | Session analytics |
+| `/api/stats/all-providers` | GET | All provider trends |
+| `/api/adaptive/settings` | GET/POST | Full adaptive configuration |
+| `/api/adaptive/learning-mode` | POST | Quick learning mode switch |
+| `/api/adaptive/auto-upgrade` | POST | Toggle auto-upgrade |
+| `/api/adaptive/auto-downgrade` | POST | Toggle auto-downgrade |
+| `/api/adaptive/quota-targets` | POST | Update quota targets |
+| `/api/adaptive/reset-learning` | POST | Reset adaptive learning |
+| `/api/adaptive/config-labels` | GET | UI-friendly labels with tooltips |
+| `/api/learning-modes` | GET | Available learning mode presets |
+
+**New Orchestration Presets:**
+
+| Preset | Description | Best For |
+|--------|-------------|----------|
+| `parallel-agent-optimized` | Sonnet orchestration + Gemini Flash workers | Launching many parallel agents |
+| `hybrid-reasoning` | Cheap exploration + premium synthesis | Multi-stage reasoning tasks |
+
+**New Task Categories:**
+- `parallel-worker`: Background agents and subagents (Gemini Flash)
+- `exploration`: Breadth-first search, hypothesis generation (Gemini Flash)
+- `analysis`: Deep analysis before conclusions (Kimi K2 Thinking)
+- `synthesis`: Final answer synthesis (Claude Opus)
+
+---
+
 ## Syncing with Upstream
 
 ```bash
@@ -276,6 +326,8 @@ This section tracks all changes made in this fork for anti-regression purposes.
 | `src/webui/` | WebUI server and budget dashboard | `src/webui/server.test.ts` |
 | `src/cli/budget/` | CLI budget command | `src/cli/budget/index.test.ts` |
 | `src/hooks/budget-notification/` | In-session budget toast notifications | N/A |
+| `src/webui/routes/stats.ts` | Stats API endpoints for analytics dashboard | N/A |
+| `src/webui/routes/adaptive-settings.ts` | Adaptive budget settings API endpoints | N/A |
 
 ### Files Modified
 
@@ -289,6 +341,16 @@ This section tracks all changes made in this fork for anti-regression purposes.
 | `src/features/background-agent/manager.ts` | Deadlock detection: `stabilityResets`, completion lock, max runtime, activity grace period | `src/features/background-agent/manager.test.ts` |
 | `src/features/background-agent/types.ts` | Added `completionInProgress`, `stabilityResets` fields | N/A (type definitions) |
 | `src/shared/index.ts` | Export platform-detection utilities | N/A (re-exports) |
+| `src/config/schema.ts` | Added LearningModeSchema, AdaptiveConfigSchema, QuotaTargetsSchema; Extended BudgetConfigSchema | N/A |
+| `src/cli/wizard/presets.ts` | Added parallel-agent-optimized and hybrid-reasoning presets with badges | N/A |
+| `src/cli/wizard/questions.ts` | Extended WizardAnswers with quota targets and learning mode | N/A |
+| `src/cli/wizard/generator.ts` | Added LEARNING_MODE_PRESETS, generateAdaptiveConfig(), generateQuotaTargets() | N/A |
+| `src/features/budget-orchestrator/index.ts` | Added runtime config methods: setAutoUpgrade, setLearningMode, setQuotaTargets, etc. | `src/features/budget-orchestrator/index.test.ts` |
+| `src/features/budget-orchestrator/adaptive-budget.ts` | Added updateConfig(), getStabilityStatus() methods | N/A |
+| `src/features/usage-tracker/tracker.ts` | Added analytics methods: getWeeklySummary, getByCategory, getEfficiency, etc. | N/A |
+| `src/webui/server.ts` | Registered stats and adaptive settings routes | N/A |
+| `src/webui/routes/wizard.ts` | Added handleGetLearningModes, PRESET_BADGES in responses | N/A |
+| `src/webui/static-files.ts` | Added Tier Management and Analytics UI sections with interactive controls | N/A |
 
 ### Configuration Additions
 
@@ -306,6 +368,16 @@ This section tracks all changes made in this fork for anti-regression purposes.
 | `webui.enabled` | `schema.ts` | true | Enable WebUI server |
 | `webui.port` | `schema.ts` | 3847 | WebUI server port |
 | `webui.bind` | `schema.ts` | "localhost" | WebUI bind address |
+| `budget.auto_upgrade` | `schema.ts` | true | Auto-upgrade to premium when budget allows |
+| `budget.learning_mode` | `schema.ts` | "balanced" | Learning preset: conservative, balanced, aggressive |
+| `budget.adaptive_config.velocity_alpha` | `schema.ts` | 0.2 | Learning speed (0.05-0.5) |
+| `budget.adaptive_config.min_samples_for_prediction` | `schema.ts` | 10 | Min samples before predictions (3-50) |
+| `budget.adaptive_config.stability_checks_before_upgrade` | `schema.ts` | 3 | Stable checks required for upgrade (1-10) |
+| `budget.adaptive_config.tier_upgrade_threshold` | `schema.ts` | 1.5 | Headroom multiplier for upgrades (1.0-3.0) |
+| `budget.adaptive_config.tier_downgrade_threshold` | `schema.ts` | 0.5 | Headroom threshold for downgrades (0.2-1.0) |
+| `budget.quota_targets.claude_max_weekly_percent` | `schema.ts` | 70 | Claude Max weekly usage target (0-100%) |
+| `budget.quota_targets.copilot_monthly_percent` | `schema.ts` | 80 | Copilot monthly usage target (0-100%) |
+| `budget.quota_targets.zen_monthly_dollars` | `schema.ts` | N/A | Zen/API monthly dollar target |
 
 ---
 
