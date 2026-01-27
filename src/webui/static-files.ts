@@ -2125,6 +2125,149 @@ export const BUDGET_DASHBOARD_HTML = `<!DOCTYPE html>
             </div>
           </div>
 
+          <!-- Global Overrides Section -->
+          <div class="controls-section" style="margin-bottom: 20px;">
+            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px;">
+              <h3 style="margin: 0;">🛡️ Global Overrides</h3>
+              <button onclick="toggleGlobalOverrides()" id="global-overrides-toggle" style="padding: 6px 12px; font-size: 13px;">Show</button>
+            </div>
+            <div id="global-overrides-content" style="display: none;">
+              <p style="font-size: 13px; color: var(--text-secondary); margin-bottom: 16px;">
+                Global overrides bypass normal model selection. Use these to prevent accidentally exhausting credits or to restrict usage to cheaper models.
+              </p>
+
+              <!-- Emergency Mode Banner -->
+              <div id="emergency-mode-banner" style="display: none; margin-bottom: 16px; padding: 16px; background: rgba(244, 67, 54, 0.15); border: 2px solid var(--error); border-radius: 8px;">
+                <div style="display: flex; align-items: center; gap: 12px;">
+                  <span style="font-size: 24px;">🚨</span>
+                  <div>
+                    <div style="font-weight: 600; color: var(--error);">EMERGENCY MODE ACTIVE</div>
+                    <div style="font-size: 13px; color: var(--text-secondary);">Only economy-tier models are allowed. All premium/standard requests will fallback to cheaper alternatives.</div>
+                  </div>
+                  <button onclick="setEmergencyMode(false)" style="margin-left: auto; background: var(--error); color: white;">Disable</button>
+                </div>
+              </div>
+
+              <!-- Provider Toggles -->
+              <div style="margin-bottom: 20px;">
+                <div style="font-weight: 600; margin-bottom: 12px;">Provider Control</div>
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px;">
+                  <div class="provider-toggle" style="background: var(--bg-secondary); padding: 12px; border-radius: 8px;">
+                    <div style="display: flex; align-items: center; justify-content: space-between;">
+                      <div>
+                        <div style="font-weight: 500;">Anthropic (Claude)</div>
+                        <div style="font-size: 11px; color: var(--text-secondary);">Claude Max / API</div>
+                      </div>
+                      <label class="toggle-switch">
+                        <input type="checkbox" id="provider-anthropic-toggle" checked onchange="toggleProvider('anthropic', this.checked)">
+                        <span class="toggle-slider"></span>
+                      </label>
+                    </div>
+                  </div>
+                  <div class="provider-toggle" style="background: var(--bg-secondary); padding: 12px; border-radius: 8px;">
+                    <div style="display: flex; align-items: center; justify-content: space-between;">
+                      <div>
+                        <div style="font-weight: 500;">OpenAI</div>
+                        <div style="font-size: 11px; color: var(--text-secondary);">GPT-4, GPT-5, o1</div>
+                      </div>
+                      <label class="toggle-switch">
+                        <input type="checkbox" id="provider-openai-toggle" checked onchange="toggleProvider('openai', this.checked)">
+                        <span class="toggle-slider"></span>
+                      </label>
+                    </div>
+                  </div>
+                  <div class="provider-toggle" style="background: var(--bg-secondary); padding: 12px; border-radius: 8px;">
+                    <div style="display: flex; align-items: center; justify-content: space-between;">
+                      <div>
+                        <div style="font-weight: 500;">Google</div>
+                        <div style="font-size: 11px; color: var(--text-secondary);">Gemini models</div>
+                      </div>
+                      <label class="toggle-switch">
+                        <input type="checkbox" id="provider-google-toggle" checked onchange="toggleProvider('google', this.checked)">
+                        <span class="toggle-slider"></span>
+                      </label>
+                    </div>
+                  </div>
+                  <div class="provider-toggle" style="background: var(--bg-secondary); padding: 12px; border-radius: 8px;">
+                    <div style="display: flex; align-items: center; justify-content: space-between;">
+                      <div>
+                        <div style="font-weight: 500;">OpenCode</div>
+                        <div style="font-size: 11px; color: var(--text-secondary);">Free fallback models</div>
+                      </div>
+                      <label class="toggle-switch">
+                        <input type="checkbox" id="provider-opencode-toggle" checked disabled title="OpenCode is always enabled as ultimate fallback">
+                        <span class="toggle-slider"></span>
+                      </label>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Max Tier Cap -->
+              <div style="margin-bottom: 20px;">
+                <div style="font-weight: 600; margin-bottom: 12px;">Maximum Tier Cap</div>
+                <div style="display: flex; gap: 12px; align-items: center; flex-wrap: wrap;">
+                  <select id="max-tier-select" onchange="setMaxTierCap(this.value)" style="padding: 8px 12px; min-width: 150px;">
+                    <option value="">No limit (use all tiers)</option>
+                    <option value="premium">Premium (all models)</option>
+                    <option value="standard">Standard (no premium)</option>
+                    <option value="budget">Budget (standard & below)</option>
+                    <option value="economy">Economy only (cheapest)</option>
+                  </select>
+                  <span id="max-tier-status" style="font-size: 13px; color: var(--text-secondary);"></span>
+                </div>
+              </div>
+
+              <!-- Emergency Mode Toggle -->
+              <div style="margin-bottom: 20px;">
+                <div style="font-weight: 600; margin-bottom: 12px;">Emergency Mode</div>
+                <div style="background: var(--bg-secondary); padding: 16px; border-radius: 8px;">
+                  <div style="display: flex; align-items: center; justify-content: space-between;">
+                    <div>
+                      <div style="font-weight: 500;">Economy Tier Only</div>
+                      <div style="font-size: 12px; color: var(--text-secondary);">Restrict all requests to economy-tier models. Use when close to exhausting premium quotas.</div>
+                    </div>
+                    <button id="emergency-mode-btn" onclick="toggleEmergencyMode()" style="padding: 8px 16px;">Enable</button>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Auto-Disable on Quota -->
+              <div style="margin-bottom: 20px;">
+                <div style="font-weight: 600; margin-bottom: 12px;">Auto-Disable on Quota</div>
+                <div style="background: var(--bg-secondary); padding: 16px; border-radius: 8px;">
+                  <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px;">
+                    <div>
+                      <div style="font-weight: 500;">Automatically disable providers at quota threshold</div>
+                      <div style="font-size: 12px; color: var(--text-secondary);">Prevents accidentally blowing through remaining credits</div>
+                    </div>
+                    <label class="toggle-switch">
+                      <input type="checkbox" id="auto-disable-quota-toggle" onchange="setAutoDisableQuota(this.checked)">
+                      <span class="toggle-slider"></span>
+                    </label>
+                  </div>
+                  <div style="display: flex; gap: 12px; align-items: center;">
+                    <label style="font-size: 13px;">Threshold:</label>
+                    <input type="range" id="auto-disable-threshold" min="50" max="100" value="95" oninput="updateThresholdDisplay()" style="flex: 1;">
+                    <span id="auto-disable-threshold-value" style="min-width: 45px; font-size: 13px;">95%</span>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Current Status -->
+              <div id="global-override-status" style="background: var(--bg-secondary); padding: 16px; border-radius: 8px; margin-bottom: 16px;">
+                <div style="font-weight: 600; margin-bottom: 12px;">Current Override Status</div>
+                <div id="override-status-content" style="font-size: 13px; color: var(--text-secondary);">Loading...</div>
+              </div>
+
+              <!-- Clear All Button -->
+              <div style="display: flex; gap: 12px;">
+                <button onclick="clearGlobalOverrides()" style="background: var(--error); color: white;">Clear All Overrides</button>
+                <button onclick="loadGlobalOverrideStatus()">Refresh Status</button>
+              </div>
+            </div>
+          </div>
+
           <!-- Routing Logs Section -->
           <div class="budget-card" style="margin-top: 30px;">
             <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px;">
@@ -3487,6 +3630,220 @@ async function clearRoutingLogs() {
     }
   } catch (err) {
     showToast('Error: ' + err);
+  }
+}
+
+// ============================================================================
+// Global Overrides Functions
+// ============================================================================
+
+let globalOverridesExpanded = false;
+
+function toggleGlobalOverrides() {
+  globalOverridesExpanded = !globalOverridesExpanded;
+  document.getElementById('global-overrides-content').style.display = globalOverridesExpanded ? 'block' : 'none';
+  document.getElementById('global-overrides-toggle').textContent = globalOverridesExpanded ? 'Hide' : 'Show';
+  if (globalOverridesExpanded) {
+    loadGlobalOverrideStatus();
+  }
+}
+
+async function loadGlobalOverrideStatus() {
+  try {
+    const res = await fetch(API_BASE + '/global-override');
+    const { success, data, error } = await res.json();
+
+    if (!success) {
+      document.getElementById('override-status-content').innerHTML = '<span style="color: var(--error);">' + (error || 'Failed to load') + '</span>';
+      return;
+    }
+
+    // Update provider toggles
+    const disabledProviders = data.disabledProviders || [];
+    document.getElementById('provider-anthropic-toggle').checked = !disabledProviders.includes('anthropic');
+    document.getElementById('provider-openai-toggle').checked = !disabledProviders.includes('openai');
+    document.getElementById('provider-google-toggle').checked = !disabledProviders.includes('google');
+
+    // Update max tier cap
+    const maxTierSelect = document.getElementById('max-tier-select');
+    maxTierSelect.value = data.maxTierCap || '';
+    updateMaxTierStatus(data.maxTierCap);
+
+    // Update emergency mode
+    const emergencyBanner = document.getElementById('emergency-mode-banner');
+    const emergencyBtn = document.getElementById('emergency-mode-btn');
+    if (data.emergencyMode) {
+      emergencyBanner.style.display = 'block';
+      emergencyBtn.textContent = 'Disable';
+      emergencyBtn.style.background = 'var(--error)';
+    } else {
+      emergencyBanner.style.display = 'none';
+      emergencyBtn.textContent = 'Enable';
+      emergencyBtn.style.background = '';
+    }
+
+    // Update auto-disable settings
+    if (data.autoDisableOnQuota !== undefined) {
+      document.getElementById('auto-disable-quota-toggle').checked = data.autoDisableOnQuota;
+    }
+    if (data.autoDisableThreshold !== undefined) {
+      document.getElementById('auto-disable-threshold').value = data.autoDisableThreshold;
+      document.getElementById('auto-disable-threshold-value').textContent = data.autoDisableThreshold + '%';
+    }
+
+    // Build status summary
+    let statusHtml = '';
+    if (disabledProviders.length > 0) {
+      statusHtml += '<div style="margin-bottom: 8px;"><strong style="color: var(--warning);">⚠️ Disabled Providers:</strong> ' + disabledProviders.join(', ') + '</div>';
+    }
+    if (data.maxTierCap) {
+      statusHtml += '<div style="margin-bottom: 8px;"><strong>Max Tier:</strong> ' + data.maxTierCap + '</div>';
+    }
+    if (data.emergencyMode) {
+      statusHtml += '<div style="margin-bottom: 8px;"><strong style="color: var(--error);">🚨 Emergency Mode:</strong> ACTIVE (economy only)</div>';
+    }
+    if (data.autoDisableOnQuota) {
+      statusHtml += '<div style="margin-bottom: 8px;"><strong>Auto-Disable:</strong> Enabled at ' + (data.autoDisableThreshold || 95) + '% threshold</div>';
+    }
+
+    if (!statusHtml) {
+      statusHtml = '<span style="color: var(--success);">✓ No overrides active - normal operation</span>';
+    }
+
+    document.getElementById('override-status-content').innerHTML = statusHtml;
+  } catch (err) {
+    console.error('Load global override status error:', err);
+    document.getElementById('override-status-content').innerHTML = '<span style="color: var(--error);">Error: ' + err.message + '</span>';
+  }
+}
+
+async function toggleProvider(provider, enabled) {
+  try {
+    const endpoint = enabled ? '/global-override/provider/enable' : '/global-override/provider/disable';
+    const res = await fetch(API_BASE + endpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ provider })
+    });
+    const result = await res.json();
+
+    if (result.success) {
+      showToast(result.message);
+      loadGlobalOverrideStatus();
+    } else {
+      showToast('Error: ' + result.error);
+      // Revert toggle
+      document.getElementById('provider-' + provider + '-toggle').checked = !enabled;
+    }
+  } catch (err) {
+    showToast('Error: ' + err.message);
+    document.getElementById('provider-' + provider + '-toggle').checked = !enabled;
+  }
+}
+
+async function setMaxTierCap(tier) {
+  try {
+    const res = await fetch(API_BASE + '/global-override/max-tier', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ tier: tier || null })
+    });
+    const result = await res.json();
+
+    if (result.success) {
+      showToast(result.message);
+      updateMaxTierStatus(tier);
+      loadGlobalOverrideStatus();
+    } else {
+      showToast('Error: ' + result.error);
+    }
+  } catch (err) {
+    showToast('Error: ' + err.message);
+  }
+}
+
+function updateMaxTierStatus(tier) {
+  const statusEl = document.getElementById('max-tier-status');
+  if (tier) {
+    const tierColors = {
+      premium: 'var(--accent)',
+      standard: '#3a86ff',
+      budget: 'var(--warning)',
+      economy: 'var(--text-secondary)'
+    };
+    statusEl.innerHTML = 'Capped at <strong style="color: ' + (tierColors[tier] || 'inherit') + ';">' + tier + '</strong>';
+  } else {
+    statusEl.textContent = '';
+  }
+}
+
+function toggleEmergencyMode() {
+  const btn = document.getElementById('emergency-mode-btn');
+  const isEnabled = btn.textContent === 'Disable';
+  setEmergencyMode(!isEnabled);
+}
+
+async function setEmergencyMode(enabled) {
+  try {
+    const res = await fetch(API_BASE + '/global-override/emergency-mode', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ enabled })
+    });
+    const result = await res.json();
+
+    if (result.success) {
+      showToast(result.message);
+      loadGlobalOverrideStatus();
+    } else {
+      showToast('Error: ' + result.error);
+    }
+  } catch (err) {
+    showToast('Error: ' + err.message);
+  }
+}
+
+async function setAutoDisableQuota(enabled) {
+  const threshold = parseInt(document.getElementById('auto-disable-threshold').value) || 95;
+  try {
+    const res = await fetch(API_BASE + '/global-override/auto-disable-quota', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ enabled, threshold })
+    });
+    const result = await res.json();
+
+    if (result.success) {
+      showToast(result.message);
+      loadGlobalOverrideStatus();
+    } else {
+      showToast('Error: ' + result.error);
+    }
+  } catch (err) {
+    showToast('Error: ' + err.message);
+  }
+}
+
+function updateThresholdDisplay() {
+  const value = document.getElementById('auto-disable-threshold').value;
+  document.getElementById('auto-disable-threshold-value').textContent = value + '%';
+}
+
+async function clearGlobalOverrides() {
+  if (!confirm('Clear all global overrides? This will re-enable all providers and remove all restrictions.')) return;
+
+  try {
+    const res = await fetch(API_BASE + '/global-override/clear', { method: 'POST' });
+    const result = await res.json();
+
+    if (result.success) {
+      showToast(result.message);
+      loadGlobalOverrideStatus();
+    } else {
+      showToast('Error: ' + result.error);
+    }
+  } catch (err) {
+    showToast('Error: ' + err.message);
   }
 }
 `

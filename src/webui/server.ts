@@ -100,6 +100,19 @@ import {
   handleGetRoutingLogsSince,
 } from "./routes/routing-logs"
 
+import {
+  handleGetGlobalOverride,
+  handleGetFallbacks,
+  handleGetBestModel,
+  handleDisableProvider,
+  handleEnableProvider,
+  handleSetMaxTier,
+  handleSetEmergencyMode,
+  handleSetAutoDisableQuota,
+  handleClearGlobalOverrides,
+  type GlobalOverrideRouteContext,
+} from "./routes/global-override"
+
 import { handleGetLearningModes } from "./routes/wizard"
 
 import type { ClaudeMaxUsageTracker } from "../features/claude-max-usage"
@@ -132,6 +145,7 @@ export function startWebUI(options: WebUIOptions): BunServer {
   const copilotCtx: CopilotRouteContext = { copilotTracker: copilotTracker ?? null }
   const statsCtx: StatsRouteContext = { usageTracker, budgetOrchestrator }
   const adaptiveCtx: AdaptiveSettingsRouteContext = { budgetOrchestrator }
+  const globalOverrideCtx: GlobalOverrideRouteContext = { budgetOrchestrator }
 
   const server = Bun.serve({
     port,
@@ -178,6 +192,7 @@ export function startWebUI(options: WebUIOptions): BunServer {
           copilotCtx,
           statsCtx,
           adaptiveCtx,
+          globalOverrideCtx,
         })
         return respond(apiResponse)
       }
@@ -202,6 +217,7 @@ interface APIContexts {
   copilotCtx: CopilotRouteContext
   statsCtx: StatsRouteContext
   adaptiveCtx: AdaptiveSettingsRouteContext
+  globalOverrideCtx: GlobalOverrideRouteContext
 }
 
 /**
@@ -404,6 +420,37 @@ async function handleAPI(
   if (pathname.startsWith("/routing-logs/since/") && method === "GET") {
     const timestamp = pathname.replace("/routing-logs/since/", "")
     return handleGetRoutingLogsSince(timestamp)
+  }
+
+  // Global override routes
+  if (pathname === "/global-override" && method === "GET") {
+    return handleGetGlobalOverride(ctx.globalOverrideCtx)
+  }
+  if (pathname === "/global-override/fallbacks" && method === "GET") {
+    return handleGetFallbacks()
+  }
+  if (pathname.startsWith("/global-override/best-model/") && method === "GET") {
+    const useCase = pathname.replace("/global-override/best-model/", "")
+    const preferredModel = new URL(req.url).searchParams.get("preferred") ?? undefined
+    return handleGetBestModel(ctx.globalOverrideCtx, useCase, preferredModel)
+  }
+  if (pathname === "/global-override/provider/disable" && method === "POST") {
+    return handleDisableProvider(req, ctx.globalOverrideCtx)
+  }
+  if (pathname === "/global-override/provider/enable" && method === "POST") {
+    return handleEnableProvider(req, ctx.globalOverrideCtx)
+  }
+  if (pathname === "/global-override/max-tier" && method === "POST") {
+    return handleSetMaxTier(req, ctx.globalOverrideCtx)
+  }
+  if (pathname === "/global-override/emergency-mode" && method === "POST") {
+    return handleSetEmergencyMode(req, ctx.globalOverrideCtx)
+  }
+  if (pathname === "/global-override/auto-disable-quota" && method === "POST") {
+    return handleSetAutoDisableQuota(req, ctx.globalOverrideCtx)
+  }
+  if (pathname === "/global-override/clear" && method === "POST") {
+    return handleClearGlobalOverrides(ctx.globalOverrideCtx)
   }
 
   // 404

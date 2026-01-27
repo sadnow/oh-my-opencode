@@ -28,6 +28,7 @@ import {
 import { formatModelRef, parseModelRef, getModelTier, TIER_ORDER, findUpgradedModel } from "./tiers"
 import { AdaptiveBudgetManager, type AdaptiveBudgetConfig } from "./adaptive-budget"
 import { BudgetOverrideManager, getOverrideManager } from "./override"
+import { GlobalOverrideManager, getGlobalOverrideManager, type UseCase } from "./global-override"
 import { getRoutingLogger } from "./routing-logger"
 import { join } from "path"
 import { homedir } from "os"
@@ -43,6 +44,9 @@ export class BudgetOrchestrator {
 
   // Override manager for manual tier control
   private overrideManager: BudgetOverrideManager
+  
+  // Global override manager for provider-level control
+  private globalOverrideManager: GlobalOverrideManager
 
   // Track current session for learning
   private currentSessionStart: number | null = null
@@ -85,6 +89,9 @@ export class BudgetOrchestrator {
 
     // Initialize override manager
     this.overrideManager = getOverrideManager()
+    
+    // Initialize global override manager
+    this.globalOverrideManager = getGlobalOverrideManager()
 
     // Initialize adaptive budget managers for each provider
     for (const [provider, budget] of Object.entries(this.config.providerBudgets)) {
@@ -875,6 +882,90 @@ export class BudgetOrchestrator {
 
     return manager.getStabilityStatus()
   }
+  
+  // ============================================
+  // Global Override Management
+  // ============================================
+  
+  /**
+   * Get the global override manager.
+   */
+  getGlobalOverrideManager(): GlobalOverrideManager {
+    return this.globalOverrideManager
+  }
+  
+  /**
+   * Disable a provider entirely.
+   * All model requests for this provider will fallback to alternatives.
+   */
+  disableProvider(provider: string, source: "cli" | "webui" | "api" = "api"): void {
+    this.globalOverrideManager.disableProvider(provider, { source })
+  }
+  
+  /**
+   * Enable a previously disabled provider.
+   */
+  enableProvider(provider: string, source: "cli" | "webui" | "api" = "api"): void {
+    this.globalOverrideManager.enableProvider(provider, { source })
+  }
+  
+  /**
+   * Check if a provider is disabled.
+   */
+  isProviderDisabled(provider: string): boolean {
+    return this.globalOverrideManager.isProviderDisabled(provider)
+  }
+  
+  /**
+   * Set maximum tier cap.
+   */
+  setMaxTierCap(tier: ModelTier | null, source: "cli" | "webui" | "api" = "api"): void {
+    this.globalOverrideManager.setMaxTierCap(tier, { source })
+  }
+  
+  /**
+   * Enable/disable emergency mode (economy tier only).
+   */
+  setEmergencyMode(enabled: boolean, source: "cli" | "webui" | "api" = "api"): void {
+    this.globalOverrideManager.setEmergencyMode(enabled, { source })
+  }
+  
+  /**
+   * Get best available model for a use case, respecting all overrides.
+   * This is the primary method for selecting models with fallback logic.
+   */
+  getBestModelForUseCase(
+    useCase: UseCase,
+    preferredModel?: string
+  ): string {
+    return this.globalOverrideManager.getBestAvailableModel(
+      useCase,
+      preferredModel,
+      this.availableProviders
+    )
+  }
+  
+  /**
+   * Check quota and auto-disable provider if threshold exceeded.
+   * Call this after updating usage.
+   */
+  checkAndAutoDisableProvider(provider: string, usagePercent: number): boolean {
+    return this.globalOverrideManager.checkQuotaAndAutoDisable(provider, usagePercent)
+  }
+  
+  /**
+   * Get global override summary for API/UI.
+   */
+  getGlobalOverrideSummary(): ReturnType<GlobalOverrideManager["getSummary"]> {
+    return this.globalOverrideManager.getSummary()
+  }
+  
+  /**
+   * Clear all global overrides.
+   */
+  clearGlobalOverrides(source: "cli" | "webui" | "api" = "api"): void {
+    this.globalOverrideManager.clearAll({ source })
+  }
 }
 
 // Re-export types and utilities
@@ -928,3 +1019,13 @@ export {
   type BudgetOverrideState,
   type OverrideOptions,
 } from "./override"
+
+export {
+  GlobalOverrideManager,
+  getGlobalOverrideManager,
+  resetGlobalOverrideManager,
+  USE_CASE_FALLBACKS,
+  type GlobalOverrideState,
+  type GlobalOverrideOptions,
+  type UseCase,
+} from "./global-override"
