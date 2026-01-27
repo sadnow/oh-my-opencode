@@ -5,7 +5,8 @@
  */
 
 import { log } from "../../shared"
-import type { BudgetConfig, ModelTier } from "../../config/schema"
+import type { BudgetConfig, ModelTier, LearningMode, AdaptiveConfig, QuotaTargets } from "../../config/schema"
+import { LEARNING_MODE_PRESETS } from "../../cli/wizard/generator"
 import type {
   BudgetState,
   BudgetOrchestratorConfig,
@@ -47,6 +48,12 @@ export class BudgetOrchestrator {
   private currentSessionCost: number = 0
   private currentSessionTier: ModelTier = "standard"
 
+  // Auto-upgrade/downgrade settings (runtime configurable)
+  private autoUpgrade: boolean = true
+  private autoDowngrade: boolean = true
+  private learningMode: LearningMode = "balanced"
+  private quotaTargets: QuotaTargets = {}
+
   // Cache timeout in milliseconds (5 minutes)
   private readonly CACHE_TIMEOUT_MS = 5 * 60 * 1000
 
@@ -68,6 +75,12 @@ export class BudgetOrchestrator {
       minTier: config?.min_tier ?? "budget",
       dailyTarget: config?.daily_target,
     }
+
+    // Initialize runtime settings from config
+    this.autoUpgrade = config?.auto_upgrade ?? true
+    this.autoDowngrade = config?.auto_downgrade ?? true
+    this.learningMode = config?.learning_mode ?? "balanced"
+    this.quotaTargets = config?.quota_targets ?? {}
 
     // Initialize override manager
     this.overrideManager = getOverrideManager()
@@ -639,6 +652,172 @@ export class BudgetOrchestrator {
    */
   getProviderBudgetConfig(provider: string): number | undefined {
     return this.config.providerBudgets[provider]
+  }
+
+  // ============================================
+  // Runtime Configuration Update Methods
+  // ============================================
+
+  /**
+   * Enable or disable auto-upgrade.
+   * When enabled, the system will automatically upgrade to higher-quality models
+   * when budget headroom allows.
+   */
+  setAutoUpgrade(enabled: boolean): void {
+    this.autoUpgrade = enabled
+    log("[budget-orchestrator] Auto-upgrade set to:", enabled)
+  }
+
+  /**
+   * Get current auto-upgrade setting.
+   */
+  getAutoUpgrade(): boolean {
+    return this.autoUpgrade
+  }
+
+  /**
+   * Enable or disable auto-downgrade.
+   * When enabled, the system will automatically downgrade to cheaper models
+   * when approaching budget limits.
+   */
+  setAutoDowngrade(enabled: boolean): void {
+    this.autoDowngrade = enabled
+    this.config.autoDowngrade = enabled
+    log("[budget-orchestrator] Auto-downgrade set to:", enabled)
+  }
+
+  /**
+   * Get current auto-downgrade setting.
+   */
+  getAutoDowngrade(): boolean {
+    return this.autoDowngrade
+  }
+
+  /**
+   * Set the learning mode, which controls how quickly the system adapts.
+   * - conservative: Slow learning, high stability
+   * - balanced: Default settings
+   * - aggressive: Fast learning, quick adjustments
+   */
+  setLearningMode(mode: LearningMode): void {
+    this.learningMode = mode
+
+    // Apply learning mode preset to all adaptive managers
+    const preset = LEARNING_MODE_PRESETS[mode]
+    if (preset) {
+      this.updateAdaptiveConfig(preset)
+    }
+
+    log("[budget-orchestrator] Learning mode set to:", mode)
+  }
+
+  /**
+   * Get current learning mode.
+   */
+  getLearningMode(): LearningMode {
+    return this.learningMode
+  }
+
+  /**
+   * Update adaptive configuration for all providers.
+   * This allows fine-grained control over the adaptive algorithm.
+   */
+  updateAdaptiveConfig(config: AdaptiveConfig): void {
+    for (const [provider, manager] of this.adaptiveManagers) {
+      // Update manager configuration
+      if (config.velocity_alpha !== undefined) {
+        manager.updateConfig({ velocityAlpha: config.velocity_alpha })
+      }
+      if (config.min_samples_for_prediction !== undefined) {
+        manager.updateConfig({ minSamplesForPrediction: config.min_samples_for_prediction })
+      }
+      if (config.stability_checks_before_upgrade !== undefined) {
+        manager.updateConfig({ stabilityChecksBeforeUpgrade: config.stability_checks_before_upgrade })
+      }
+      if (config.tier_upgrade_threshold !== undefined) {
+        manager.updateConfig({ tierUpgradeThreshold: config.tier_upgrade_threshold })
+      }
+      if (config.tier_downgrade_threshold !== undefined) {
+        manager.updateConfig({ tierDowngradeThreshold: config.tier_downgrade_threshold })
+      }
+    }
+
+    log("[budget-orchestrator] Adaptive config updated:", config)
+  }
+
+  /**
+   * Set quota targets for different providers.
+   */
+  setQuotaTargets(targets: QuotaTargets): void {
+    this.quotaTargets = { ...this.quotaTargets, ...targets }
+    log("[budget-orchestrator] Quota targets updated:", this.quotaTargets)
+  }
+
+  /**
+   * Get current quota targets.
+   */
+  getQuotaTargets(): QuotaTargets {
+    return { ...this.quotaTargets }
+  }
+
+  /**
+   * Get adaptive settings summary for API/UI.
+   */
+  getAdaptiveSettings(): {
+    autoUpgrade: boolean
+    autoDowngrade: boolean
+    learningMode: LearningMode
+    quotaTargets: QuotaTargets
+    adaptiveConfig: AdaptiveConfig
+  } {
+    // Get current adaptive config from learning mode
+    const adaptiveConfig = LEARNING_MODE_PRESETS[this.learningMode] ?? LEARNING_MODE_PRESETS.balanced
+
+    return {
+      autoUpgrade: this.autoUpgrade,
+      autoDowngrade: this.autoDowngrade,
+      learningMode: this.learningMode,
+      quotaTargets: this.quotaTargets,
+      adaptiveConfig,
+    }
+  }
+
+  /**
+   * Apply settings from API/UI update.
+   */
+  applyAdaptiveSettings(settings: {
+    autoUpgrade?: boolean
+    autoDowngrade?: boolean
+    learningMode?: LearningMode
+    quotaTargets?: QuotaTargets
+    adaptiveConfig?: AdaptiveConfig
+  }): void {
+    if (settings.autoUpgrade !== undefined) {
+      this.setAutoUpgrade(settings.autoUpgrade)
+    }
+    if (settings.autoDowngrade !== undefined) {
+      this.setAutoDowngrade(settings.autoDowngrade)
+    }
+    if (settings.learningMode !== undefined) {
+      this.setLearningMode(settings.learningMode)
+    }
+    if (settings.quotaTargets !== undefined) {
+      this.setQuotaTargets(settings.quotaTargets)
+    }
+    if (settings.adaptiveConfig !== undefined) {
+      this.updateAdaptiveConfig(settings.adaptiveConfig)
+    }
+  }
+
+  /**
+   * Get stability status for tier changes.
+   * Returns the current stability counter and requirement.
+   */
+  getStabilityStatus(provider: string): { current: number; required: number } | null {
+    const manager = this.adaptiveManagers.get(provider)
+    if (!manager) return null
+
+    return manager.getStabilityStatus()
   }
 }
 

@@ -18,8 +18,14 @@ describe("BudgetOrchestrator", () => {
     orchestrator = new BudgetOrchestrator(
       {
         enabled: true,
-        anthropic: { period: "weekly", limit: 20, reset_day: "sunday" },
-        openai: { period: "monthly", limit: 50 },
+        provider_budgets: {
+          anthropic: 20,
+          openai: 50,
+        },
+        target_percentage: 0.7,
+        auto_downgrade: true,
+        min_tier: "budget",
+        auto_upgrade: true,
       },
       usageTracker,
       ["anthropic", "openai"]

@@ -894,6 +894,62 @@ export class AdaptiveBudgetManager {
   }
 
   /**
+   * Update configuration at runtime.
+   * Supports partial updates for specific parameters.
+   */
+  updateConfig(updates: {
+    velocityAlpha?: number
+    minSamplesForPrediction?: number
+    stabilityChecksBeforeUpgrade?: number
+    tierUpgradeThreshold?: number
+    tierDowngradeThreshold?: number
+    conservativeSpendingFactor?: number
+    burstAllowancePercent?: number
+    creditAccumulationRate?: number
+  }): void {
+    if (updates.velocityAlpha !== undefined) {
+      this.config.velocityAlpha = Math.max(0.05, Math.min(0.5, updates.velocityAlpha))
+      this.state.velocityAlpha = this.config.velocityAlpha
+    }
+    if (updates.minSamplesForPrediction !== undefined) {
+      this.config.minSamplesForPrediction = Math.max(3, Math.min(50, updates.minSamplesForPrediction))
+    }
+    if (updates.stabilityChecksBeforeUpgrade !== undefined) {
+      this.config.stabilityChecksBeforeUpgrade = Math.max(1, Math.min(10, updates.stabilityChecksBeforeUpgrade))
+      this.state.minTierStabilityBeforeUpgrade = this.config.stabilityChecksBeforeUpgrade
+    }
+    if (updates.tierUpgradeThreshold !== undefined) {
+      this.config.tierUpgradeThreshold = Math.max(1.0, Math.min(3.0, updates.tierUpgradeThreshold))
+    }
+    if (updates.tierDowngradeThreshold !== undefined) {
+      this.config.tierDowngradeThreshold = Math.max(0.2, Math.min(1.0, updates.tierDowngradeThreshold))
+    }
+    if (updates.conservativeSpendingFactor !== undefined) {
+      this.config.conservativeSpendingFactor = Math.max(0.3, Math.min(1.0, updates.conservativeSpendingFactor))
+    }
+    if (updates.burstAllowancePercent !== undefined) {
+      this.config.burstAllowancePercent = Math.max(0.1, Math.min(0.8, updates.burstAllowancePercent))
+    }
+    if (updates.creditAccumulationRate !== undefined) {
+      this.config.creditAccumulationRate = Math.max(0, Math.min(1, updates.creditAccumulationRate))
+    }
+
+    log("[adaptive-budget] Config updated:", updates)
+    this.saveState()
+  }
+
+  /**
+   * Get the current stability status for tier changes.
+   * Returns the current counter and the required number of stable checks.
+   */
+  getStabilityStatus(): { current: number; required: number } {
+    return {
+      current: this.state.tierStabilityCounter,
+      required: this.config.stabilityChecksBeforeUpgrade,
+    }
+  }
+
+  /**
    * Get a summary of the current budget intelligence state.
    */
   getSummary(currentUsed: number, daysRemaining: number): {
