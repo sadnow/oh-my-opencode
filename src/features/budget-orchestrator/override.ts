@@ -7,6 +7,7 @@ import { log } from "../../shared"
 import type { ModelTier } from "../../config/schema"
 import { join } from "path"
 import { homedir } from "os"
+import { getRoutingLogger } from "./routing-logger"
 
 // ============================================================================
 // Types
@@ -98,6 +99,10 @@ export class BudgetOverrideManager {
       source,
     })
 
+    // Log override action
+    const logger = getRoutingLogger()
+    logger.logOverride("force", tier, source)
+
     this.saveState()
   }
 
@@ -118,6 +123,10 @@ export class BudgetOverrideManager {
       source,
     })
 
+    // Log override action
+    const logger = getRoutingLogger()
+    logger.logOverride("lock", undefined, source)
+
     this.saveState()
   }
 
@@ -132,6 +141,10 @@ export class BudgetOverrideManager {
 
     log("[budget-override] Tier unlocked")
 
+    // Log override action
+    const logger = getRoutingLogger()
+    logger.logOverride("unlock")
+
     this.saveState()
   }
 
@@ -145,6 +158,10 @@ export class BudgetOverrideManager {
     }
 
     log("[budget-override] Overrides cleared")
+
+    // Log override action
+    const logger = getRoutingLogger()
+    logger.logOverride("clear")
 
     this.saveState()
   }
