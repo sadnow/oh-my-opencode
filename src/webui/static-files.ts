@@ -923,6 +923,52 @@ export const BUDGET_DASHBOARD_HTML = `<!DOCTYPE html>
             <div id="claude-max-error" style="display: none; margin-top: 12px; padding: 8px 12px; background: rgba(255,100,100,0.1); border-radius: 6px; color: #ff6b6b; font-size: 12px;"></div>
           </div>
 
+          <!-- GitHub Copilot Section -->
+          <div id="copilot-section" class="budget-card" style="margin-bottom: 30px; display: none;">
+            <h3>
+              <span style="color: #238636;">GitHub Copilot</span> Premium Requests
+              <span class="tier-badge" style="background: linear-gradient(135deg, #238636, #2ea043);" id="copilot-plan-badge">PRO</span>
+              <span style="font-size: 11px; color: var(--text-secondary); margin-left: 8px;">(Monthly reset)</span>
+            </h3>
+            <!-- Usage Meter -->
+            <div style="margin-bottom: 16px;">
+              <div style="font-size: 13px; color: var(--text-secondary); margin-bottom: 8px;">Premium Requests Used</div>
+              <div class="progress-container">
+                <div class="progress-bar">
+                  <div class="progress-fill" id="copilot-usage-progress" style="width: 0%;"></div>
+                </div>
+                <div class="progress-labels">
+                  <span class="budget-amount" id="copilot-usage-percent">0% used</span>
+                  <span class="budget-total" id="copilot-days-remaining">-- days until reset</span>
+                </div>
+              </div>
+              <div style="font-size: 11px; color: var(--text-secondary); margin-top: 4px;" id="copilot-reset-date">Resets --</div>
+            </div>
+            <!-- Status & Controls -->
+            <div style="display: flex; gap: 12px; flex-wrap: wrap; align-items: center; padding-top: 12px; border-top: 1px solid var(--border);">
+              <span id="copilot-recommendation" class="trend-indicator trend-under"></span>
+              <span id="copilot-reduce-hint" style="font-size: 12px; color: var(--warning); display: none;">Consider reducing usage</span>
+              <span style="color: var(--text-secondary); font-size: 12px;" id="copilot-last-updated">Last updated: --</span>
+              <span style="color: var(--text-secondary); font-size: 11px;" id="copilot-fetch-method"></span>
+              <button onclick="toggleCopilotHistory()" id="copilot-history-toggle" style="margin-left: auto;">Show 24h History</button>
+              <button onclick="refreshCopilot()">Refresh</button>
+            </div>
+            <!-- 24h History Chart (Expandable) -->
+            <div id="copilot-history-container" style="display: none; margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--border);">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                <h4 style="margin: 0; font-size: 14px; color: var(--text-secondary);">Usage History (Last 24 Hours)</h4>
+                <span style="font-size: 11px; color: var(--text-secondary);" id="copilot-history-info">-- data points</span>
+              </div>
+              <div style="height: 150px; position: relative;">
+                <canvas id="copilot-history-chart"></canvas>
+              </div>
+              <div style="display: flex; justify-content: center; gap: 20px; margin-top: 8px; font-size: 11px;">
+                <span><span style="display: inline-block; width: 12px; height: 3px; background: #238636; margin-right: 4px;"></span>Usage %</span>
+              </div>
+            </div>
+            <div id="copilot-error" style="display: none; margin-top: 12px; padding: 8px 12px; background: rgba(255,100,100,0.1); border-radius: 6px; color: #ff6b6b; font-size: 12px;"></div>
+          </div>
+
           <!-- Provider API Usage Cards -->
           <div style="font-size: 14px; color: var(--text-secondary); margin-bottom: 12px;">API Usage by Provider</div>
           <div class="budget-grid" id="providers-grid"></div>
@@ -1002,6 +1048,7 @@ async function loadDashboard() {
     renderOverrideStatus(data.override);
     await loadAndRenderChart();
     await loadClaudeMaxUsage();
+    await loadCopilotUsage();
   } catch (err) {
     console.error('Dashboard load error:', err);
     document.getElementById('loading').textContent = 'Error loading dashboard';
@@ -1505,6 +1552,240 @@ async function loadClaudeMaxHistory() {
   } catch (err) {
     console.error('Claude Max history error:', err);
     document.getElementById('claude-max-history-info').textContent = 'Error loading history';
+  }
+}
+
+// GitHub Copilot Functions
+async function loadCopilotUsage() {
+  try {
+    const res = await fetch(API_BASE + '/copilot/usage');
+    const { success, data, error } = await res.json();
+
+    const section = document.getElementById('copilot-section');
+    const errorEl = document.getElementById('copilot-error');
+
+    if (!success) {
+      section.style.display = 'none';
+      return;
+    }
+
+    section.style.display = 'block';
+
+    // Show error or login prompt if present
+    if (data.needsLogin) {
+      errorEl.innerHTML = '<strong>Login Required:</strong> Click "Refresh" to open a browser window and log into GitHub. Your session will be saved for future fetches.';
+      errorEl.style.display = 'block';
+      errorEl.style.background = 'rgba(255, 157, 0, 0.1)';
+      errorEl.style.color = '#ff9d00';
+    } else if (data.error) {
+      errorEl.textContent = data.error;
+      errorEl.style.display = 'block';
+      errorEl.style.background = 'rgba(255,100,100,0.1)';
+      errorEl.style.color = '#ff6b6b';
+    } else {
+      errorEl.style.display = 'none';
+    }
+
+    // Usage progress bar
+    const percent = data.percentUsed || 0;
+    const progressClass = percent < 60 ? 'green' : percent < 80 ? 'yellow' : 'red';
+    document.getElementById('copilot-usage-progress').className = 'progress-fill ' + progressClass;
+    document.getElementById('copilot-usage-progress').style.width = Math.min(100, percent) + '%';
+    document.getElementById('copilot-usage-percent').textContent = percent.toFixed(1) + '% used';
+
+    // Days until reset
+    document.getElementById('copilot-days-remaining').textContent = data.daysUntilReset + ' days until reset';
+    document.getElementById('copilot-reset-date').textContent = 'Resets ' + data.formatted.resetDate;
+
+    // Plan badge
+    const plan = (data.plan || 'unknown').toUpperCase();
+    document.getElementById('copilot-plan-badge').textContent = plan;
+
+    // Recommendation
+    const recEl = document.getElementById('copilot-recommendation');
+    const recommendations = {
+      normal: { text: '✓ Normal usage', class: 'trend-under' },
+      caution: { text: '⚠ Moderate usage', class: 'trend-on-track' },
+      reduce: { text: '↓ Consider reducing', class: 'trend-over' },
+      critical: { text: '⛔ Over limit!', class: 'trend-over' }
+    };
+    const rec = recommendations[data.recommendation] || recommendations.normal;
+    recEl.textContent = rec.text;
+    recEl.className = 'trend-indicator ' + rec.class;
+
+    // Reduce hint
+    const reduceEl = document.getElementById('copilot-reduce-hint');
+    reduceEl.style.display = data.shouldReduceUsage ? 'inline' : 'none';
+
+    // Last updated
+    const lastUpdated = new Date(data.lastUpdated);
+    document.getElementById('copilot-last-updated').textContent = 'Updated: ' + lastUpdated.toLocaleTimeString();
+
+    // Fetch method indicator
+    const methodEl = document.getElementById('copilot-fetch-method');
+    if (data.fetchMethod === 'browser') {
+      methodEl.textContent = '(live)';
+      methodEl.style.color = '#4caf50';
+    } else if (data.fetchMethod === 'cached') {
+      methodEl.textContent = '(cached)';
+      methodEl.style.color = '#888';
+    } else if (data.needsLogin) {
+      methodEl.textContent = '(login needed)';
+      methodEl.style.color = '#ff9d00';
+    } else {
+      methodEl.textContent = '';
+    }
+  } catch (err) {
+    console.error('Copilot load error:', err);
+    document.getElementById('copilot-section').style.display = 'none';
+  }
+}
+
+async function refreshCopilot() {
+  try {
+    showToast('Launching browser to fetch Copilot usage...');
+    const res = await fetch(API_BASE + '/copilot/refresh', { method: 'POST' });
+    const result = await res.json();
+
+    if (result.success) {
+      if (result.data?.error) {
+        showToast(result.data.error);
+      } else {
+        showToast('Usage refreshed: ' + (result.data?.percentUsed || 0) + '%');
+      }
+      loadCopilotUsage();
+      if (copilotHistoryVisible) {
+        loadCopilotHistory();
+      }
+    } else {
+      showToast(result.error || 'Refresh failed');
+    }
+  } catch (err) {
+    showToast('Refresh error: ' + err);
+  }
+}
+
+// Copilot History Chart
+let copilotHistoryChart = null;
+let copilotHistoryVisible = false;
+let copilotHistoryInterval = null;
+
+function toggleCopilotHistory() {
+  const container = document.getElementById('copilot-history-container');
+  const button = document.getElementById('copilot-history-toggle');
+  copilotHistoryVisible = !copilotHistoryVisible;
+
+  if (copilotHistoryVisible) {
+    container.style.display = 'block';
+    button.textContent = 'Hide 24h History';
+    loadCopilotHistory();
+    // Auto-refresh every 60 seconds while visible
+    copilotHistoryInterval = setInterval(loadCopilotHistory, 60000);
+  } else {
+    container.style.display = 'none';
+    button.textContent = 'Show 24h History';
+    if (copilotHistoryInterval) {
+      clearInterval(copilotHistoryInterval);
+      copilotHistoryInterval = null;
+    }
+  }
+}
+
+async function loadCopilotHistory() {
+  try {
+    const res = await fetch(API_BASE + '/copilot/history');
+    const { success, data, error } = await res.json();
+
+    if (!success || !data || !data.points || data.points.length === 0) {
+      document.getElementById('copilot-history-info').textContent = 'No history data yet';
+      return;
+    }
+
+    document.getElementById('copilot-history-info').textContent = data.pointCount + ' data points';
+
+    // Prepare chart data
+    const labels = data.points.map(p => p.formattedTime);
+    const usageData = data.points.map(p => p.percentUsed);
+
+    const ctx = document.getElementById('copilot-history-chart').getContext('2d');
+
+    // Destroy existing chart if any
+    if (copilotHistoryChart) {
+      copilotHistoryChart.destroy();
+    }
+
+    copilotHistoryChart = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: labels,
+        datasets: [
+          {
+            label: 'Usage',
+            data: usageData,
+            borderColor: '#238636',
+            backgroundColor: 'rgba(35, 134, 54, 0.1)',
+            borderWidth: 2,
+            tension: 0.3,
+            pointRadius: 0,
+            pointHoverRadius: 4,
+            fill: true,
+          }
+        ]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        interaction: {
+          intersect: false,
+          mode: 'index',
+        },
+        plugins: {
+          legend: {
+            display: false,
+          },
+          tooltip: {
+            backgroundColor: 'rgba(30, 30, 30, 0.9)',
+            titleColor: '#fff',
+            bodyColor: '#ccc',
+            borderColor: '#444',
+            borderWidth: 1,
+            callbacks: {
+              label: function(context) {
+                return 'Usage: ' + context.parsed.y.toFixed(1) + '%';
+              }
+            }
+          }
+        },
+        scales: {
+          x: {
+            display: true,
+            grid: {
+              color: 'rgba(255, 255, 255, 0.05)',
+            },
+            ticks: {
+              color: '#888',
+              maxTicksLimit: 8,
+              font: { size: 10 }
+            }
+          },
+          y: {
+            display: true,
+            min: 0,
+            grid: {
+              color: 'rgba(255, 255, 255, 0.05)',
+            },
+            ticks: {
+              color: '#888',
+              callback: function(value) { return value + '%'; },
+              font: { size: 10 }
+            }
+          }
+        }
+      }
+    });
+  } catch (err) {
+    console.error('Copilot history error:', err);
+    document.getElementById('copilot-history-info').textContent = 'Error loading history';
   }
 }
 `

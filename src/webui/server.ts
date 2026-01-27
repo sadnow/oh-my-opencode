@@ -64,7 +64,15 @@ import {
   type ClaudeMaxRouteContext,
 } from "./routes/claude-max"
 
+import {
+  handleGetCopilotUsage,
+  handleRefreshCopilot,
+  handleGetCopilotHistory,
+  type CopilotRouteContext,
+} from "./routes/copilot"
+
 import type { ClaudeMaxUsageTracker } from "../features/claude-max-usage"
+import type { CopilotUsageTracker } from "../features/copilot-usage"
 
 import { INDEX_HTML, APP_JS, STYLES_CSS, BUDGET_DASHBOARD_HTML, BUDGET_DASHBOARD_JS } from "./static-files"
 
@@ -75,13 +83,14 @@ export interface WebUIOptions {
   usageTracker: UsageTracker | null
   budgetOrchestrator: BudgetOrchestrator | null
   claudeMaxTracker?: ClaudeMaxUsageTracker | null
+  copilotTracker?: CopilotUsageTracker | null
 }
 
 /**
  * Start the WebUI server.
  */
 export function startWebUI(options: WebUIOptions): BunServer {
-  const { port, bind, configManager, usageTracker, budgetOrchestrator, claudeMaxTracker } = options
+  const { port, bind, configManager, usageTracker, budgetOrchestrator, claudeMaxTracker, copilotTracker } = options
 
   const configCtx: ConfigRouteContext = { configManager }
   const usageCtx: UsageRouteContext = { usageTracker, budgetOrchestrator }
@@ -89,6 +98,7 @@ export function startWebUI(options: WebUIOptions): BunServer {
   const orchCtx: OrchestrationRouteContext = { budgetOrchestrator }
   const budgetDashCtx: BudgetDashboardContext = { budgetOrchestrator, usageTracker }
   const claudeMaxCtx: ClaudeMaxRouteContext = { claudeMaxTracker: claudeMaxTracker ?? null }
+  const copilotCtx: CopilotRouteContext = { copilotTracker: copilotTracker ?? null }
 
   const server = Bun.serve({
     port,
@@ -132,6 +142,7 @@ export function startWebUI(options: WebUIOptions): BunServer {
           orchCtx,
           budgetDashCtx,
           claudeMaxCtx,
+          copilotCtx,
         })
         return respond(apiResponse)
       }
@@ -153,6 +164,7 @@ interface APIContexts {
   orchCtx: OrchestrationRouteContext
   budgetDashCtx: BudgetDashboardContext
   claudeMaxCtx: ClaudeMaxRouteContext
+  copilotCtx: CopilotRouteContext
 }
 
 /**
@@ -274,6 +286,17 @@ async function handleAPI(
   }
   if (pathname === "/claude-max/refresh" && method === "POST") {
     return handleRefreshClaudeMax(ctx.claudeMaxCtx)
+  }
+
+  // Copilot routes
+  if (pathname === "/copilot/usage" && method === "GET") {
+    return handleGetCopilotUsage(ctx.copilotCtx)
+  }
+  if (pathname === "/copilot/history" && method === "GET") {
+    return handleGetCopilotHistory(ctx.copilotCtx)
+  }
+  if (pathname === "/copilot/refresh" && method === "POST") {
+    return handleRefreshCopilot(ctx.copilotCtx)
   }
 
   // 404

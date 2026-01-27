@@ -197,6 +197,59 @@ Headers:
 
 ---
 
+### GitHub Copilot Real-Time Usage Tracking
+
+**Problem**: GitHub Copilot Pro subscribers have premium request limits (1500/month) but no programmatic way to track usage for budget orchestration.
+
+**Solution**: Discovered and integrated GitHub's internal Copilot API endpoint.
+
+**API Endpoint:**
+```
+GET https://api.github.com/copilot_internal/user
+Headers:
+  Authorization: Bearer {gh_token}  # From `gh auth token`
+  Accept: application/json
+```
+
+**Response:**
+```json
+{
+  "copilot_plan": "individual_pro",
+  "quota_reset_date_utc": "2026-02-01T00:00:00.000Z",
+  "quota_snapshots": {
+    "premium_interactions": {
+      "percent_remaining": -0.64,  // Negative = over limit
+      "entitlement": 1500,
+      "remaining": -9
+    }
+  }
+}
+```
+
+**Usage Calculation:**
+- `percentUsed = 100 - percent_remaining` → `100 - (-0.64) = 100.64%`
+
+**Features:**
+- Live refresh every 60 seconds (configurable)
+- 24-hour usage history with charting
+- Plan detection (free/pro/business/enterprise)
+- Premium request count tracking (used/limit)
+- Recommendation system (normal/caution/reduce/critical)
+
+**Copilot CLI Integration:**
+The real Copilot CLI is installed by VS Code at `~/.copilot/pkg/`:
+```bash
+# Run Copilot CLI prompt
+node ~/.copilot/pkg/win32-x64/0.0.394/index.js -p "your prompt" --allow-all-tools -s --model gpt-5
+```
+
+**IMPORTANT**:
+- Uses `gh auth token` for authentication (must run `gh auth login` first)
+- The `@githubnext/github-copilot-cli` npm package is DEPRECATED and calls dead API endpoints
+- Use the VS Code-installed CLI at `~/.copilot/pkg/` instead
+
+---
+
 ## Syncing with Upstream
 
 ```bash
@@ -217,6 +270,7 @@ This section tracks all changes made in this fork for anti-regression purposes.
 | `src/shared/platform-detection.ts` | Cross-platform binary detection | `src/shared/platform-detection.test.ts` |
 | `src/features/budget-orchestrator/` | Budget tracking and tier orchestration | `src/features/budget-orchestrator/index.test.ts` |
 | `src/features/claude-max-usage/` | Claude Max real-time usage from Anthropic API | `src/features/claude-max-usage/index.test.ts` |
+| `src/features/copilot-usage/` | GitHub Copilot real-time usage from GitHub API | `src/features/copilot-usage/index.test.ts` |
 | `src/features/usage-tracker/` | Per-provider usage tracking with persistence | `src/features/usage-tracker/index.test.ts` |
 | `src/features/hot-config/` | Hot-reload config with pending changes | `src/features/hot-config/index.test.ts` |
 | `src/webui/` | WebUI server and budget dashboard | `src/webui/server.test.ts` |
@@ -303,7 +357,18 @@ bun run typecheck
    - **CRITICAL**: Must use `https://api.anthropic.com/api/oauth/usage` endpoint
    - **CRITICAL**: Must include `anthropic-beta: oauth-2025-04-20` header
 
-6. **WebUI Server** (`webui/server.test.ts`)
+6. **Copilot Usage** (`copilot-usage/index.test.ts`)
+   - API endpoint returns valid usage data structure
+   - Token acquired via `gh auth token` (execSync)
+   - Usage calculation: `percentUsed = 100 - percent_remaining`
+   - Handles negative percent_remaining (over limit)
+   - Premium request tracking from `quota_snapshots.premium_interactions`
+   - Reset date from `quota_reset_date_utc`
+   - Live refresh polling (60 seconds default)
+   - **CRITICAL**: Must use `https://api.github.com/copilot_internal/user` endpoint
+   - **CRITICAL**: Must use Bearer token auth from `gh auth token`
+
+7. **WebUI Server** (`webui/server.test.ts`)
    - Static files served correctly (index.html, budget-dashboard.html)
    - API routes respond with correct JSON structure
    - CORS headers present on all responses

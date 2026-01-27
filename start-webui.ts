@@ -7,6 +7,7 @@ import { initHotConfigManager } from "./src/features/hot-config"
 import { UsageTracker } from "./src/features/usage-tracker"
 import { BudgetOrchestrator } from "./src/features/budget-orchestrator"
 import { getClaudeMaxUsageTracker } from "./src/features/claude-max-usage"
+import { getCopilotUsageTracker } from "./src/features/copilot-usage"
 import { loadPluginConfig } from "./src/plugin-config"
 
 console.log("Starting WebUI Server...")
@@ -37,6 +38,10 @@ const hotConfigManager = initHotConfigManager({
 // Initialize Claude Max tracker
 const claudeMaxTracker = getClaudeMaxUsageTracker()
 
+// Initialize Copilot tracker with live refresh
+const copilotTracker = getCopilotUsageTracker()
+copilotTracker.startLiveRefresh() // Refresh usage from API every 60 seconds
+
 // Start server
 const port = pluginConfig.webui?.port ?? 3847
 const bind = pluginConfig.webui?.bind ?? "localhost"
@@ -48,6 +53,7 @@ const server = startWebUI({
   usageTracker,
   budgetOrchestrator,
   claudeMaxTracker,
+  copilotTracker,
 })
 
 console.log(`WebUI running at http://${bind}:${port}`)
