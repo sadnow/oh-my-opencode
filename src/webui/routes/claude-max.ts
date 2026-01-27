@@ -30,8 +30,8 @@ export async function handleGetClaudeMaxUsage(ctx: ClaudeMaxRouteContext): Promi
   }
 
   try {
-    // Use async method for fresh data
-    const data = await ctx.claudeMaxTracker.getDataAsync()
+    // Use cached data for instant response (background refresh handles updates)
+    const data = ctx.claudeMaxTracker.getData()
     const recommendation = ctx.claudeMaxTracker.getRecommendation()
     const shouldDowngrade = ctx.claudeMaxTracker.shouldDowngrade()
 

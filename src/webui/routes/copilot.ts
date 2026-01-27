@@ -30,7 +30,8 @@ export async function handleGetCopilotUsage(ctx: CopilotRouteContext): Promise<R
   }
 
   try {
-    const data = await ctx.copilotTracker.getDataAsync()
+    // Use cached data for instant response (live refresh handles background updates)
+    const data = ctx.copilotTracker.getData()
     const recommendation = ctx.copilotTracker.getRecommendation()
     const shouldReduceUsage = ctx.copilotTracker.shouldReduceUsage()
 
