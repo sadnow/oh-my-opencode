@@ -153,6 +153,341 @@ export class UsageTracker {
     return getRecordsForProvider(this.storage, provider, periodStart)
   }
 
+  // ============================================================================
+  // Analytics Methods
+  // ============================================================================
+
+  /**
+   * Get weekly summary with comparison to previous period.
+   */
+  getWeeklySummary(): {
+    current: { totalCost: number; totalCalls: number; totalInputTokens: number; totalOutputTokens: number }
+    previous: { totalCost: number; totalCalls: number; totalInputTokens: number; totalOutputTokens: number }
+    change: { costPercent: number; callsPercent: number }
+    avgDailySpend: number
+  } {
+    const now = new Date()
+    const oneWeekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
+    const twoWeeksAgo = new Date(now.getTime() - 14 * 24 * 60 * 60 * 1000)
+
+    const currentWeekRecords = this.storage.records.filter(r => {
+      const recordDate = new Date(r.timestamp)
+      return recordDate >= oneWeekAgo && recordDate <= now
+    })
+
+    const previousWeekRecords = this.storage.records.filter(r => {
+      const recordDate = new Date(r.timestamp)
+      return recordDate >= twoWeeksAgo && recordDate < oneWeekAgo
+    })
+
+    const sumRecords = (records: UsageRecord[]) => ({
+      totalCost: records.reduce((sum, r) => sum + r.estimatedCost, 0),
+      totalCalls: records.length,
+      totalInputTokens: records.reduce((sum, r) => sum + r.inputTokens, 0),
+      totalOutputTokens: records.reduce((sum, r) => sum + r.outputTokens, 0),
+    })
+
+    const current = sumRecords(currentWeekRecords)
+    const previous = sumRecords(previousWeekRecords)
+
+    return {
+      current,
+      previous,
+      change: {
+        costPercent: previous.totalCost > 0 ? ((current.totalCost - previous.totalCost) / previous.totalCost) * 100 : 0,
+        callsPercent: previous.totalCalls > 0 ? ((current.totalCalls - previous.totalCalls) / previous.totalCalls) * 100 : 0,
+      },
+      avgDailySpend: current.totalCost / 7,
+    }
+  }
+
+  /**
+   * Get monthly summary with comparison to previous period.
+   */
+  getMonthlySummary(): {
+    current: { totalCost: number; totalCalls: number; totalInputTokens: number; totalOutputTokens: number }
+    previous: { totalCost: number; totalCalls: number; totalInputTokens: number; totalOutputTokens: number }
+    change: { costPercent: number; callsPercent: number }
+    avgDailySpend: number
+  } {
+    const now = new Date()
+    const oneMonthAgo = new Date(now)
+    oneMonthAgo.setMonth(oneMonthAgo.getMonth() - 1)
+    const twoMonthsAgo = new Date(now)
+    twoMonthsAgo.setMonth(twoMonthsAgo.getMonth() - 2)
+
+    const currentMonthRecords = this.storage.records.filter(r => {
+      const recordDate = new Date(r.timestamp)
+      return recordDate >= oneMonthAgo && recordDate <= now
+    })
+
+    const previousMonthRecords = this.storage.records.filter(r => {
+      const recordDate = new Date(r.timestamp)
+      return recordDate >= twoMonthsAgo && recordDate < oneMonthAgo
+    })
+
+    const sumRecords = (records: UsageRecord[]) => ({
+      totalCost: records.reduce((sum, r) => sum + r.estimatedCost, 0),
+      totalCalls: records.length,
+      totalInputTokens: records.reduce((sum, r) => sum + r.inputTokens, 0),
+      totalOutputTokens: records.reduce((sum, r) => sum + r.outputTokens, 0),
+    })
+
+    const current = sumRecords(currentMonthRecords)
+    const previous = sumRecords(previousMonthRecords)
+    const daysInPeriod = Math.ceil((now.getTime() - oneMonthAgo.getTime()) / (24 * 60 * 60 * 1000))
+
+    return {
+      current,
+      previous,
+      change: {
+        costPercent: previous.totalCost > 0 ? ((current.totalCost - previous.totalCost) / previous.totalCost) * 100 : 0,
+        callsPercent: previous.totalCalls > 0 ? ((current.totalCalls - previous.totalCalls) / previous.totalCalls) * 100 : 0,
+      },
+      avgDailySpend: current.totalCost / daysInPeriod,
+    }
+  }
+
+  /**
+   * Get cost breakdown by task category.
+   */
+  getByCategory(): Record<string, { cost: number; calls: number; percentage: number }> {
+    const now = new Date()
+    const oneWeekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
+
+    const recentRecords = this.storage.records.filter(r => {
+      const recordDate = new Date(r.timestamp)
+      return recordDate >= oneWeekAgo
+    })
+
+    const categoryTotals: Record<string, { cost: number; calls: number }> = {}
+    let totalCost = 0
+
+    for (const record of recentRecords) {
+      const category = record.taskType || "unspecified"
+      if (!categoryTotals[category]) {
+        categoryTotals[category] = { cost: 0, calls: 0 }
+      }
+      categoryTotals[category].cost += record.estimatedCost
+      categoryTotals[category].calls += 1
+      totalCost += record.estimatedCost
+    }
+
+    const result: Record<string, { cost: number; calls: number; percentage: number }> = {}
+    for (const [category, data] of Object.entries(categoryTotals)) {
+      result[category] = {
+        ...data,
+        percentage: totalCost > 0 ? (data.cost / totalCost) * 100 : 0,
+      }
+    }
+
+    return result
+  }
+
+  /**
+   * Get model efficiency metrics (cost per 1K tokens, tokens per dollar).
+   */
+  getEfficiency(): {
+    byModel: Record<string, { model: string; avgCostPer1kTokens: number; tokensPer$1: number; totalCalls: number }>
+    byTier: Record<string, { tier: string; avgCostPer1kTokens: number; tokensPer$1: number }>
+  } {
+    const now = new Date()
+    const oneWeekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
+
+    const recentRecords = this.storage.records.filter(r => {
+      const recordDate = new Date(r.timestamp)
+      return recordDate >= oneWeekAgo
+    })
+
+    // Group by model
+    const modelStats: Record<string, { totalCost: number; totalTokens: number; calls: number }> = {}
+    for (const record of recentRecords) {
+      if (!modelStats[record.model]) {
+        modelStats[record.model] = { totalCost: 0, totalTokens: 0, calls: 0 }
+      }
+      modelStats[record.model].totalCost += record.estimatedCost
+      modelStats[record.model].totalTokens += record.inputTokens + record.outputTokens
+      modelStats[record.model].calls += 1
+    }
+
+    const byModel: Record<string, { model: string; avgCostPer1kTokens: number; tokensPer$1: number; totalCalls: number }> = {}
+    for (const [model, stats] of Object.entries(modelStats)) {
+      const avgCostPer1kTokens = stats.totalTokens > 0 ? (stats.totalCost / stats.totalTokens) * 1000 : 0
+      const tokensPer$1 = stats.totalCost > 0 ? stats.totalTokens / stats.totalCost : 0
+      byModel[model] = {
+        model,
+        avgCostPer1kTokens,
+        tokensPer$1,
+        totalCalls: stats.calls,
+      }
+    }
+
+    // Group by tier (simple heuristic based on model name)
+    const tierMap: Record<string, string> = {
+      "opus": "premium",
+      "sonnet": "standard",
+      "haiku": "budget",
+      "gpt-5.2": "premium",
+      "gpt-5-nano": "budget",
+      "gemini-3-flash": "budget",
+      "gemini-3-pro": "standard",
+      "kimi-k2-thinking": "premium",
+      "big-pickle": "budget",
+    }
+
+    const tierStats: Record<string, { totalCost: number; totalTokens: number }> = {
+      premium: { totalCost: 0, totalTokens: 0 },
+      standard: { totalCost: 0, totalTokens: 0 },
+      budget: { totalCost: 0, totalTokens: 0 },
+      economy: { totalCost: 0, totalTokens: 0 },
+    }
+
+    for (const record of recentRecords) {
+      let tier = "standard"
+      for (const [key, t] of Object.entries(tierMap)) {
+        if (record.model.includes(key)) {
+          tier = t
+          break
+        }
+      }
+      tierStats[tier].totalCost += record.estimatedCost
+      tierStats[tier].totalTokens += record.inputTokens + record.outputTokens
+    }
+
+    const byTier: Record<string, { tier: string; avgCostPer1kTokens: number; tokensPer$1: number }> = {}
+    for (const [tier, stats] of Object.entries(tierStats)) {
+      if (stats.totalTokens > 0) {
+        byTier[tier] = {
+          tier,
+          avgCostPer1kTokens: (stats.totalCost / stats.totalTokens) * 1000,
+          tokensPer$1: stats.totalCost > 0 ? stats.totalTokens / stats.totalCost : 0,
+        }
+      }
+    }
+
+    return { byModel, byTier }
+  }
+
+  /**
+   * Get provider-specific trends over time.
+   */
+  getProviderTrends(provider: string, rangeDays: number = 7): {
+    provider: string
+    dataPoints: { date: string; cost: number; calls: number }[]
+    totalCost: number
+    avgDailyCost: number
+  } {
+    const now = new Date()
+    const startDate = new Date(now.getTime() - rangeDays * 24 * 60 * 60 * 1000)
+
+    const providerRecords = this.storage.records.filter(r => {
+      const recordDate = new Date(r.timestamp)
+      return r.provider === provider && recordDate >= startDate && recordDate <= now
+    })
+
+    // Group by date
+    const dailyData: Record<string, { cost: number; calls: number }> = {}
+    for (let i = 0; i < rangeDays; i++) {
+      const date = new Date(startDate.getTime() + i * 24 * 60 * 60 * 1000)
+      const dateKey = date.toISOString().split("T")[0]
+      dailyData[dateKey] = { cost: 0, calls: 0 }
+    }
+
+    for (const record of providerRecords) {
+      const dateKey = new Date(record.timestamp).toISOString().split("T")[0]
+      if (dailyData[dateKey]) {
+        dailyData[dateKey].cost += record.estimatedCost
+        dailyData[dateKey].calls += 1
+      }
+    }
+
+    const dataPoints = Object.entries(dailyData)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([date, data]) => ({ date, ...data }))
+
+    const totalCost = dataPoints.reduce((sum, d) => sum + d.cost, 0)
+
+    return {
+      provider,
+      dataPoints,
+      totalCost,
+      avgDailyCost: totalCost / rangeDays,
+    }
+  }
+
+  /**
+   * Get session statistics (duration, cost distribution).
+   */
+  getSessionStats(): {
+    totalSessions: number
+    avgSessionCost: number
+    avgSessionDuration: number // Approximated from call patterns
+    costDistribution: { range: string; count: number; percentage: number }[]
+  } {
+    const now = new Date()
+    const oneWeekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
+
+    const recentRecords = this.storage.records.filter(r => {
+      const recordDate = new Date(r.timestamp)
+      return recordDate >= oneWeekAgo
+    })
+
+    // Group by session ID
+    const sessions: Record<string, { cost: number; calls: number; firstCall: Date; lastCall: Date }> = {}
+    for (const record of recentRecords) {
+      const sessionId = record.sessionID || "default"
+      if (!sessions[sessionId]) {
+        sessions[sessionId] = { cost: 0, calls: 0, firstCall: new Date(record.timestamp), lastCall: new Date(record.timestamp) }
+      }
+      sessions[sessionId].cost += record.estimatedCost
+      sessions[sessionId].calls += 1
+      const recordDate = new Date(record.timestamp)
+      if (recordDate < sessions[sessionId].firstCall) sessions[sessionId].firstCall = recordDate
+      if (recordDate > sessions[sessionId].lastCall) sessions[sessionId].lastCall = recordDate
+    }
+
+    const sessionList = Object.values(sessions)
+    const totalSessions = sessionList.length
+    const avgSessionCost = totalSessions > 0 ? sessionList.reduce((sum, s) => sum + s.cost, 0) / totalSessions : 0
+
+    // Calculate average duration in minutes
+    const durations = sessionList.map(s => (s.lastCall.getTime() - s.firstCall.getTime()) / (1000 * 60))
+    const avgSessionDuration = durations.length > 0 ? durations.reduce((a, b) => a + b, 0) / durations.length : 0
+
+    // Cost distribution
+    const ranges = [
+      { min: 0, max: 0.01, label: "$0-$0.01" },
+      { min: 0.01, max: 0.10, label: "$0.01-$0.10" },
+      { min: 0.10, max: 0.50, label: "$0.10-$0.50" },
+      { min: 0.50, max: 1.00, label: "$0.50-$1.00" },
+      { min: 1.00, max: 5.00, label: "$1.00-$5.00" },
+      { min: 5.00, max: Infinity, label: "$5.00+" },
+    ]
+
+    const costDistribution = ranges.map(range => {
+      const count = sessionList.filter(s => s.cost >= range.min && s.cost < range.max).length
+      return {
+        range: range.label,
+        count,
+        percentage: totalSessions > 0 ? (count / totalSessions) * 100 : 0,
+      }
+    })
+
+    return {
+      totalSessions,
+      avgSessionCost,
+      avgSessionDuration,
+      costDistribution,
+    }
+  }
+
+  /**
+   * Get all raw records (for API responses).
+   */
+  getAllRecords(): UsageRecord[] {
+    return [...this.storage.records]
+  }
+
   /**
    * Estimate the cost for a given usage.
    */
