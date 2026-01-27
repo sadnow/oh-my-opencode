@@ -5,7 +5,7 @@
 
 import * as fs from "fs"
 import * as path from "path"
-import type { OhMyOpenCodeConfig, BudgetConfig } from "../../config/schema"
+import type { OhMyOpenCodeConfig, BudgetConfig, AdaptiveConfig, LearningMode, QuotaTargets } from "../../config/schema"
 import { getOpenCodeConfigDir } from "../../shared"
 import type { WizardAnswers } from "./questions"
 import { getPreset, findBestModelForRole } from "./presets"
@@ -45,7 +45,7 @@ export function generateConfig(answers: WizardAnswers): GeneratedConfig {
   config.agents = generateAgentOverrides(answers, availableProviders)
 
   // Budget configuration
-  if (answers.enableBudget && answers.monthlyBudget) {
+  if (answers.enableBudget) {
     config.budget = generateBudgetConfig(answers)
   }
 
@@ -131,6 +131,86 @@ function generateAgentOverrides(
 }
 
 /**
+ * Learning mode presets for adaptive configuration.
+ * These map learning modes to specific adaptive config values.
+ */
+export const LEARNING_MODE_PRESETS: Record<LearningMode, AdaptiveConfig> = {
+  conservative: {
+    velocity_alpha: 0.1,
+    min_samples_for_prediction: 20,
+    stability_checks_before_upgrade: 5,
+    tier_upgrade_threshold: 2.0,
+    tier_downgrade_threshold: 0.3,
+  },
+  balanced: {
+    velocity_alpha: 0.2,
+    min_samples_for_prediction: 10,
+    stability_checks_before_upgrade: 3,
+    tier_upgrade_threshold: 1.5,
+    tier_downgrade_threshold: 0.5,
+  },
+  aggressive: {
+    velocity_alpha: 0.4,
+    min_samples_for_prediction: 5,
+    stability_checks_before_upgrade: 1,
+    tier_upgrade_threshold: 1.2,
+    tier_downgrade_threshold: 0.7,
+  },
+}
+
+/**
+ * Generate adaptive configuration from wizard answers.
+ * Combines learning mode preset with any custom overrides.
+ */
+export function generateAdaptiveConfig(answers: WizardAnswers): AdaptiveConfig | undefined {
+  // Start with learning mode preset if specified
+  const learningMode = answers.learningMode ?? "balanced"
+  const baseConfig = { ...LEARNING_MODE_PRESETS[learningMode] }
+
+  // Apply custom overrides if any
+  if (answers.velocityAlpha !== undefined) {
+    baseConfig.velocity_alpha = answers.velocityAlpha
+  }
+  if (answers.minSamplesForPrediction !== undefined) {
+    baseConfig.min_samples_for_prediction = answers.minSamplesForPrediction
+  }
+  if (answers.stabilityChecksBeforeUpgrade !== undefined) {
+    baseConfig.stability_checks_before_upgrade = answers.stabilityChecksBeforeUpgrade
+  }
+  if (answers.tierUpgradeThreshold !== undefined) {
+    baseConfig.tier_upgrade_threshold = answers.tierUpgradeThreshold
+  }
+  if (answers.tierDowngradeThreshold !== undefined) {
+    baseConfig.tier_downgrade_threshold = answers.tierDowngradeThreshold
+  }
+
+  return baseConfig
+}
+
+/**
+ * Generate quota targets from wizard answers.
+ */
+export function generateQuotaTargets(answers: WizardAnswers): QuotaTargets | undefined {
+  const targets: QuotaTargets = {}
+  let hasTargets = false
+
+  if (answers.claudeMaxWeeklyTarget !== undefined) {
+    targets.claude_max_weekly_percent = answers.claudeMaxWeeklyTarget
+    hasTargets = true
+  }
+  if (answers.copilotMonthlyTarget !== undefined) {
+    targets.copilot_monthly_percent = answers.copilotMonthlyTarget
+    hasTargets = true
+  }
+  if (answers.zenMonthlyTarget !== undefined) {
+    targets.zen_monthly_dollars = answers.zenMonthlyTarget
+    hasTargets = true
+  }
+
+  return hasTargets ? targets : undefined
+}
+
+/**
  * Generate budget configuration.
  */
 function generateBudgetConfig(answers: WizardAnswers): BudgetConfig {
@@ -138,33 +218,53 @@ function generateBudgetConfig(answers: WizardAnswers): BudgetConfig {
     enabled: true,
     target_percentage: 0.7, // Use 70% of budget
     auto_downgrade: answers.autoDowngrade ?? true,
+    auto_upgrade: answers.autoUpgrade ?? true,
     min_tier: "budget",
   }
 
+  // Learning mode
+  if (answers.learningMode) {
+    budget.learning_mode = answers.learningMode
+  }
+
+  // Adaptive config (combines learning mode with custom overrides)
+  const adaptiveConfig = generateAdaptiveConfig(answers)
+  if (adaptiveConfig) {
+    budget.adaptive_config = adaptiveConfig
+  }
+
+  // Quota targets
+  const quotaTargets = generateQuotaTargets(answers)
+  if (quotaTargets) {
+    budget.quota_targets = quotaTargets
+  }
+
   // Calculate provider-specific budgets
+  const providerBudgets: Record<string, number> = {}
+
+  // For OAuth providers, estimate based on plan
+  if (answers.hasAnthropicOAuth) {
+    // Claude Pro = ~$20/mo worth, Max 5x = ~$100/mo, Max 20x = ~$200/mo worth
+    providerBudgets.anthropic = answers.claudePlan === "max-20x" ? 200 :
+                                 answers.claudePlan === "max-5x" ? 100 : 20
+  }
+  if (answers.hasCopilot) {
+    // Copilot Free = $0, Pro = $10/mo, Enterprise = $39/mo
+    providerBudgets["github-copilot"] = answers.copilotPlan === "enterprise" ? 39 :
+                                         answers.copilotPlan === "pro" ? 10 : 0
+  }
+
+  // Zen budget
+  if (answers.hasOpencodeZen && answers.zenBudget) {
+    providerBudgets.opencode = answers.zenBudget
+  }
+
+  // Monthly budget override
   if (answers.monthlyBudget) {
-    const providerBudgets: Record<string, number> = {}
-    const providers: string[] = []
+    budget.daily_target = answers.monthlyBudget / 30
+  }
 
-    if (answers.hasAnthropicOAuth) providers.push("anthropic")
-    if (answers.hasChatGPT) providers.push("openai")
-    if (answers.hasGemini) providers.push("google")
-    if (answers.hasCopilot) providers.push("github-copilot")
-
-    // For OAuth providers, estimate based on plan
-    if (answers.hasAnthropicOAuth) {
-      // Claude Pro = ~$20/mo worth, Max = ~$200/mo worth
-      providerBudgets.anthropic = answers.claudePlan === "max" ? 200 : 20
-    }
-    if (answers.hasCopilot) {
-      providerBudgets["github-copilot"] = answers.copilotPlan === "enterprise" ? 100 : 45
-    }
-
-    // Zen budget
-    if (answers.hasOpencodeZen && answers.zenBudget) {
-      providerBudgets.opencode = answers.zenBudget
-    }
-
+  if (Object.keys(providerBudgets).length > 0) {
     budget.provider_budgets = providerBudgets
   }
 

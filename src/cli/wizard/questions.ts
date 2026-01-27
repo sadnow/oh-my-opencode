@@ -5,11 +5,11 @@
 
 import * as p from "@clack/prompts"
 import color from "picocolors"
-import type { OrchestrationPreset } from "../../config/schema"
-import { getAllPresets } from "./presets"
+import type { LearningMode, OrchestrationPreset } from "../../config/schema"
+import { getAllPresets, PRESET_BADGES } from "./presets"
 
 export interface WizardAnswers {
-  // Subscriptions
+  // Step 1: Subscriptions
   hasOpencodeZen: boolean
   hasChatGPT: boolean
   hasAnthropicOAuth: boolean
@@ -17,20 +17,35 @@ export interface WizardAnswers {
   hasGemini: boolean
 
   // Plan tiers (conditional)
-  copilotPlan?: "none" | "standard" | "enterprise"
-  claudePlan?: "pro" | "max"
+  copilotPlan?: "none" | "free" | "pro" | "enterprise"
+  claudePlan?: "pro" | "max-5x" | "max-20x"
   zenBudget?: number
 
   // Zen models (if available)
   zenModels?: string[]
 
-  // Preset selection
+  // Step 2: Quota Targets
+  claudeMaxWeeklyTarget?: number    // 0-100 percentage
+  copilotMonthlyTarget?: number     // 0-100 percentage
+  zenMonthlyTarget?: number         // Dollar amount
+
+  // Step 3: Preset selection
   preset: OrchestrationPreset
 
-  // Budget config
+  // Step 4: Learning & Adaptation
+  learningMode?: LearningMode
+  autoUpgrade?: boolean
+  autoDowngrade?: boolean
+  // Advanced adaptive config (optional overrides)
+  velocityAlpha?: number
+  minSamplesForPrediction?: number
+  stabilityChecksBeforeUpgrade?: number
+  tierUpgradeThreshold?: number
+  tierDowngradeThreshold?: number
+
+  // Step 5: Budget config (legacy, kept for backward compat)
   enableBudget: boolean
   monthlyBudget?: number
-  autoDowngrade?: boolean
 }
 
 /**
@@ -102,19 +117,6 @@ export async function askSubscriptions(): Promise<Partial<WizardAnswers> | null>
 export async function askPlanTiers(
   answers: Partial<WizardAnswers>
 ): Promise<Partial<WizardAnswers> | null> {
-  // Copilot plan tier
-  if (answers.hasCopilot) {
-    const plan = await p.select({
-      message: "What GitHub Copilot plan do you have?",
-      options: [
-        { value: "none" as const, label: "Free/Individual", hint: "Limited usage" },
-        { value: "standard" as const, label: "Business ($45/mo)", hint: "Standard features" },
-        { value: "enterprise" as const, label: "Enterprise", hint: "Full features" },
-      ],
-    })
-    if (p.isCancel(plan)) return null
-    answers.copilotPlan = plan
-  }
 
   // Claude plan tier
   if (answers.hasAnthropicOAuth) {
@@ -122,11 +124,27 @@ export async function askPlanTiers(
       message: "What Claude subscription do you have?",
       options: [
         { value: "pro" as const, label: "Claude Pro ($20/mo)", hint: "Standard limits" },
-        { value: "max" as const, label: "Claude Max ($200/mo)", hint: "5x more usage" },
+        { value: "max-5x" as const, label: "Claude Max 5x ($100/mo)", hint: "5x more usage" },
+        { value: "max-20x" as const, label: "Claude Max 20x ($200/mo)", hint: "20x more usage" },
       ],
     })
     if (p.isCancel(plan)) return null
     answers.claudePlan = plan
+  }
+
+  // Copilot plan tier (enhanced)
+  if (answers.hasCopilot) {
+    // Re-ask with more detailed options
+    const plan = await p.select({
+      message: "What GitHub Copilot plan do you have?",
+      options: [
+        { value: "free" as const, label: "Free", hint: "2000 completions/mo, limited chat" },
+        { value: "pro" as const, label: "Pro ($10/mo)", hint: "Unlimited completions, 1500 premium requests" },
+        { value: "enterprise" as const, label: "Enterprise ($39/mo)", hint: "Full features, knowledge bases" },
+      ],
+    })
+    if (p.isCancel(plan)) return null
+    answers.copilotPlan = plan
   }
 
   // Zen budget
@@ -169,6 +187,76 @@ export async function askZenModels(
 }
 
 /**
+ * Ask about quota targets (Step 2).
+ */
+export async function askQuotaTargets(
+  answers: Partial<WizardAnswers>
+): Promise<Partial<WizardAnswers> | null> {
+  // Claude Max weekly target
+  if (answers.hasAnthropicOAuth) {
+    p.note(
+      "Anthropic resets your usage every 7 days. Set a target percentage to avoid hitting rate limits mid-week.",
+      "Claude Max Quota"
+    )
+    const target = await p.text({
+      message: "Weekly usage target for Claude Max (0-100%)?",
+      placeholder: "70",
+      initialValue: "70",
+      validate: (value) => {
+        const num = parseFloat(value)
+        if (isNaN(num) || num < 0 || num > 100) return "Please enter a number between 0 and 100"
+        return undefined
+      },
+    })
+    if (p.isCancel(target)) return null
+    answers.claudeMaxWeeklyTarget = parseFloat(target)
+  }
+
+  // Copilot monthly target
+  if (answers.hasCopilot && answers.copilotPlan !== "free") {
+    p.note(
+      "GitHub resets premium requests monthly. Set a target to pace usage throughout the month.",
+      "Copilot Quota"
+    )
+    const target = await p.text({
+      message: "Monthly usage target for Copilot premium requests (0-100%)?",
+      placeholder: "80",
+      initialValue: "80",
+      validate: (value) => {
+        const num = parseFloat(value)
+        if (isNaN(num) || num < 0 || num > 100) return "Please enter a number between 0 and 100"
+        return undefined
+      },
+    })
+    if (p.isCancel(target)) return null
+    answers.copilotMonthlyTarget = parseFloat(target)
+  }
+
+  // Zen monthly dollar target
+  if (answers.hasOpencodeZen && answers.zenBudget && answers.zenBudget > 0) {
+    p.note(
+      "API providers charge per token. Set a dollar target based on your monthly budget.",
+      "OpenCode Zen Budget"
+    )
+    const target = await p.text({
+      message: `Monthly dollar target for Zen (max $${answers.zenBudget})?`,
+      placeholder: String(Math.round(answers.zenBudget * 0.8)),
+      initialValue: String(Math.round(answers.zenBudget * 0.8)),
+      validate: (value) => {
+        const num = parseFloat(value)
+        if (isNaN(num) || num < 0) return "Please enter a valid positive number"
+        if (num > (answers.zenBudget ?? 0)) return `Target cannot exceed budget ($${answers.zenBudget})`
+        return undefined
+      },
+    })
+    if (p.isCancel(target)) return null
+    answers.zenMonthlyTarget = parseFloat(target)
+  }
+
+  return answers
+}
+
+/**
  * Ask about orchestration preset.
  */
 export async function askPreset(
@@ -190,11 +278,15 @@ export async function askPreset(
     )
   )
 
-  const options = validPresets.map((preset) => ({
-    value: preset.name,
-    label: preset.name.replace(/-/g, " ").replace(/\b\w/g, (l) => l.toUpperCase()),
-    hint: preset.description,
-  }))
+  const options = validPresets.map((preset) => {
+    const badges = PRESET_BADGES[preset.name] || []
+    const badgeStr = badges.length > 0 ? ` [${badges.join(", ")}]` : ""
+    return {
+      value: preset.name,
+      label: preset.name.replace(/-/g, " ").replace(/\b\w/g, (l) => l.toUpperCase()) + badgeStr,
+      hint: preset.description,
+    }
+  })
 
   // Always add custom option
   options.push({
@@ -216,38 +308,161 @@ export async function askPreset(
 }
 
 /**
- * Ask about budget configuration.
+ * Ask about learning mode and adaptation settings (Step 4).
+ */
+export async function askLearningMode(
+  answers: Partial<WizardAnswers>
+): Promise<Partial<WizardAnswers> | null> {
+  p.note(
+    "Learning mode controls how quickly the system adapts to your spending patterns.",
+    "Adaptive Learning"
+  )
+
+  const mode = await p.select({
+    message: "Choose a learning mode:",
+    options: [
+      {
+        value: "balanced" as const,
+        label: "Balanced (Recommended)",
+        hint: "Default settings - moderate learning speed, balanced stability",
+      },
+      {
+        value: "conservative" as const,
+        label: "Conservative (Stable)",
+        hint: "Slow learning, high stability - good for predictable workloads",
+      },
+      {
+        value: "aggressive" as const,
+        label: "Aggressive (Adaptive)",
+        hint: "Fast learning, quick adjustments - good for variable workloads",
+      },
+    ],
+    initialValue: "balanced" as const,
+  })
+  if (p.isCancel(mode)) return null
+  answers.learningMode = mode
+
+  // Auto-upgrade/downgrade toggles
+  const autoUpgrade = await p.confirm({
+    message: "Enable auto-upgrade? (Switch to higher-quality models when budget headroom allows)",
+    initialValue: true,
+  })
+  if (p.isCancel(autoUpgrade)) return null
+  answers.autoUpgrade = autoUpgrade
+
+  const autoDowngrade = await p.confirm({
+    message: "Enable auto-downgrade? (Switch to cheaper models when approaching budget limits)",
+    initialValue: true,
+  })
+  if (p.isCancel(autoDowngrade)) return null
+  answers.autoDowngrade = autoDowngrade
+
+  // Advanced options (optional)
+  const showAdvanced = await p.confirm({
+    message: "Configure advanced learning parameters?",
+    initialValue: false,
+  })
+  if (p.isCancel(showAdvanced)) return null
+
+  if (showAdvanced) {
+    // Velocity alpha
+    const velocityAlpha = await p.text({
+      message: "Learning speed (velocity alpha, 0.1-0.5, lower = more stable):",
+      placeholder: mode === "conservative" ? "0.1" : mode === "aggressive" ? "0.4" : "0.2",
+      validate: (value) => {
+        const num = parseFloat(value)
+        if (isNaN(num) || num < 0.05 || num > 0.5) return "Please enter a number between 0.05 and 0.5"
+        return undefined
+      },
+    })
+    if (p.isCancel(velocityAlpha)) return null
+    answers.velocityAlpha = parseFloat(velocityAlpha)
+
+    // Min samples for prediction
+    const minSamples = await p.text({
+      message: "Minimum data points before trusting predictions (5-30):",
+      placeholder: mode === "conservative" ? "20" : mode === "aggressive" ? "5" : "10",
+      validate: (value) => {
+        const num = parseInt(value)
+        if (isNaN(num) || num < 3 || num > 50) return "Please enter a number between 3 and 50"
+        return undefined
+      },
+    })
+    if (p.isCancel(minSamples)) return null
+    answers.minSamplesForPrediction = parseInt(minSamples)
+
+    // Stability checks before upgrade
+    const stabilityChecks = await p.text({
+      message: "Stability checks required before upgrade (1-10):",
+      placeholder: mode === "conservative" ? "5" : mode === "aggressive" ? "1" : "3",
+      validate: (value) => {
+        const num = parseInt(value)
+        if (isNaN(num) || num < 1 || num > 10) return "Please enter a number between 1 and 10"
+        return undefined
+      },
+    })
+    if (p.isCancel(stabilityChecks)) return null
+    answers.stabilityChecksBeforeUpgrade = parseInt(stabilityChecks)
+
+    // Tier upgrade threshold
+    const upgradeThreshold = await p.text({
+      message: "Upgrade headroom multiplier (1.0-3.0, e.g., 1.5 = 50% more than needed):",
+      placeholder: mode === "conservative" ? "2.0" : mode === "aggressive" ? "1.2" : "1.5",
+      validate: (value) => {
+        const num = parseFloat(value)
+        if (isNaN(num) || num < 1.0 || num > 3.0) return "Please enter a number between 1.0 and 3.0"
+        return undefined
+      },
+    })
+    if (p.isCancel(upgradeThreshold)) return null
+    answers.tierUpgradeThreshold = parseFloat(upgradeThreshold)
+
+    // Tier downgrade threshold
+    const downgradeThreshold = await p.text({
+      message: "Downgrade trigger (0.2-1.0, e.g., 0.5 = 50% of needed):",
+      placeholder: mode === "conservative" ? "0.3" : mode === "aggressive" ? "0.7" : "0.5",
+      validate: (value) => {
+        const num = parseFloat(value)
+        if (isNaN(num) || num < 0.2 || num > 1.0) return "Please enter a number between 0.2 and 1.0"
+        return undefined
+      },
+    })
+    if (p.isCancel(downgradeThreshold)) return null
+    answers.tierDowngradeThreshold = parseFloat(downgradeThreshold)
+  }
+
+  return answers
+}
+
+/**
+ * Ask about budget configuration (Step 5 - simplified).
  */
 export async function askBudgetConfig(
   answers: Partial<WizardAnswers>
 ): Promise<Partial<WizardAnswers> | null> {
   const enable = await p.confirm({
     message: "Enable budget-aware auto-orchestration?",
-    initialValue: false,
+    initialValue: true,
   })
   if (p.isCancel(enable)) return null
   answers.enableBudget = enable
 
   if (!enable) return answers
 
-  const budget = await p.text({
-    message: "What's your total monthly budget across all providers (USD)?",
-    placeholder: "100",
-    validate: (value) => {
-      const num = parseFloat(value)
-      if (isNaN(num) || num <= 0) return "Please enter a valid positive number"
-      return undefined
-    },
-  })
-  if (p.isCancel(budget)) return null
-  answers.monthlyBudget = parseFloat(budget)
-
-  const autoDowngrade = await p.confirm({
-    message: "Auto-downgrade to cheaper models when over budget?",
-    initialValue: true,
-  })
-  if (p.isCancel(autoDowngrade)) return null
-  answers.autoDowngrade = autoDowngrade
+  // Only ask for monthly budget if not already set via provider-specific targets
+  if (!answers.zenMonthlyTarget && !answers.claudeMaxWeeklyTarget && !answers.copilotMonthlyTarget) {
+    const budget = await p.text({
+      message: "What's your total monthly budget across all providers (USD)?",
+      placeholder: "100",
+      validate: (value) => {
+        const num = parseFloat(value)
+        if (isNaN(num) || num <= 0) return "Please enter a valid positive number"
+        return undefined
+      },
+    })
+    if (p.isCancel(budget)) return null
+    answers.monthlyBudget = parseFloat(budget)
+  }
 
   return answers
 }
@@ -264,7 +479,9 @@ export function showSummary(answers: WizardAnswers): string {
   // Providers
   lines.push(color.cyan("Providers:"))
   if (answers.hasAnthropicOAuth) {
-    lines.push(`  ${color.green("+")} Anthropic (Claude ${answers.claudePlan ?? "Pro"})`)
+    const claudeTier = answers.claudePlan === "max-20x" ? "Max 20x" :
+                       answers.claudePlan === "max-5x" ? "Max 5x" : "Pro"
+    lines.push(`  ${color.green("+")} Anthropic (Claude ${claudeTier})`)
   }
   if (answers.hasChatGPT) {
     lines.push(`  ${color.green("+")} OpenAI (ChatGPT)`)
@@ -273,7 +490,9 @@ export function showSummary(answers: WizardAnswers): string {
     lines.push(`  ${color.green("+")} Google (Gemini)`)
   }
   if (answers.hasCopilot) {
-    lines.push(`  ${color.green("+")} GitHub Copilot (${answers.copilotPlan ?? "standard"})`)
+    const copilotTier = answers.copilotPlan === "enterprise" ? "Enterprise" :
+                        answers.copilotPlan === "pro" ? "Pro" : "Free"
+    lines.push(`  ${color.green("+")} GitHub Copilot (${copilotTier})`)
   }
   if (answers.hasOpencodeZen) {
     lines.push(`  ${color.green("+")} OpenCode Zen ($${answers.zenBudget ?? 0}/mo)`)
@@ -281,21 +500,58 @@ export function showSummary(answers: WizardAnswers): string {
 
   lines.push("")
 
+  // Quota Targets
+  if (answers.claudeMaxWeeklyTarget || answers.copilotMonthlyTarget || answers.zenMonthlyTarget) {
+    lines.push(color.cyan("Quota Targets:"))
+    if (answers.claudeMaxWeeklyTarget) {
+      lines.push(`  Claude Max Weekly: ${answers.claudeMaxWeeklyTarget}%`)
+    }
+    if (answers.copilotMonthlyTarget) {
+      lines.push(`  Copilot Monthly: ${answers.copilotMonthlyTarget}%`)
+    }
+    if (answers.zenMonthlyTarget) {
+      lines.push(`  Zen Monthly: $${answers.zenMonthlyTarget}`)
+    }
+    lines.push("")
+  }
+
   // Preset
   lines.push(color.cyan("Orchestration:"))
-  lines.push(`  Preset: ${color.yellow(answers.preset)}`)
+  const badges = PRESET_BADGES[answers.preset] || []
+  const badgeStr = badges.length > 0 ? ` [${badges.join(", ")}]` : ""
+  lines.push(`  Preset: ${color.yellow(answers.preset)}${badgeStr}`)
 
   // Zen models
   if (answers.zenModels && answers.zenModels.length > 0) {
     lines.push(`  Zen Models: ${answers.zenModels.join(", ")}`)
   }
 
+  lines.push("")
+
+  // Learning & Adaptation
+  lines.push(color.cyan("Adaptation:"))
+  lines.push(`  Learning Mode: ${color.yellow(answers.learningMode ?? "balanced")}`)
+  lines.push(`  Auto-upgrade: ${answers.autoUpgrade !== false ? color.green("Yes") : color.red("No")}`)
+  lines.push(`  Auto-downgrade: ${answers.autoDowngrade !== false ? color.green("Yes") : color.red("No")}`)
+
+  // Advanced params if customized
+  if (answers.velocityAlpha || answers.minSamplesForPrediction || answers.stabilityChecksBeforeUpgrade) {
+    lines.push(color.dim("  Advanced:"))
+    if (answers.velocityAlpha) lines.push(color.dim(`    Velocity Alpha: ${answers.velocityAlpha}`))
+    if (answers.minSamplesForPrediction) lines.push(color.dim(`    Min Samples: ${answers.minSamplesForPrediction}`))
+    if (answers.stabilityChecksBeforeUpgrade) lines.push(color.dim(`    Stability Checks: ${answers.stabilityChecksBeforeUpgrade}`))
+    if (answers.tierUpgradeThreshold) lines.push(color.dim(`    Upgrade Threshold: ${answers.tierUpgradeThreshold}`))
+    if (answers.tierDowngradeThreshold) lines.push(color.dim(`    Downgrade Threshold: ${answers.tierDowngradeThreshold}`))
+  }
+
   // Budget
   if (answers.enableBudget) {
     lines.push("")
-    lines.push(color.cyan("Budget:"))
-    lines.push(`  Monthly: $${answers.monthlyBudget}`)
-    lines.push(`  Auto-downgrade: ${answers.autoDowngrade ? "Yes" : "No"}`)
+    lines.push(color.cyan("Budget Orchestration:"))
+    lines.push(`  Enabled: ${color.green("Yes")}`)
+    if (answers.monthlyBudget) {
+      lines.push(`  Monthly Budget: $${answers.monthlyBudget}`)
+    }
   }
 
   return lines.join("\n")
