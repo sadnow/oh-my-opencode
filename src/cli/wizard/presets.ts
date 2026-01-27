@@ -35,6 +35,14 @@ export const ROLE_MODELS = {
   quick: ["gemini-3-flash", "claude-haiku-4-5", "gpt-5-nano"],
   /** ultrabrain - Deep reasoning and complex analysis */
   ultrabrain: ["claude-opus-4-5", "gpt-5.2", "kimi-k2-thinking"],
+  /** parallel-worker - Background agents and subagents (optimized for I/O-bound parallel tasks) */
+  "parallel-worker": ["gemini-3-flash", "claude-haiku-4-5", "gpt-5-nano"],
+  /** exploration - Breadth-first search and hypothesis generation */
+  exploration: ["gemini-3-flash", "claude-haiku-4-5", "gpt-5-nano"],
+  /** analysis - Deep analysis before conclusions */
+  analysis: ["kimi-k2-thinking", "gpt-5.2", "claude-opus-4-5"],
+  /** synthesis - Final answer synthesis and conclusion generation */
+  synthesis: ["claude-opus-4-5", "gpt-5.2", "kimi-k2-thinking"],
 } as const
 
 /**
@@ -221,6 +229,88 @@ export const QUALITY_FIRST_PRESET: PresetConfig = {
 }
 
 /**
+ * Parallel-agent-optimized preset - Optimized for launching many parallel agents.
+ * Uses Sonnet for orchestration (preserves quality for critical decisions)
+ * while agents use fast models (Gemini Flash excels at parallel I/O-bound tasks).
+ */
+export const PARALLEL_AGENT_PRESET: PresetConfig = {
+  name: "parallel-agent-optimized",
+  description: "Optimized for parallel agents - fast workers with quality orchestration",
+  requiredProviders: ["anthropic", "google"],
+  categories: {
+    ultrabrain: {
+      description: "Reserved for orchestrator decisions",
+      model: "anthropic/claude-sonnet-4-5",
+    },
+    quick: {
+      description: "Fast parallel workers",
+      model: "google/gemini-3-flash",
+    },
+    "visual-engineering": {
+      description: "Efficient UI tasks",
+      model: "google/gemini-3-flash",
+    },
+    artistry: {
+      description: "Cost-effective creative tasks",
+      model: "opencode/big-pickle",
+    },
+    writing: {
+      description: "Cheap documentation",
+      model: "opencode/big-pickle",
+    },
+    "parallel-worker": {
+      description: "Background agents and subagents - optimized for I/O-bound parallel tasks",
+      model: "google/gemini-3-flash",
+    },
+  },
+}
+
+/**
+ * Hybrid-reasoning preset - Different models for different reasoning stages.
+ * Cheap exploration -> deep analysis -> premium synthesis.
+ * Research: Multi-stage reasoning benefits from different model strengths.
+ */
+export const HYBRID_REASONING_PRESET: PresetConfig = {
+  name: "hybrid-reasoning",
+  description: "Multi-stage reasoning - cheap exploration, premium synthesis",
+  requiredProviders: ["anthropic", "google", "opencode"],
+  categories: {
+    ultrabrain: {
+      description: "Final synthesis and conclusions",
+      model: "anthropic/claude-opus-4-5",
+    },
+    quick: {
+      description: "Initial exploration",
+      model: "google/gemini-3-flash",
+    },
+    "visual-engineering": {
+      description: "UI implementation with quality",
+      model: "anthropic/claude-sonnet-4-5",
+    },
+    artistry: {
+      description: "Creative with analysis",
+      model: "opencode/kimi-k2-thinking",
+    },
+    writing: {
+      description: "Documentation polish",
+      model: "anthropic/claude-sonnet-4-5",
+    },
+    exploration: {
+      description: "Breadth-first search and hypothesis generation",
+      model: "google/gemini-3-flash",
+    },
+    analysis: {
+      description: "Deep analysis before conclusions",
+      model: "opencode/kimi-k2-thinking",
+    },
+    synthesis: {
+      description: "Final answer synthesis",
+      model: "anthropic/claude-opus-4-5",
+    },
+  },
+}
+
+/**
  * All presets indexed by name.
  */
 export const PRESETS: Record<OrchestrationPreset, PresetConfig | null> = {
@@ -229,7 +319,23 @@ export const PRESETS: Record<OrchestrationPreset, PresetConfig | null> = {
   "budget-conscious": BUDGET_CONSCIOUS_PRESET,
   "speed-optimized": SPEED_OPTIMIZED_PRESET,
   "quality-first": QUALITY_FIRST_PRESET,
+  "parallel-agent-optimized": PARALLEL_AGENT_PRESET,
+  "hybrid-reasoning": HYBRID_REASONING_PRESET,
   custom: null, // Custom means user-defined
+}
+
+/**
+ * Preset badges for UI display
+ */
+export const PRESET_BADGES: Record<OrchestrationPreset, string[]> = {
+  balanced: ["Recommended"],
+  "claude-heavy": ["High Quality"],
+  "budget-conscious": ["Budget-Friendly"],
+  "speed-optimized": ["Fast"],
+  "quality-first": ["Premium"],
+  "parallel-agent-optimized": ["Parallel-Optimized", "Hybrid"],
+  "hybrid-reasoning": ["Hybrid", "Multi-Stage"],
+  custom: ["Custom"],
 }
 
 /**
