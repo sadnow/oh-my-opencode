@@ -231,6 +231,18 @@ export class BudgetOrchestrator {
     const usage = this.usageTracker.getProviderSummary(provider)
     const state = calculateBudgetState(usage, budget, this.config)
 
+    // Check for budget alerts
+    const percentUsed = (state.used / state.totalBudget) * 100
+    const logger = getRoutingLogger()
+
+    if (percentUsed >= 90) {
+      logger.logBudgetAlert(provider, percentUsed, 90, "CRITICAL: Switch to economy tier immediately")
+    } else if (percentUsed >= 70) {
+      logger.logBudgetAlert(provider, percentUsed, 70, "WARNING: Consider downgrading to budget tier")
+    } else if (percentUsed >= 50) {
+      logger.logBudgetAlert(provider, percentUsed, 50, "CAUTION: Monitor spending closely")
+    }
+
     // Update cache
     this.budgetStateCache.set(provider, { state, timestamp: Date.now() })
 
@@ -319,6 +331,8 @@ export class BudgetOrchestrator {
     // Check if tier changes are blocked (tier locked)
     if (this.overrideManager.shouldBlockTierChange()) {
       log("[budget-orchestrator] Tier change blocked by lock")
+      const logger = getRoutingLogger()
+      logger.logOverride("lock", originalTier, "auto")
       return {
         original: modelRef,
         newModel: null,
@@ -333,6 +347,8 @@ export class BudgetOrchestrator {
     // Check for forced tier override
     const forcedTier = this.overrideManager.getForcedTier()
     if (forcedTier && forcedTier !== originalTier) {
+      const logger = getRoutingLogger()
+
       // Return forced tier change
       const targetTierIndex = TIER_ORDER.indexOf(forcedTier)
       const originalTierIndex = TIER_ORDER.indexOf(originalTier)
@@ -341,6 +357,14 @@ export class BudgetOrchestrator {
       if (direction === "upgrade") {
         const upgradedModel = findUpgradedModel(modelRef, forcedTier, this.availableProviders)
         if (upgradedModel) {
+          logger.logOverride("force", forcedTier, "user")
+          logger.logUpgradeScheduled(
+            modelRef.providerID,
+            originalTier,
+            forcedTier,
+            1.0,
+            `Forced tier override by user`
+          )
           return {
             original: modelRef,
             newModel: upgradedModel,
@@ -355,6 +379,14 @@ export class BudgetOrchestrator {
         const result = getDowngradedModel(modelRef, { remaining: 0, trend: "over" } as BudgetState,
           { ...this.config, minTier: forcedTier }, this.availableProviders)
         if (result.downgraded) {
+          logger.logOverride("force", forcedTier, "user")
+          logger.logDowngradeScheduled(
+            modelRef.providerID,
+            originalTier,
+            forcedTier,
+            1.0,
+            `Forced tier override by user`
+          )
           return {
             original: modelRef,
             newModel: result.downgraded,
@@ -450,6 +482,16 @@ export class BudgetOrchestrator {
           reason,
         })
 
+        // Log the scheduled upgrade
+        const logger = getRoutingLogger()
+        logger.logUpgradeScheduled(
+          modelRef.providerID,
+          originalTier,
+          targetTier,
+          confidence,
+          reason
+        )
+
         return {
           original: modelRef,
           newModel: upgradedModel,
@@ -472,6 +514,16 @@ export class BudgetOrchestrator {
           to: formatModelRef(result.downgraded),
           reason: result.reason,
         })
+
+        // Log the scheduled downgrade
+        const logger = getRoutingLogger()
+        logger.logDowngradeScheduled(
+          modelRef.providerID,
+          originalTier,
+          result.tier,
+          confidence,
+          result.reason
+        )
 
         return {
           original: modelRef,
@@ -711,6 +763,8 @@ export class BudgetOrchestrator {
     }
 
     log("[budget-orchestrator] Learning mode set to:", mode)
+    const logger = getRoutingLogger()
+    logger.logInfo("adaptive", `Learning mode changed to ${mode.toUpperCase()}`, { mode, preset })
   }
 
   /**
