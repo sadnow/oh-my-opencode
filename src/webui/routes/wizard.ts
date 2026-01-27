@@ -6,7 +6,8 @@
 import type { OhMyOpenCodeConfig, OrchestrationPreset } from "../../config/schema"
 import type { HotConfigManager } from "../../features/hot-config"
 import { generateConfig, type WizardAnswers } from "../../cli/wizard"
-import { getAllPresets, getPreset } from "../../cli/wizard/presets"
+import { getAllPresets, getPreset, PRESET_BADGES } from "../../cli/wizard/presets"
+import { LEARNING_MODE_PRESETS, generateAdaptiveConfig, generateQuotaTargets } from "../../cli/wizard/generator"
 
 export interface WizardRouteContext {
   configManager: HotConfigManager
@@ -25,6 +26,7 @@ export function handleGetPresets(): Response {
       name: p.name,
       description: p.description,
       requiredProviders: p.requiredProviders,
+      badges: PRESET_BADGES[p.name] || [],
     })),
   })
 }
@@ -50,6 +52,26 @@ export function handleGetPreset(name: string): Response {
       description: preset.description,
       requiredProviders: preset.requiredProviders,
       categories: preset.categories,
+      badges: PRESET_BADGES[preset.name] || [],
+    },
+  })
+}
+
+/**
+ * GET /api/learning-modes
+ * Get available learning mode presets
+ */
+export function handleGetLearningModes(): Response {
+  return Response.json({
+    success: true,
+    data: {
+      modes: ["conservative", "balanced", "aggressive"],
+      presets: LEARNING_MODE_PRESETS,
+      descriptions: {
+        conservative: "Slow learning, high stability - good for predictable workloads",
+        balanced: "Default settings - moderate learning speed, balanced stability",
+        aggressive: "Fast learning, quick adjustments - good for variable workloads",
+      },
     },
   })
 }
@@ -108,7 +130,12 @@ export async function handleWizard(
       )
     }
 
+    // Generate the config from wizard answers
     const { config, preview } = generateConfig(body.answers)
+
+    // Generate additional info for the response
+    const adaptiveConfig = body.answers.learningMode ? generateAdaptiveConfig(body.answers) : undefined
+    const quotaTargets = generateQuotaTargets(body.answers)
 
     if (body.apply) {
       ctx.configManager.queueChange(config, "webui-wizard")
@@ -124,6 +151,8 @@ export async function handleWizard(
           config,
           applied: true,
           saved: body.save ?? false,
+          adaptiveConfig,
+          quotaTargets,
         },
         message: "Wizard configuration applied",
       })
@@ -135,6 +164,8 @@ export async function handleWizard(
         config,
         preview,
         applied: false,
+        adaptiveConfig,
+        quotaTargets,
       },
     })
   } catch (error) {

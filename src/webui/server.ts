@@ -71,6 +71,30 @@ import {
   type CopilotRouteContext,
 } from "./routes/copilot"
 
+import {
+  handleGetStatsSummary,
+  handleGetStatsByCategory,
+  handleGetStatsEfficiency,
+  handleGetStatsTrends,
+  handleGetStatsSessions,
+  handleGetStatsAllProviders,
+  type StatsRouteContext,
+} from "./routes/stats"
+
+import {
+  handleGetAdaptiveSettings,
+  handleUpdateAdaptiveSettings,
+  handleSetLearningMode,
+  handleSetAutoUpgrade,
+  handleSetAutoDowngrade,
+  handleSetQuotaTargets,
+  handleResetLearning,
+  handleGetConfigLabels,
+  type AdaptiveSettingsRouteContext,
+} from "./routes/adaptive-settings"
+
+import { handleGetLearningModes } from "./routes/wizard"
+
 import type { ClaudeMaxUsageTracker } from "../features/claude-max-usage"
 import type { CopilotUsageTracker } from "../features/copilot-usage"
 
@@ -99,6 +123,8 @@ export function startWebUI(options: WebUIOptions): BunServer {
   const budgetDashCtx: BudgetDashboardContext = { budgetOrchestrator, usageTracker }
   const claudeMaxCtx: ClaudeMaxRouteContext = { claudeMaxTracker: claudeMaxTracker ?? null }
   const copilotCtx: CopilotRouteContext = { copilotTracker: copilotTracker ?? null }
+  const statsCtx: StatsRouteContext = { usageTracker, budgetOrchestrator }
+  const adaptiveCtx: AdaptiveSettingsRouteContext = { budgetOrchestrator }
 
   const server = Bun.serve({
     port,
@@ -143,6 +169,8 @@ export function startWebUI(options: WebUIOptions): BunServer {
           budgetDashCtx,
           claudeMaxCtx,
           copilotCtx,
+          statsCtx,
+          adaptiveCtx,
         })
         return respond(apiResponse)
       }
@@ -165,6 +193,8 @@ interface APIContexts {
   budgetDashCtx: BudgetDashboardContext
   claudeMaxCtx: ClaudeMaxRouteContext
   copilotCtx: CopilotRouteContext
+  statsCtx: StatsRouteContext
+  adaptiveCtx: AdaptiveSettingsRouteContext
 }
 
 /**
@@ -297,6 +327,61 @@ async function handleAPI(
   }
   if (pathname === "/copilot/refresh" && method === "POST") {
     return handleRefreshCopilot(ctx.copilotCtx)
+  }
+
+  // Stats routes
+  if (pathname === "/stats/summary" && method === "GET") {
+    const period = url.searchParams.get("period") || "weekly"
+    return handleGetStatsSummary(period, ctx.statsCtx)
+  }
+  if (pathname === "/stats/by-category" && method === "GET") {
+    return handleGetStatsByCategory(ctx.statsCtx)
+  }
+  if (pathname === "/stats/efficiency" && method === "GET") {
+    return handleGetStatsEfficiency(ctx.statsCtx)
+  }
+  if (pathname === "/stats/sessions" && method === "GET") {
+    return handleGetStatsSessions(ctx.statsCtx)
+  }
+  if (pathname === "/stats/all-providers" && method === "GET") {
+    const range = url.searchParams.get("range") || "7d"
+    return handleGetStatsAllProviders(range, ctx.statsCtx)
+  }
+  if (pathname.startsWith("/stats/trends/") && method === "GET") {
+    const provider = pathname.replace("/stats/trends/", "")
+    const range = url.searchParams.get("range") || "7d"
+    return handleGetStatsTrends(provider, range, ctx.statsCtx)
+  }
+
+  // Adaptive settings routes
+  if (pathname === "/adaptive/settings" && method === "GET") {
+    return handleGetAdaptiveSettings(ctx.adaptiveCtx)
+  }
+  if (pathname === "/adaptive/settings" && method === "POST") {
+    return handleUpdateAdaptiveSettings(req, ctx.adaptiveCtx)
+  }
+  if (pathname === "/adaptive/learning-mode" && method === "POST") {
+    return handleSetLearningMode(req, ctx.adaptiveCtx)
+  }
+  if (pathname === "/adaptive/auto-upgrade" && method === "POST") {
+    return handleSetAutoUpgrade(req, ctx.adaptiveCtx)
+  }
+  if (pathname === "/adaptive/auto-downgrade" && method === "POST") {
+    return handleSetAutoDowngrade(req, ctx.adaptiveCtx)
+  }
+  if (pathname === "/adaptive/quota-targets" && method === "POST") {
+    return handleSetQuotaTargets(req, ctx.adaptiveCtx)
+  }
+  if (pathname === "/adaptive/reset-learning" && method === "POST") {
+    return handleResetLearning(req, ctx.adaptiveCtx)
+  }
+  if (pathname === "/adaptive/config-labels" && method === "GET") {
+    return handleGetConfigLabels()
+  }
+
+  // Learning modes route (from wizard.ts)
+  if (pathname === "/learning-modes" && method === "GET") {
+    return handleGetLearningModes()
   }
 
   // 404
