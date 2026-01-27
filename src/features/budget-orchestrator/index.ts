@@ -514,7 +514,8 @@ export class BudgetOrchestrator {
 
     const states = this.getAllBudgetStates()
     if (Object.keys(states).length === 0) {
-      return "standard"
+      // No usage data yet - return conservative default
+      return "budget"
     }
 
     // Find the most constrained tier

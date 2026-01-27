@@ -2903,7 +2903,7 @@ async function loadAnalytics(period) {
       const cats = categoryRes.data.categories;
       const container = document.getElementById('category-breakdown');
       if (cats.length === 0) {
-        container.innerHTML = '<span style="color: var(--text-secondary);">No category data</span>';
+        container.innerHTML = '<span style="color: var(--text-secondary);">No API usage tracked yet. Cost data will appear here after making API calls through the plugin.</span>';
       } else {
         container.innerHTML = cats.slice(0, 6).map(c => {
           return '<span class="category-pill"><span class="cat-name">' + c.category + '</span><span class="cat-cost">$' + c.cost.toFixed(2) + '</span></span>';
@@ -2916,7 +2916,7 @@ async function loadAnalytics(period) {
       const models = efficiencyRes.data.byModel;
       const container = document.getElementById('model-efficiency');
       if (models.length === 0) {
-        container.innerHTML = '<span style="color: var(--text-secondary);">No efficiency data</span>';
+        container.innerHTML = '<span style="color: var(--text-secondary);">No API usage tracked yet. Model efficiency data will appear here after making API calls through the plugin.</span>';
       } else {
         container.innerHTML = models.slice(0, 6).map(m => {
           return '<div class="efficiency-card"><div class="model-name">' + (m.model || 'unknown') + '</div><div class="model-efficiency">' + formatNumber(m.tokensPer$1 || 0) + '</div></div>';
