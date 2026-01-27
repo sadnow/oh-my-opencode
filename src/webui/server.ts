@@ -93,6 +93,13 @@ import {
   type AdaptiveSettingsRouteContext,
 } from "./routes/adaptive-settings"
 
+import {
+  handleGetRoutingLogs,
+  handleGetRoutingLogStats,
+  handleClearRoutingLogs,
+  handleGetRoutingLogsSince,
+} from "./routes/routing-logs"
+
 import { handleGetLearningModes } from "./routes/wizard"
 
 import type { ClaudeMaxUsageTracker } from "../features/claude-max-usage"
@@ -382,6 +389,21 @@ async function handleAPI(
   // Learning modes route (from wizard.ts)
   if (pathname === "/learning-modes" && method === "GET") {
     return handleGetLearningModes()
+  }
+
+  // Routing logs routes
+  if (pathname === "/routing-logs" && method === "GET") {
+    return handleGetRoutingLogs(req)
+  }
+  if (pathname === "/routing-logs/stats" && method === "GET") {
+    return handleGetRoutingLogStats()
+  }
+  if (pathname === "/routing-logs/clear" && method === "POST") {
+    return handleClearRoutingLogs()
+  }
+  if (pathname.startsWith("/routing-logs/since/") && method === "GET") {
+    const timestamp = pathname.replace("/routing-logs/since/", "")
+    return handleGetRoutingLogsSince(timestamp)
   }
 
   // 404
