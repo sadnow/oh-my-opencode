@@ -178,6 +178,11 @@ export const BuiltinCategoryNameSchema = z.enum([
   "unspecified-low",
   "unspecified-high",
   "writing",
+  // New categories for parallel agents and hybrid reasoning
+  "parallel-worker",
+  "exploration",
+  "analysis",
+  "synthesis",
 ])
 
 export const CategoriesConfigSchema = z.record(z.string(), CategoryConfigSchema)
@@ -351,6 +356,33 @@ export const UsageTrackingConfigSchema = z.object({
 // Model tier for budget-aware orchestration
 export const ModelTierSchema = z.enum(["premium", "standard", "budget", "economy"])
 
+// Learning mode for adaptive budget system
+export const LearningModeSchema = z.enum(["conservative", "balanced", "aggressive"])
+
+// Adaptive config schema for fine-grained control
+export const AdaptiveConfigSchema = z.object({
+  /** Learning speed - how quickly the system adapts to new spending patterns (0.05-0.5, lower = more stable) */
+  velocity_alpha: z.number().min(0.05).max(0.5).optional(),
+  /** Minimum data points needed before trusting predictions (3-50) */
+  min_samples_for_prediction: z.number().min(3).max(50).optional(),
+  /** Consecutive stable checks required before allowing an upgrade (1-10) */
+  stability_checks_before_upgrade: z.number().min(1).max(10).optional(),
+  /** Budget headroom multiplier to trigger an upgrade (1.0-3.0, e.g., 1.5 = 50% more than needed) */
+  tier_upgrade_threshold: z.number().min(1.0).max(3.0).optional(),
+  /** How low headroom must go to trigger a downgrade (0.2-1.0, e.g., 0.5 = 50% of needed) */
+  tier_downgrade_threshold: z.number().min(0.2).max(1.0).optional(),
+})
+
+// Quota targets for different providers
+export const QuotaTargetsSchema = z.object({
+  /** Claude Max weekly usage target percentage (0-100) */
+  claude_max_weekly_percent: z.number().min(0).max(100).optional(),
+  /** GitHub Copilot monthly usage target percentage (0-100) */
+  copilot_monthly_percent: z.number().min(0).max(100).optional(),
+  /** Zen/API monthly dollar target */
+  zen_monthly_dollars: z.number().min(0).optional(),
+})
+
 // Budget configuration
 export const BudgetConfigSchema = z.object({
   /** Enable budget-aware orchestration (default: false) */
@@ -365,6 +397,14 @@ export const BudgetConfigSchema = z.object({
   min_tier: ModelTierSchema.default("budget"),
   /** Alternative daily USD target (overrides monthly calculation) */
   daily_target: z.number().min(0).optional(),
+  /** Auto-upgrade to higher-quality models when budget headroom allows (default: true) */
+  auto_upgrade: z.boolean().default(true),
+  /** Learning mode preset for adaptive behavior (conservative, balanced, aggressive) */
+  learning_mode: LearningModeSchema.optional(),
+  /** Fine-grained adaptive configuration (overrides learning_mode if set) */
+  adaptive_config: AdaptiveConfigSchema.optional(),
+  /** Quota targets for different provider types */
+  quota_targets: QuotaTargetsSchema.optional(),
 })
 
 // Budget notification configuration
@@ -388,8 +428,11 @@ export const OrchestrationPresetSchema = z.enum([
   "budget-conscious",
   "speed-optimized",
   "quality-first",
+  "parallel-agent-optimized",
+  "hybrid-reasoning",
   "custom",
 ])
+
 export const OhMyOpenCodeConfigSchema = z.object({
   $schema: z.string().optional(),
   disabled_mcps: z.array(AnyMcpNameSchema).optional(),
@@ -454,5 +497,8 @@ export type BudgetConfig = z.infer<typeof BudgetConfigSchema>
 export type BudgetNotificationConfig = z.infer<typeof BudgetNotificationConfigSchema>
 export type ModelTier = z.infer<typeof ModelTierSchema>
 export type OrchestrationPreset = z.infer<typeof OrchestrationPresetSchema>
+export type LearningMode = z.infer<typeof LearningModeSchema>
+export type AdaptiveConfig = z.infer<typeof AdaptiveConfigSchema>
+export type QuotaTargets = z.infer<typeof QuotaTargetsSchema>
 
 export { AnyMcpNameSchema, type AnyMcpName, McpNameSchema, type McpName } from "../mcp/types"
