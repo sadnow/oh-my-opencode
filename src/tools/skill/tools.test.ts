@@ -4,6 +4,7 @@ import { createSkillTool } from "./tools"
 import { SkillMcpManager } from "../../features/skill-mcp-manager"
 import type { LoadedSkill } from "../../features/opencode-skill-loader/types"
 import type { Tool as McpTool } from "@modelcontextprotocol/sdk/types.js"
+import { createMockToolContext } from "../../shared/test-utils"
 
 const originalReadFileSync = fs.readFileSync.bind(fs)
 
@@ -50,12 +51,9 @@ function createMockSkillWithMcp(name: string, mcpServers: Record<string, unknown
   }
 }
 
-const mockContext = {
-  sessionID: "test-session",
+const mockContext = createMockToolContext({
   messageID: "msg-1",
-  agent: "test-agent",
-  abort: new AbortController().signal,
-}
+})
 
 describe("skill tool - synchronous description", () => {
   it("includes available_skills immediately when skills are pre-provided", () => {
@@ -101,7 +99,7 @@ describe("skill tool - agent restriction", () => {
     // #given
     const loadedSkills = [createMockSkill("public-skill")]
     const tool = createSkillTool({ skills: loadedSkills })
-    const context = { ...mockContext, agent: "any-agent" }
+    const context = createMockToolContext({ agent: "any-agent" })
 
     // #when
     const result = await tool.execute({ name: "public-skill" }, context)
@@ -114,7 +112,7 @@ describe("skill tool - agent restriction", () => {
     // #given
     const loadedSkills = [createMockSkill("restricted-skill", { agent: "sisyphus" })]
     const tool = createSkillTool({ skills: loadedSkills })
-    const context = { ...mockContext, agent: "sisyphus" }
+    const context = createMockToolContext({ agent: "sisyphus" })
 
     // #when
     const result = await tool.execute({ name: "restricted-skill" }, context)
@@ -127,7 +125,7 @@ describe("skill tool - agent restriction", () => {
     // #given
     const loadedSkills = [createMockSkill("sisyphus-only-skill", { agent: "sisyphus" })]
     const tool = createSkillTool({ skills: loadedSkills })
-    const context = { ...mockContext, agent: "oracle" }
+    const context = createMockToolContext({ agent: "oracle" })
 
     // #when / #then
     await expect(tool.execute({ name: "sisyphus-only-skill" }, context)).rejects.toThrow(
@@ -139,7 +137,7 @@ describe("skill tool - agent restriction", () => {
     // #given
     const loadedSkills = [createMockSkill("sisyphus-only-skill", { agent: "sisyphus" })]
     const tool = createSkillTool({ skills: loadedSkills })
-    const contextWithoutAgent = { ...mockContext, agent: undefined as unknown as string }
+    const contextWithoutAgent = createMockToolContext({ agent: undefined as unknown as string })
 
     // #when / #then
     await expect(tool.execute({ name: "sisyphus-only-skill" }, contextWithoutAgent)).rejects.toThrow(

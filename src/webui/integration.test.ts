@@ -11,6 +11,13 @@ import { BudgetOrchestrator } from "../features/budget-orchestrator"
 import { initHotConfigManager } from "../features/hot-config"
 import { loadPluginConfig } from "../plugin-config"
 
+/** Type for API responses in tests */
+interface ApiResponse {
+  success: boolean
+  data?: Record<string, unknown>
+  error?: string
+}
+
 describe("WebUI Integration", () => {
   let server: any
   let baseURL: string
@@ -82,7 +89,7 @@ describe("WebUI Integration", () => {
     it("should return category breakdown", async () => {
       const response = await fetch(`${baseURL}/api/stats/by-category`)
       expect(response.status).toBe(200)
-      const data = await response.json()
+      const data = await response.json() as ApiResponse
       expect(data).toHaveProperty("success")
       expect(data.data).toHaveProperty("categories")
     })
@@ -90,7 +97,7 @@ describe("WebUI Integration", () => {
     it("should return efficiency metrics", async () => {
       const response = await fetch(`${baseURL}/api/stats/efficiency`)
       expect(response.status).toBe(200)
-      const data = await response.json()
+      const data = await response.json() as ApiResponse
       expect(data).toHaveProperty("success")
       expect(data.data).toHaveProperty("byTier")
     })
@@ -98,7 +105,7 @@ describe("WebUI Integration", () => {
     it("should return provider trends", async () => {
       const response = await fetch(`${baseURL}/api/stats/trends/anthropic?range=7d`)
       expect(response.status).toBe(200)
-      const data = await response.json()
+      const data = await response.json() as ApiResponse
       expect(data).toHaveProperty("success")
       expect(data.data).toHaveProperty("dataPoints")
       expect(data.data).toHaveProperty("totalCost")
@@ -108,7 +115,7 @@ describe("WebUI Integration", () => {
     it("should return session statistics", async () => {
       const response = await fetch(`${baseURL}/api/stats/sessions`)
       expect(response.status).toBe(200)
-      const data = await response.json()
+      const data = await response.json() as ApiResponse
       expect(data).toHaveProperty("success")
       expect(data.data).toHaveProperty("totalSessions")
     })
@@ -118,7 +125,7 @@ describe("WebUI Integration", () => {
     it("should return current adaptive settings", async () => {
       const response = await fetch(`${baseURL}/api/adaptive/settings`)
       expect(response.status).toBe(200)
-      const data = await response.json()
+      const data = await response.json() as ApiResponse
       expect(data).toHaveProperty("success")
       expect(data.data).toHaveProperty("autoUpgrade")
       expect(data.data).toHaveProperty("autoDowngrade")
@@ -134,7 +141,7 @@ describe("WebUI Integration", () => {
         }),
       })
       expect(response.status).toBe(200)
-      const data = await response.json()
+      const data = await response.json() as ApiResponse
       expect(data.success).toBe(true)
     })
 
@@ -145,7 +152,7 @@ describe("WebUI Integration", () => {
         body: JSON.stringify({ mode: "balanced" }),
       })
       expect(response.status).toBe(200)
-      const data = await response.json()
+      const data = await response.json() as ApiResponse
       expect(data.success).toBe(true)
     })
 
@@ -203,7 +210,7 @@ describe("WebUI Integration", () => {
         }),
       })
       expect(response.status).toBe(200)
-      const data = await response.json()
+      const data = await response.json() as ApiResponse
       expect(data).toHaveProperty("success")
       expect(data.data).toHaveProperty("config")
     })
@@ -223,7 +230,7 @@ describe("WebUI Integration", () => {
       })
       // JSON parse errors return 500 (could be improved to 400)
       expect(response.status).toBe(500)
-      const data = await response.json()
+      const data = await response.json() as ApiResponse
       expect(data.success).toBe(false)
       expect(data).toHaveProperty("error")
     })

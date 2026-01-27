@@ -1,13 +1,8 @@
 import { describe, test, expect } from "bun:test"
 import { session_list, session_read, session_search, session_info } from "./tools"
-import type { ToolContext } from "@opencode-ai/plugin/tool"
+import { createMockToolContext } from "../../shared/test-utils"
 
-const mockContext: ToolContext = {
-  sessionID: "test-session",
-  messageID: "test-message",
-  agent: "test-agent",
-  abort: new AbortController().signal,
-}
+const mockContext = createMockToolContext()
 
 describe("session-manager tools", () => {
   test("session_list executes without error", async () => {
