@@ -52,24 +52,41 @@ copilotTracker.startLiveRefresh() // Refresh usage from API every 60 seconds
 const port = process.env.WEBUI_PORT ? parseInt(process.env.WEBUI_PORT) : (pluginConfig.webui?.port ?? 3847)
 const bind = pluginConfig.webui?.bind ?? "localhost"
 
-const server = startWebUI({
-  port,
-  bind,
-  configManager: hotConfigManager,
-  usageTracker,
-  budgetOrchestrator,
-  claudeMaxTracker,
-  copilotTracker,
-})
+let server
+try {
+  server = startWebUI({
+    port,
+    bind,
+    configManager: hotConfigManager,
+    usageTracker,
+    budgetOrchestrator,
+    claudeMaxTracker,
+    copilotTracker,
+  })
 
-console.log(`WebUI running at http://${bind}:${port}`)
-console.log(`Budget Dashboard: http://${bind}:${port}/budget-dashboard`)
-console.log("\nPress Ctrl+C to stop\n")
+  console.log(`WebUI running at http://${bind}:${port}`)
+  console.log(`Budget Dashboard: http://${bind}:${port}/budget-dashboard`)
+  console.log("\nPress Ctrl+C to stop\n")
+} catch (error: any) {
+  if (error?.code === "EADDRINUSE") {
+    console.error(`\nERROR: Port ${port} is already in use.`)
+    console.error(`\nTo fix this, either:`)
+    console.error(`  1. Stop the existing server on port ${port}`)
+    console.error(`  2. Use a different port: python run.py --port <PORT>`)
+    console.error(`\nTo find the process using port ${port}:`)
+    console.error(`  Windows: netstat -ano | findstr :${port}`)
+    console.error(`  Then kill it: taskkill /PID <PID> /F\n`)
+    process.exit(1)
+  }
+  throw error
+}
 
 // Keep running
 process.on("SIGINT", () => {
   console.log("\nShutting down...")
-  server.stop()
+  if (server) {
+    server.stop()
+  }
   hotConfigManager.shutdown()
   process.exit(0)
 })
