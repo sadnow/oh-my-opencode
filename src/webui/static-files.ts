@@ -123,6 +123,7 @@ export const INDEX_HTML = `<!DOCTYPE html>
         <div class="docs-container">
           <div class="docs-nav">
             <button class="docs-nav-btn active" data-doc="quickstart">Quick Start</button>
+            <button class="docs-nav-btn" data-doc="presets">Presets Guide</button>
             <button class="docs-nav-btn" data-doc="shortcuts">Keyboard Shortcuts</button>
             <button class="docs-nav-btn" data-doc="api">API Reference</button>
             <button class="docs-nav-btn" data-doc="config">Configuration</button>
@@ -147,6 +148,242 @@ export const INDEX_HTML = `<!DOCTYPE html>
                 <p>The <strong>Usage & Budget</strong> tab shows real-time usage from Claude Max and Copilot APIs.</p>
               </div>
             </div>
+            <div id="doc-presets" class="doc-section">
+              <h3>Orchestration Presets Guide</h3>
+              <p style="color: var(--text-secondary); margin-bottom: 20px;">Presets configure which AI models handle different task types. Choose based on your budget, quality needs, and available API keys.</p>
+
+              <div class="doc-block">
+                <h4>default <span class="tier-badge tier-premium" style="font-size: 10px; margin-left: 8px;">RECOMMENDED</span></h4>
+                <p><strong>Philosophy:</strong> Maintainer's recommended configuration. Maximize quality with intelligent cost optimization across multiple providers.</p>
+                <div style="margin: 12px 0;">
+                  <strong style="color: var(--text-primary);">Models Used:</strong>
+                  <ul style="margin-top: 8px;">
+                    <li><code>claude-opus-4-5</code> for orchestration/synthesis - Best reasoning, worth the premium cost for critical decisions</li>
+                    <li><code>gemini-3-flash-preview</code> for exploration/parallel work - Blazing fast, current gen, excellent for I/O-bound tasks</li>
+                    <li><code>claude-sonnet-4-5</code> for UI/creative - Strong coding with good cost/quality balance</li>
+                    <li><code>gpt-5.2</code> for writing - GPT excels at prose and documentation</li>
+                    <li><code>kimi-k2-thinking</code> for analysis - Thinking model, great for deep reasoning at budget price</li>
+                  </ul>
+                </div>
+                <div style="margin: 12px 0;">
+                  <strong style="color: var(--text-primary);">Why NOT Other Models:</strong>
+                  <ul style="margin-top: 8px;">
+                    <li>o3 - Excellent but slower than Opus for orchestration; reserved for debugging</li>
+                    <li>GLM-4.7 - Good but Gemini 3 Flash is faster for parallel work</li>
+                  </ul>
+                </div>
+                <p style="font-size: 12px; color: var(--text-secondary);"><strong>Best for:</strong> Most users. Leverages provider diversity for resilience and optimal cost/quality across tasks.</p>
+              </div>
+
+              <div class="doc-block">
+                <h4>balanced</h4>
+                <p><strong>Philosophy:</strong> Anthropic-focused. Claude for everything with tier-appropriate models.</p>
+                <div style="margin: 12px 0;">
+                  <strong style="color: var(--text-primary);">Models Used:</strong>
+                  <ul style="margin-top: 8px;">
+                    <li><code>claude-opus-4-5</code> for ultrabrain - Premium reasoning for complex analysis</li>
+                    <li><code>claude-sonnet-4-5</code> for implementation - Strong coding, balanced cost</li>
+                    <li><code>claude-haiku-4-5</code> for quick tasks - Fast responses, low cost</li>
+                  </ul>
+                </div>
+                <div style="margin: 12px 0;">
+                  <strong style="color: var(--text-primary);">Why NOT Other Providers:</strong>
+                  <ul style="margin-top: 8px;">
+                    <li>Single-provider simplicity - easier quota management</li>
+                    <li>Consistent response style across tasks</li>
+                    <li>No cross-provider API key management needed</li>
+                  </ul>
+                </div>
+                <p style="font-size: 12px; color: var(--text-secondary);"><strong>Best for:</strong> Claude Max subscribers who want simplicity. Requires Anthropic API.</p>
+              </div>
+
+              <div class="doc-block">
+                <h4>claude-heavy</h4>
+                <p><strong>Philosophy:</strong> Maximum quality, all Claude, cost is secondary.</p>
+                <div style="margin: 12px 0;">
+                  <strong style="color: var(--text-primary);">Models Used:</strong>
+                  <ul style="margin-top: 8px;">
+                    <li><code>claude-opus-4-5</code> for EVERYTHING except quick - Premium tier across the board</li>
+                    <li><code>claude-sonnet-4-5</code> for quick tasks only - Still high quality for simple queries</li>
+                  </ul>
+                </div>
+                <div style="margin: 12px 0;">
+                  <strong style="color: var(--text-primary);">Cost Implications:</strong>
+                  <ul style="margin-top: 8px;">
+                    <li>~$20/1M tokens average (vs ~$9 for balanced)</li>
+                    <li>Best quality output for critical work</li>
+                    <li>Use when accuracy matters more than cost</li>
+                  </ul>
+                </div>
+                <p style="font-size: 12px; color: var(--text-secondary);"><strong>Best for:</strong> Production code review, security audits, critical architecture decisions.</p>
+              </div>
+
+              <div class="doc-block">
+                <h4>budget-conscious</h4>
+                <p><strong>Philosophy:</strong> Optimize cost-to-value ratio with budget-tier models that still deliver quality.</p>
+                <div style="margin: 12px 0;">
+                  <strong style="color: var(--text-primary);">Models Used:</strong>
+                  <ul style="margin-top: 8px;">
+                    <li><code>kimi-k2-thinking</code> for reasoning - Thinking model at $0.60/$2.50, excellent for analysis</li>
+                    <li><code>gemini-3-flash-preview</code> for speed tasks - $0.50/$3, blazing fast</li>
+                    <li><code>glm-4.7</code> for coding/writing - $0.60/$2.20, strong at agentic tasks</li>
+                    <li><code>gemini-2.5-flash-lite</code> for simple tasks - Ultra cheap economy tier</li>
+                  </ul>
+                </div>
+                <div style="margin: 12px 0;">
+                  <strong style="color: var(--text-primary);">Why NOT Premium Models:</strong>
+                  <ul style="margin-top: 8px;">
+                    <li>Budget models are 80%+ as good for most tasks</li>
+                    <li>~$2.50/1M tokens vs ~$20 for premium (8x cheaper)</li>
+                    <li>Kimi thinking model rivals premium for analysis</li>
+                  </ul>
+                </div>
+                <p style="font-size: 12px; color: var(--text-secondary);"><strong>Best for:</strong> Personal projects, learning, high-volume tasks where cost matters.</p>
+              </div>
+
+              <div class="doc-block">
+                <h4>free-tier <span class="tier-badge tier-economy" style="font-size: 10px; margin-left: 8px;">NO API KEYS</span></h4>
+                <p><strong>Philosophy:</strong> OpenCode models only - completely free, no API keys required.</p>
+                <div style="margin: 12px 0;">
+                  <strong style="color: var(--text-primary);">Models Used:</strong>
+                  <ul style="margin-top: 8px;">
+                    <li><code>kimi-k2-thinking</code> for reasoning - Best free thinking model</li>
+                    <li><code>glm-4.7</code> for implementation - Strong coding capability</li>
+                    <li><code>glm-4.6</code> for quick/writing - Fast and capable</li>
+                  </ul>
+                </div>
+                <div style="margin: 12px 0;">
+                  <strong style="color: var(--text-primary);">Limitations:</strong>
+                  <ul style="margin-top: 8px;">
+                    <li>Rate limits may apply during peak usage</li>
+                    <li>No premium model quality for complex tasks</li>
+                    <li>Limited model variety</li>
+                  </ul>
+                </div>
+                <p style="font-size: 12px; color: var(--text-secondary);"><strong>Best for:</strong> Trying oh-my-opencode without API costs, students, hobby projects.</p>
+              </div>
+
+              <div class="doc-block">
+                <h4>speed-optimized <span class="tier-badge tier-budget" style="font-size: 10px; margin-left: 8px;">FAST</span></h4>
+                <p><strong>Philosophy:</strong> Fastest models for rapid iteration cycles. Minimize latency.</p>
+                <div style="margin: 12px 0;">
+                  <strong style="color: var(--text-primary);">Models Used:</strong>
+                  <ul style="margin-top: 8px;">
+                    <li><code>gemini-3-flash-preview</code> for almost everything - Sub-second responses</li>
+                    <li><code>gemini-2.5-flash-lite</code> for parallel workers - Maximum throughput</li>
+                    <li><code>claude-sonnet-4-5</code> for ultrabrain only - Quality when truly needed</li>
+                  </ul>
+                </div>
+                <div style="margin: 12px 0;">
+                  <strong style="color: var(--text-primary);">Why Gemini Flash:</strong>
+                  <ul style="margin-top: 8px;">
+                    <li>~100-300ms response time vs ~1-3s for other models</li>
+                    <li>Current generation (Gemini 3) with strong capabilities</li>
+                    <li>Excellent for exploration and iteration</li>
+                  </ul>
+                </div>
+                <p style="font-size: 12px; color: var(--text-secondary);"><strong>Best for:</strong> Rapid prototyping, exploration, TDD cycles, impatient developers.</p>
+              </div>
+
+              <div class="doc-block">
+                <h4>quality-first <span class="tier-badge tier-premium" style="font-size: 10px; margin-left: 8px;">PREMIUM</span></h4>
+                <p><strong>Philosophy:</strong> Best models for highest quality, regardless of cost.</p>
+                <div style="margin: 12px 0;">
+                  <strong style="color: var(--text-primary);">Models Used:</strong>
+                  <ul style="margin-top: 8px;">
+                    <li><code>claude-opus-4-5</code> for reasoning/UI/creative - Best overall quality</li>
+                    <li><code>claude-sonnet-4-5</code> for quick tasks - Still premium-tier quality</li>
+                    <li><code>gpt-5.2</code> for writing - GPT's prose is unmatched</li>
+                  </ul>
+                </div>
+                <div style="margin: 12px 0;">
+                  <strong style="color: var(--text-primary);">When to Use:</strong>
+                  <ul style="margin-top: 8px;">
+                    <li>Production deployments</li>
+                    <li>Client-facing work</li>
+                    <li>Security-critical code</li>
+                    <li>Complex architecture decisions</li>
+                  </ul>
+                </div>
+                <p style="font-size: 12px; color: var(--text-secondary);"><strong>Best for:</strong> Enterprise work, production code, when quality is non-negotiable.</p>
+              </div>
+
+              <div class="doc-block">
+                <h4>parallel-agent-optimized</h4>
+                <p><strong>Philosophy:</strong> Optimized for heavy parallel workloads. Fast workers, quality orchestration.</p>
+                <div style="margin: 12px 0;">
+                  <strong style="color: var(--text-primary);">Models Used:</strong>
+                  <ul style="margin-top: 8px;">
+                    <li><code>claude-sonnet-4-5</code> for orchestration - Quality decisions on task delegation</li>
+                    <li><code>gemini-3-flash-preview</code> for workers/UI - Fast parallel execution</li>
+                    <li><code>glm-4.7</code> for creative/writing - Cost-effective bulk work</li>
+                  </ul>
+                </div>
+                <div style="margin: 12px 0;">
+                  <strong style="color: var(--text-primary);">Orchestration Pattern:</strong>
+                  <ul style="margin-top: 8px;">
+                    <li>Main agent (Sonnet) plans and delegates</li>
+                    <li>Background workers (Flash) execute in parallel</li>
+                    <li>Results aggregated by main agent</li>
+                  </ul>
+                </div>
+                <p style="font-size: 12px; color: var(--text-secondary);"><strong>Best for:</strong> Large refactoring, multi-file changes, codebase-wide analysis.</p>
+              </div>
+
+              <div class="doc-block">
+                <h4>hybrid-reasoning</h4>
+                <p><strong>Philosophy:</strong> Multi-stage reasoning - cheap exploration, deep analysis, premium synthesis.</p>
+                <div style="margin: 12px 0;">
+                  <strong style="color: var(--text-primary);">Models Used (by stage):</strong>
+                  <ul style="margin-top: 8px;">
+                    <li><strong>Exploration:</strong> <code>gemini-3-flash-preview</code> - Fast breadth-first search</li>
+                    <li><strong>Analysis:</strong> <code>kimi-k2-thinking</code> - Deep reasoning on candidates</li>
+                    <li><strong>Synthesis:</strong> <code>claude-opus-4-5</code> - Premium final answer generation</li>
+                  </ul>
+                </div>
+                <div style="margin: 12px 0;">
+                  <strong style="color: var(--text-primary);">Why This Works:</strong>
+                  <ul style="margin-top: 8px;">
+                    <li>Exploration doesn't need premium - quantity over quality</li>
+                    <li>Analysis benefits from thinking models - deliberate reasoning</li>
+                    <li>Synthesis needs best quality - final answer matters most</li>
+                  </ul>
+                </div>
+                <p style="font-size: 12px; color: var(--text-secondary);"><strong>Best for:</strong> Research tasks, debugging complex issues, architecture exploration.</p>
+              </div>
+
+              <div class="doc-block" style="background: var(--bg-secondary); padding: 16px; border-radius: 8px; margin-top: 24px;">
+                <h4 style="margin-top: 0;">Model Tier Reference</h4>
+                <table style="width: 100%; font-size: 13px; border-collapse: collapse;">
+                  <tr style="border-bottom: 1px solid var(--border);">
+                    <th style="text-align: left; padding: 8px 0;">Tier</th>
+                    <th style="text-align: left; padding: 8px 0;">Cost (per 1M tokens)</th>
+                    <th style="text-align: left; padding: 8px 0;">Example Models</th>
+                  </tr>
+                  <tr style="border-bottom: 1px solid var(--border);">
+                    <td style="padding: 8px 0;"><span class="tier-badge tier-premium">Premium</span></td>
+                    <td style="padding: 8px 0;">$3-5 / $15-25</td>
+                    <td style="padding: 8px 0;">Opus 4.5, o3, GPT-5.2-Codex</td>
+                  </tr>
+                  <tr style="border-bottom: 1px solid var(--border);">
+                    <td style="padding: 8px 0;"><span class="tier-badge tier-standard">Standard</span></td>
+                    <td style="padding: 8px 0;">$1-3 / $5-15</td>
+                    <td style="padding: 8px 0;">Sonnet 4.5, GPT-5.2, Gemini 3 Pro</td>
+                  </tr>
+                  <tr style="border-bottom: 1px solid var(--border);">
+                    <td style="padding: 8px 0;"><span class="tier-badge tier-budget">Budget</span></td>
+                    <td style="padding: 8px 0;">$0.5-1 / $2-5</td>
+                    <td style="padding: 8px 0;">Haiku 4.5, Gemini 3 Flash, GLM-4.7, Kimi K2</td>
+                  </tr>
+                  <tr>
+                    <td style="padding: 8px 0;"><span class="tier-badge tier-economy">Economy</span></td>
+                    <td style="padding: 8px 0;">$0.05-0.25 / $0.4-1</td>
+                    <td style="padding: 8px 0;">GPT-4.1-nano, Qwen3, Gemini Flash Lite</td>
+                  </tr>
+                </table>
+              </div>
+            </div>
+
             <div id="doc-shortcuts" class="doc-section">
               <h3>Keyboard Shortcuts</h3>
               <div class="shortcuts-grid">
