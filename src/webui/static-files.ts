@@ -1417,6 +1417,7 @@ export const BUDGET_DASHBOARD_HTML = `<!DOCTYPE html>
         </div>
 
         <div id="enabled-content">
+          <div class="global-summary" id="global-summary" style="display: none;"></div>
 
           <!-- Claude Max Subscription Section (Real-time from Anthropic API) -->
           <div id="claude-max-section" class="budget-card" style="margin-bottom: 30px; display: none;">
