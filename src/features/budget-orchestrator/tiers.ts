@@ -11,79 +11,108 @@ import type { TierConfig, ModelRef } from "./types"
  * Cost estimates are rough averages for cost comparison.
  *
  * Models are listed in priority order - first available model is used.
- * Includes both current and legacy model names for compatibility.
+ * Updated January 2026 with current model names from models.dev registry.
+ *
+ * Pricing reference (per 1M tokens, input/output):
+ * - Premium: $3-5 / $15-25 (Opus 4.5, GPT-5.2-Codex, o3)
+ * - Standard: $1-3 / $5-15 (Sonnet 4.5, GPT-5.2, Gemini 3 Pro)
+ * - Budget: $0.5-1 / $2-5 (Haiku 4.5, Gemini 3 Flash, GLM-4.7, Kimi K2)
+ * - Economy: $0.05-0.25 / $0.4-1 (GPT-4.1-nano, Qwen3, Gemini Flash Lite)
  */
 export const MODEL_TIERS: Record<ModelTier, TierConfig> = {
   premium: {
     models: [
-      // Anthropic premium
+      // Anthropic premium ($5/$25) - Latest 2026 models
       "anthropic/claude-opus-4-5",
-      "anthropic/claude-4-opus",
-      "anthropic/claude-3-opus",
-      // OpenAI premium
+      "anthropic/claude-opus-4-5-20251101",
+      "anthropic/claude-opus-4-1",
+      "anthropic/claude-opus-4-0",
+      // OpenAI premium - o-series and GPT-5.2
+      "openai/o3",
+      "openai/o3-pro",
+      "openai/o1-pro",
       "openai/gpt-5.2-codex",
-      "openai/gpt-4.5",
-      "openai/gpt-4-turbo",
-      "openai/o1",
-      "openai/o1-preview",
-      // OpenCode premium
-      "opencode/kimi-k2-thinking",
-      "opencode/qwen3-coder-480b",
-      // Google premium
-      "google/gemini-2-pro",
-      "google/gemini-ultra",
+      "openai/gpt-5.2-pro",
+      // Google premium - Gemini 3 Pro
+      "google/gemini-3-pro-preview",
+      "google/gemini-3-pro",
+      "google/gemini-2.5-pro",
+      // GitHub Copilot premium (included in Pro+ subscription)
+      "github-copilot/o1",
+      "github-copilot/claude-3.5-sonnet",
     ],
-    avgCostPer1M: 45, // ~$15 input + $75 output average
+    avgCostPer1M: 20, // ~$5 input + $25 output average
   },
   standard: {
     models: [
-      // Anthropic standard
+      // Anthropic standard ($3/$15)
       "anthropic/claude-sonnet-4-5",
-      "anthropic/claude-4-sonnet",
-      "anthropic/claude-3.5-sonnet",
-      "anthropic/claude-3-sonnet",
-      // OpenCode standard
-      "opencode/glm-4.7",
-      "opencode/kimi-k2-0905",
+      "anthropic/claude-sonnet-4-5-20250929",
+      "anthropic/claude-sonnet-4-0",
+      "anthropic/claude-3-7-sonnet-latest",
       // OpenAI standard
       "openai/gpt-5.2",
-      "openai/gpt-4o",
-      "openai/gpt-4",
-      // Google standard
-      "google/gemini-2-flash",
-      "google/gemini-1.5-pro",
+      "openai/gpt-5.1",
+      "openai/gpt-5.1-codex",
+      "openai/o1",
+      "openai/o1-mini",
+      // Google standard - Gemini 2.5/3 Pro
+      "google/gemini-2.5-pro-preview-06-05",
+      "google/gemini-2.5-pro",
+      // OpenCode standard
+      "opencode/glm-4.7",
+      "opencode/kimi-k2.5",
+      "opencode/kimi-k2-0905",
+      // GitHub Copilot standard (included in Pro+ subscription)
+      "github-copilot/gpt-4o",
+      "github-copilot/claude-3.5-sonnet",
     ],
     avgCostPer1M: 9, // ~$3 input + $15 output average
   },
   budget: {
     models: [
-      // Google budget
+      // Anthropic budget ($1/$5)
+      "anthropic/claude-haiku-4-5",
+      "anthropic/claude-haiku-4-5-20251001",
+      "anthropic/claude-3-5-haiku-latest",
+      // Google budget - Gemini 3/2.5 Flash ($0.50/$3)
+      "google/gemini-3-flash-preview",
       "google/gemini-3-flash",
-      "google/gemini-1.5-flash",
-      // OpenCode budget
+      "google/gemini-2.5-flash",
+      "google/gemini-2.5-flash-lite",
+      // OpenCode budget ($0.60/$2.20)
+      "opencode/glm-4.7-flash",
+      "opencode/glm-4.7-free",
       "opencode/glm-4.6",
+      "opencode/kimi-k2-thinking",
+      "opencode/kimi-k2-thinking-turbo",
       "opencode/big-pickle",
       // OpenAI budget
-      "openai/gpt-4o-mini",
-      "openai/gpt-3.5-turbo",
+      "openai/gpt-4.1-mini",
+      "openai/o4-mini",
+      "openai/o3-mini",
+      // GitHub Copilot budget (included in Pro+ subscription)
+      "github-copilot/gpt-4o-mini",
+      "github-copilot/o1-mini",
     ],
-    avgCostPer1M: 1.25, // ~$0.5 input + $2 output average
+    avgCostPer1M: 2.5, // ~$0.5 input + $3 output average
   },
   economy: {
     models: [
-      // Anthropic economy
-      "anthropic/claude-haiku-4-5",
-      "anthropic/claude-4-haiku",
-      "anthropic/claude-3.5-haiku",
-      "anthropic/claude-3-haiku",
-      // OpenAI economy
+      // OpenAI economy ($0.05/$0.40)
+      "openai/gpt-4.1-nano",
       "openai/gpt-5-nano",
-      "openai/gpt-4o-mini",
-      // Google economy
-      "google/gemini-3-flash",
-      "google/gemini-flash",
+      // Google economy - Flash Lite
+      "google/gemini-2.5-flash-lite",
+      "google/gemini-2.5-flash-lite-preview-09-2025",
+      // OpenCode economy - Qwen3 Coder
+      "opencode/qwen3-coder",
+      "opencode/qwen3-coder-flash",
+      "opencode/qwen3-coder-30b-a3b",
+      "opencode/qwen3-coder-480b-a35b-instruct",
+      "opencode/glm-4.5-flash",
     ],
-    avgCostPer1M: 0.75, // ~$0.25 input + $1.25 output average
+    avgCostPer1M: 0.5, // ~$0.1 input + $0.5 output average
   },
 }
 

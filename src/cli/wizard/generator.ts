@@ -95,36 +95,112 @@ function generateCustomCategories(
 }
 
 /**
- * Generate agent overrides based on subscriptions.
+ * Copilot Pro+ agent models - premium models included in subscription (effectively FREE).
+ * These should be prioritized for budget-conscious users who have Copilot.
+ */
+const COPILOT_AGENT_MODELS = {
+  orchestrator: "github-copilot/claude-3.5-sonnet",  // Premium model, free with Copilot
+  oracle: "github-copilot/o1",                       // Best reasoning, free with Copilot
+  explore: "github-copilot/gpt-4o-mini",             // Fast and capable
+  librarian: "github-copilot/gpt-4o-mini",           // Fast for docs search
+} as const
+
+/**
+ * Budget-tier agent models - optimized for cost-to-value ratio.
+ * Used when Copilot is not available.
+ *
+ * Pricing reference:
+ * - kimi-k2-thinking: $0.60/$2.50 - excellent reasoning
+ * - glm-4.7: $0.60/$2.20 - strong coding/agentic
+ * - gemini-2.5-flash: $0.50/$3.00 - blazing fast
+ * - gpt-5-nano: $0.05/$0.40 - ultra cheap for simple tasks
+ */
+const BUDGET_AGENT_MODELS = {
+  orchestrator: "opencode/glm-4.7",        // Needs reasoning + orchestration
+  oracle: "opencode/kimi-k2-thinking",     // Needs deep reasoning (thinking model)
+  explore: "google/gemini-2.5-flash",      // Needs SPEED, not deep reasoning
+  librarian: "google/gemini-2.5-flash",    // Needs speed + tool use
+} as const
+
+/**
+ * Free-tier agent models - OpenCode only, no API keys required.
+ */
+const FREE_AGENT_MODELS = {
+  orchestrator: "opencode/glm-4.7",
+  oracle: "opencode/kimi-k2-thinking",
+  explore: "opencode/glm-4.6",
+  librarian: "opencode/glm-4.6",
+} as const
+
+/**
+ * Generate agent overrides based on subscriptions and preset.
+ *
+ * Model selection priority for budget-conscious:
+ * 1. Copilot Pro+ models (if available) - premium models, included in subscription
+ * 2. Budget-tier models (GLM, Kimi, Gemini Flash) - good cost-to-value
+ * 3. OpenCode models - always available fallback
  */
 function generateAgentOverrides(
   answers: WizardAnswers,
   availableProviders: string[]
 ): OhMyOpenCodeConfig["agents"] {
   const agents: OhMyOpenCodeConfig["agents"] = {}
+  const preset = answers.preset
+  const hasCopilot = answers.hasCopilot && answers.copilotPlan !== "free"
 
-  // Sisyphus (orchestrator) - needs best orchestration model
-  const orchestratorModel = findBestModelForRole("orchestrator", availableProviders)
+  // Determine model selection strategy based on preset
+  const isBudgetConscious = preset === "budget-conscious"
+  const isFreeTier = preset === "free-tier"
+
+  // For budget-conscious users with Copilot Pro+, use Copilot models (included in subscription)
+  const useCopilotForBudget = isBudgetConscious && hasCopilot
+
+  // Sisyphus (orchestrator) - needs orchestration + reasoning capability
+  const orchestratorModel = isFreeTier
+    ? FREE_AGENT_MODELS.orchestrator
+    : useCopilotForBudget
+      ? COPILOT_AGENT_MODELS.orchestrator
+      : isBudgetConscious
+        ? BUDGET_AGENT_MODELS.orchestrator
+        : findBestModelForRole("orchestrator", availableProviders)
   if (orchestratorModel) {
     agents.sisyphus = { model: orchestratorModel }
   }
 
-  // Oracle - needs best debugging/reasoning model
-  const debugModel = findBestModelForRole("debug", availableProviders)
-  if (debugModel) {
-    agents.oracle = { model: debugModel }
+  // Oracle - needs highest reasoning capability (thinking models excel here)
+  const oracleModel = isFreeTier
+    ? FREE_AGENT_MODELS.oracle
+    : useCopilotForBudget
+      ? COPILOT_AGENT_MODELS.oracle
+      : isBudgetConscious
+        ? BUDGET_AGENT_MODELS.oracle
+        : findBestModelForRole("oracle", availableProviders)
+  if (oracleModel) {
+    agents.oracle = { model: oracleModel }
   }
 
-  // Explore - needs fast search model
-  const exploreModel = findBestModelForRole("explore", availableProviders)
+  // Explore - needs SPEED, not deep reasoning (fast models are better)
+  const exploreModel = isFreeTier
+    ? FREE_AGENT_MODELS.explore
+    : useCopilotForBudget
+      ? COPILOT_AGENT_MODELS.explore
+      : isBudgetConscious
+        ? BUDGET_AGENT_MODELS.explore
+        : findBestModelForRole("explore", availableProviders)
   if (exploreModel) {
     agents.explore = { model: exploreModel }
   }
 
-  // Librarian - use review model
-  const reviewModel = findBestModelForRole("review", availableProviders)
-  if (reviewModel) {
-    agents.librarian = { model: reviewModel }
+  // Librarian - needs speed + tool use for docs/GitHub search
+  const librarianModel = isFreeTier
+    ? FREE_AGENT_MODELS.librarian
+    : useCopilotForBudget
+      ? COPILOT_AGENT_MODELS.librarian
+      : isBudgetConscious
+        ? BUDGET_AGENT_MODELS.librarian
+        : findBestModelForRole("librarian", availableProviders)
+  if (librarianModel) {
+    agents.librarian = { model: librarianModel }
   }
 
   return agents

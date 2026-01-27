@@ -423,9 +423,11 @@ export const BudgetNotificationConfigSchema = z.object({
 
 // Orchestration preset names
 export const OrchestrationPresetSchema = z.enum([
+  "default",
   "balanced",
   "claude-heavy",
   "budget-conscious",
+  "free-tier",
   "speed-optimized",
   "quality-first",
   "parallel-agent-optimized",

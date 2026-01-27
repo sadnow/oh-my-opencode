@@ -14,6 +14,7 @@ import {
   createAnthropicContextWindowLimitRecoveryHook,
 
   createCompactionContextInjector,
+  createCompactionContextInjectorHook,
   createRulesInjectorHook,
   createBackgroundNotificationHook,
   createAutoUpdateCheckerHook,
@@ -207,8 +208,9 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
         experimental: pluginConfig.experimental,
       })
     : null;
-  const compactionContextInjector = isHookEnabled("compaction-context-injector")
-    ? createCompactionContextInjector()
+  // Compaction context injector - uses the new hook API
+  const compactionContextInjectorHook = isHookEnabled("compaction-context-injector")
+    ? createCompactionContextInjectorHook()
     : undefined;
   const rulesInjector = isHookEnabled("rules-injector")
     ? createRulesInjectorHook(ctx)
@@ -492,6 +494,20 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
       ]?.(input, output as any);
 
+    },
+
+    "experimental.session.compacting": async (
+      input: { sessionID: string },
+      output: { context: string[]; prompt?: string }
+    ) => {
+      // Forward to Claude Code hooks first
+      await claudeCodeHooks["experimental.session.compacting"]?.(input, output);
+
+      // Inject compaction context if enabled - uses the proper hook API
+      if (compactionContextInjectorHook) {
+        log("[plugin] experimental.session.compacting hook fired", { sessionID: input.sessionID });
+        await compactionContextInjectorHook(input, output);
+      }
     },
 
     config: configHandler,

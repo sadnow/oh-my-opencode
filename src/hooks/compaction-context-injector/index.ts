@@ -10,7 +10,11 @@ export interface SummarizeContext {
   directory: string
 }
 
-const SUMMARIZE_CONTEXT_PROMPT = `${createSystemDirective(SystemDirectiveTypes.COMPACTION_CONTEXT)}
+/**
+ * The compaction context prompt that instructs the summarizer
+ * to preserve critical information during context compaction.
+ */
+export const COMPACTION_CONTEXT_PROMPT = `${createSystemDirective(SystemDirectiveTypes.COMPACTION_CONTEXT)}
 
 When summarizing this session, you MUST include the following sections in your summary:
 
@@ -42,11 +46,37 @@ When summarizing this session, you MUST include the following sections in your s
 This context is critical for maintaining continuity after compaction.
 `
 
+/**
+ * Creates a hook handler for the experimental.session.compacting event.
+ * This modifies the compaction output to include our context requirements.
+ */
+export function createCompactionContextInjectorHook() {
+  return async (
+    input: { sessionID: string },
+    output: { context: string[]; prompt?: string }
+  ): Promise<void> => {
+    log("[compaction-context-injector] hook fired", { sessionID: input.sessionID })
+
+    // Push our context requirements into the context array
+    // OpenCode will include these when generating the summary
+    output.context.push(COMPACTION_CONTEXT_PROMPT)
+
+    log("[compaction-context-injector] context added to compaction", {
+      sessionID: input.sessionID,
+      contextCount: output.context.length,
+    })
+  }
+}
+
+/**
+ * @deprecated Use createCompactionContextInjectorHook() instead.
+ * This legacy function uses message injection instead of the proper hook API.
+ */
 export function createCompactionContextInjector() {
   return async (ctx: SummarizeContext): Promise<void> => {
-    log("[compaction-context-injector] injecting context", { sessionID: ctx.sessionID })
+    log("[compaction-context-injector] injecting context (legacy)", { sessionID: ctx.sessionID })
 
-    const success = injectHookMessage(ctx.sessionID, SUMMARIZE_CONTEXT_PROMPT, {
+    const success = injectHookMessage(ctx.sessionID, COMPACTION_CONTEXT_PROMPT, {
       agent: "general",
       model: { providerID: ctx.providerID, modelID: ctx.modelID },
       path: { cwd: ctx.directory },
