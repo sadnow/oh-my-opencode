@@ -36,7 +36,8 @@ def check_bun_installed() -> bool:
             ["bun", "--version"],
             capture_output=True,
             text=True,
-            timeout=5
+            timeout=5,
+            shell=True  # Required on Windows to find commands in PATH
         )
         return result.returncode == 0
     except (FileNotFoundError, subprocess.TimeoutExpired):
@@ -96,6 +97,7 @@ def start_webui(port: int = 3847, bind: str = "localhost", open_browser: bool = 
             cmd,
             cwd=str(project_root),
             env=env,
+            shell=True  # Required on Windows to find commands in PATH
         )
 
         # Handle Ctrl+C gracefully
