@@ -97,12 +97,19 @@ function generateCustomCategories(
 /**
  * Copilot Pro+ agent models - premium models included in subscription (effectively FREE).
  * These should be prioritized for budget-conscious users who have Copilot.
+ * 
+ * Model multipliers (per GitHub Copilot docs):
+ * - 0x: gpt-5-mini, gpt-4.1, raptor-mini (FREE!)
+ * - 0.25x: grok-code-fast-1
+ * - 0.33x: claude-haiku-4.5, gemini-3-flash, gpt-5.1-codex-mini
+ * - 1x: claude-sonnet-4.5, gpt-5.2-codex, gpt-5.1-codex
+ * - 3x: claude-opus-4.5
  */
 const COPILOT_AGENT_MODELS = {
-  orchestrator: "github-copilot/claude-3.5-sonnet",  // Premium model, free with Copilot
-  oracle: "github-copilot/o1",                       // Best reasoning, free with Copilot
-  explore: "github-copilot/gpt-4o-mini",             // Fast and capable
-  librarian: "github-copilot/gpt-4o-mini",           // Fast for docs search
+  orchestrator: "github-copilot/claude-sonnet-4.5",  // 1x multiplier, good reasoning
+  oracle: "github-copilot/gpt-5.2-codex",            // 1x multiplier, best reasoning
+  explore: "github-copilot/gpt-5-mini",              // 0x FREE! Fast for exploration
+  librarian: "github-copilot/gpt-5-mini",            // 0x FREE! Fast for docs search
 } as const
 
 /**

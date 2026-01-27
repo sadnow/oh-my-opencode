@@ -38,8 +38,11 @@ export const MODEL_TIERS: Record<ModelTier, TierConfig> = {
       "google/gemini-3-pro",
       "google/gemini-2.5-pro",
       // GitHub Copilot premium (included in Pro+ subscription)
-      "github-copilot/o1",
-      "github-copilot/claude-3.5-sonnet",
+      // Per https://docs.github.com/en/copilot/reference/ai-models/supported-models
+      "github-copilot/claude-opus-4.5",     // 3x multiplier but best reasoning
+      "github-copilot/gpt-5.2-codex",       // 1x multiplier
+      "github-copilot/claude-sonnet-4.5",   // 1x multiplier
+      "github-copilot/gpt-5.2",             // 1x multiplier
     ],
     avgCostPer1M: 20, // ~$5 input + $25 output average
   },
@@ -63,9 +66,11 @@ export const MODEL_TIERS: Record<ModelTier, TierConfig> = {
       "opencode/glm-4.7",
       "opencode/kimi-k2.5",
       "opencode/kimi-k2-0905",
-      // GitHub Copilot standard (included in Pro+ subscription)
-      "github-copilot/gpt-4o",
-      "github-copilot/claude-3.5-sonnet",
+      // GitHub Copilot standard (included in Pro+ subscription, 1x multiplier)
+      "github-copilot/gpt-5.1-codex",
+      "github-copilot/claude-sonnet-4",
+      "github-copilot/gemini-2.5-pro",
+      "github-copilot/gpt-5.1",
     ],
     avgCostPer1M: 9, // ~$3 input + $15 output average
   },
@@ -77,7 +82,6 @@ export const MODEL_TIERS: Record<ModelTier, TierConfig> = {
       "anthropic/claude-3-5-haiku-latest",
       // Google budget - Gemini 3/2.5 Flash ($0.50/$3)
       "google/gemini-3-flash-preview",
-      "google/gemini-3-flash",
       "google/gemini-2.5-flash",
       "google/gemini-2.5-flash-lite",
       // OpenCode budget ($0.60/$2.20)
@@ -92,8 +96,14 @@ export const MODEL_TIERS: Record<ModelTier, TierConfig> = {
       "openai/o4-mini",
       "openai/o3-mini",
       // GitHub Copilot budget (included in Pro+ subscription)
-      "github-copilot/gpt-4o-mini",
-      "github-copilot/o1-mini",
+      // 0x multiplier = FREE!
+      "github-copilot/gpt-5-mini",
+      "github-copilot/gpt-4.1",
+      // 0.25x-0.33x multiplier = very cheap
+      "github-copilot/gpt-5.1-codex-mini",
+      "github-copilot/claude-haiku-4.5",
+      "github-copilot/gemini-3-flash",
+      "github-copilot/grok-code-fast-1",
     ],
     avgCostPer1M: 2.5, // ~$0.5 input + $3 output average
   },

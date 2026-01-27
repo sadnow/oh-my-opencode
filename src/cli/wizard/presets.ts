@@ -96,17 +96,14 @@ export const PROVIDER_PREFIXES: Record<string, string> = {
   "gemini-3-pro-preview": "google",
   "gemini-3-pro": "google",
   "gemini-3-flash-preview": "google",
-  "gemini-3-flash": "google",
   "gemini-2.5-pro": "google",
   "gemini-2.5-flash": "google",
   "gemini-2.5-flash-lite": "google",
-  // GitHub Copilot models (included in Pro+ subscription - effectively FREE)
-  "copilot-gpt-4o": "github-copilot",
-  "copilot-gpt-4o-mini": "github-copilot",
-  "copilot-claude-sonnet": "github-copilot",
-  "copilot-claude-haiku": "github-copilot",
-  "copilot-o1-mini": "github-copilot",
-  "copilot-o1": "github-copilot",
+  // GitHub Copilot models - NOTE: Most copilot models share names with their native providers.
+  // The model-requirements.ts handles provider priority (e.g., "anthropic" → "github-copilot" → "opencode").
+  // PROVIDER_PREFIXES only needs UNIQUE model name mappings. For copilot-specific shortcuts:
+  "grok-code-fast-1": "github-copilot",     // 0.25x - xAI exclusive via Copilot
+  "raptor-mini": "github-copilot",          // 0x - Fine-tuned GPT-5 mini, Copilot exclusive
   // OpenCode (always available, no auth required)
   "kimi-k2-thinking": "opencode",
   "kimi-k2-thinking-turbo": "opencode",
@@ -124,11 +121,41 @@ export const PROVIDER_PREFIXES: Record<string, string> = {
 /**
  * Models available through GitHub Copilot Pro+ subscription.
  * These are "free" (included in subscription) and should be preferred for budget users.
+ * 
+ * Updated January 2026 per GitHub Copilot docs:
+ * https://docs.github.com/en/copilot/reference/ai-models/supported-models
+ * 
+ * Model multipliers (requests consumed per call):
+ * - 0x: GPT-4.1, GPT-5 mini, Raptor mini (effectively free)
+ * - 0.25x: Grok Code Fast 1
+ * - 0.33x: Claude Haiku 4.5, Gemini 3 Flash, GPT-5.1-Codex-Mini
+ * - 1x: Most premium models (GPT-5.2-Codex, Claude Sonnet 4.5, etc.)
+ * - 3x: Claude Opus 4.5
  */
 export const COPILOT_MODELS = {
-  premium: ["github-copilot/o1", "github-copilot/claude-3.5-sonnet"],
-  standard: ["github-copilot/gpt-4o", "github-copilot/claude-3.5-sonnet"],
-  budget: ["github-copilot/gpt-4o-mini", "github-copilot/o1-mini"],
+  /** Premium tier - best reasoning, 1x or 3x multiplier */
+  premium: [
+    "github-copilot/claude-opus-4.5",      // 3x multiplier but best reasoning
+    "github-copilot/gpt-5.2-codex",        // 1x multiplier, excellent coding
+    "github-copilot/claude-sonnet-4.5",    // 1x multiplier, strong all-around
+    "github-copilot/gpt-5.2",              // 1x multiplier
+  ],
+  /** Standard tier - good quality, 1x multiplier */
+  standard: [
+    "github-copilot/gpt-5.1-codex",        // 1x multiplier, good coding
+    "github-copilot/claude-sonnet-4",      // 1x multiplier
+    "github-copilot/gemini-2.5-pro",       // 1x multiplier
+    "github-copilot/gpt-5.1",              // 1x multiplier
+  ],
+  /** Budget tier - cost-effective, 0x-0.33x multiplier */
+  budget: [
+    "github-copilot/gpt-5-mini",           // 0x multiplier (FREE!)
+    "github-copilot/gpt-4.1",              // 0x multiplier (FREE!)
+    "github-copilot/gpt-5.1-codex-mini",   // 0.33x multiplier
+    "github-copilot/claude-haiku-4.5",     // 0.33x multiplier
+    "github-copilot/gemini-3-flash",       // 0.33x multiplier (preview)
+    "github-copilot/grok-code-fast-1",     // 0.25x multiplier (complimentary)
+  ],
 } as const
 
 export interface PresetConfig {
@@ -184,7 +211,7 @@ export const DEFAULT_PRESET: PresetConfig = {
     },
     "parallel-worker": {
       description: "Background agents - copilot for load distribution (free with subscription)",
-      model: "github-copilot/gpt-4o-mini",
+      model: "github-copilot/gpt-5-mini",
     },
     exploration: {
       description: "Codebase exploration - speed matters",
@@ -232,7 +259,7 @@ export const BALANCED_PRESET: PresetConfig = {
     },
     "parallel-worker": {
       description: "Background agents - copilot for load distribution",
-      model: "github-copilot/gpt-4o-mini",
+      model: "github-copilot/gpt-5-mini",
     },
   },
 }
@@ -267,7 +294,7 @@ export const CLAUDE_HEAVY_PRESET: PresetConfig = {
     },
     "parallel-worker": {
       description: "Background agents - copilot for load distribution",
-      model: "github-copilot/claude-3.5-sonnet",
+      model: "github-copilot/claude-sonnet-4.5",
     },
   },
 }
@@ -318,7 +345,7 @@ export const BUDGET_CONSCIOUS_PRESET: PresetConfig = {
     },
     "parallel-worker": {
       description: "Background parallel tasks - copilot free with subscription, distributes load",
-      model: "github-copilot/gpt-4o-mini",
+      model: "github-copilot/gpt-5-mini",
     },
   },
 }
@@ -394,7 +421,7 @@ export const SPEED_OPTIMIZED_PRESET: PresetConfig = {
     },
     "parallel-worker": {
       description: "Parallel background tasks - copilot for load distribution",
-      model: "github-copilot/gpt-4o-mini",
+      model: "github-copilot/gpt-5-mini",
     },
   },
 }
@@ -462,7 +489,7 @@ export const PARALLEL_AGENT_PRESET: PresetConfig = {
     },
     "parallel-worker": {
       description: "Background agents - copilot + gemini for load distribution",
-      model: "github-copilot/gpt-4o-mini",
+      model: "github-copilot/gpt-5-mini",
     },
   },
 }

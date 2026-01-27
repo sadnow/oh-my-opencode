@@ -22,67 +22,67 @@ function createFreshManager(): GlobalOverrideManager {
 describe("USE_CASE_FALLBACKS", () => {
   describe("copilot model integration", () => {
     it("includes github-copilot models in librarian fallbacks", () => {
-      expect(USE_CASE_FALLBACKS.librarian).toContain("github-copilot/claude-3.5-sonnet")
-      expect(USE_CASE_FALLBACKS.librarian).toContain("github-copilot/gpt-4o")
-      expect(USE_CASE_FALLBACKS.librarian).toContain("github-copilot/gpt-4o-mini")
+      expect(USE_CASE_FALLBACKS.librarian).toContain("github-copilot/claude-sonnet-4.5")
+      expect(USE_CASE_FALLBACKS.librarian).toContain("github-copilot/gpt-5.1-codex")
+      expect(USE_CASE_FALLBACKS.librarian).toContain("github-copilot/gpt-5-mini")
     })
 
     it("includes github-copilot models in explorer fallbacks (high priority)", () => {
       const explorerFallbacks = USE_CASE_FALLBACKS.explorer
-      expect(explorerFallbacks).toContain("github-copilot/gpt-4o-mini")
-      expect(explorerFallbacks).toContain("github-copilot/gpt-4o")
+      expect(explorerFallbacks).toContain("github-copilot/gpt-5-mini")
+      expect(explorerFallbacks).toContain("github-copilot/gpt-4.1")
       // copilot models should be positioned early for load distribution
-      const miniIndex = explorerFallbacks.indexOf("github-copilot/gpt-4o-mini")
+      const miniIndex = explorerFallbacks.indexOf("github-copilot/gpt-5-mini")
       expect(miniIndex).toBeLessThan(5) // Should be in top 5
     })
 
     it("includes github-copilot models in quick fallbacks (high priority)", () => {
       const quickFallbacks = USE_CASE_FALLBACKS.quick
-      expect(quickFallbacks).toContain("github-copilot/gpt-4o-mini")
-      expect(quickFallbacks).toContain("github-copilot/gpt-4o")
+      expect(quickFallbacks).toContain("github-copilot/gpt-5-mini")
+      expect(quickFallbacks).toContain("github-copilot/gpt-4.1")
       // copilot models should be positioned early for load distribution
-      const miniIndex = quickFallbacks.indexOf("github-copilot/gpt-4o-mini")
+      const miniIndex = quickFallbacks.indexOf("github-copilot/gpt-5-mini")
       expect(miniIndex).toBeLessThan(4) // Should be in top 4
     })
 
-    it("includes github-copilot/o1 in oracle fallbacks (lower priority)", () => {
+    it("includes github-copilot reasoning models in oracle fallbacks (lower priority)", () => {
       const oracleFallbacks = USE_CASE_FALLBACKS.oracle
-      expect(oracleFallbacks).toContain("github-copilot/o1")
-      expect(oracleFallbacks).toContain("github-copilot/claude-3.5-sonnet")
-      // o1 should come after premium models (quality first)
-      const o1Index = oracleFallbacks.indexOf("github-copilot/o1")
+      expect(oracleFallbacks).toContain("github-copilot/gpt-5.2-codex")
+      expect(oracleFallbacks).toContain("github-copilot/claude-sonnet-4.5")
+      // codex should come after premium models (quality first)
+      const codexIndex = oracleFallbacks.indexOf("github-copilot/gpt-5.2-codex")
       const opusIndex = oracleFallbacks.indexOf("anthropic/claude-opus-4-5")
-      expect(o1Index).toBeGreaterThan(opusIndex)
+      expect(codexIndex).toBeGreaterThan(opusIndex)
     })
 
     it("includes github-copilot models in ultrabrain fallbacks (lower priority)", () => {
       const ultrabrainFallbacks = USE_CASE_FALLBACKS.ultrabrain
-      expect(ultrabrainFallbacks).toContain("github-copilot/o1")
-      expect(ultrabrainFallbacks).toContain("github-copilot/claude-3.5-sonnet")
+      expect(ultrabrainFallbacks).toContain("github-copilot/gpt-5.2-codex")
+      expect(ultrabrainFallbacks).toContain("github-copilot/claude-sonnet-4.5")
       // copilot should come after premium quality models
-      const o1Index = ultrabrainFallbacks.indexOf("github-copilot/o1")
+      const codexIndex = ultrabrainFallbacks.indexOf("github-copilot/gpt-5.2-codex")
       const opusIndex = ultrabrainFallbacks.indexOf("anthropic/claude-opus-4-5")
-      expect(o1Index).toBeGreaterThan(opusIndex)
+      expect(codexIndex).toBeGreaterThan(opusIndex)
     })
 
     it("includes github-copilot models in implementation fallbacks", () => {
-      expect(USE_CASE_FALLBACKS.implementation).toContain("github-copilot/claude-3.5-sonnet")
-      expect(USE_CASE_FALLBACKS.implementation).toContain("github-copilot/gpt-4o")
-      expect(USE_CASE_FALLBACKS.implementation).toContain("github-copilot/gpt-4o-mini")
+      expect(USE_CASE_FALLBACKS.implementation).toContain("github-copilot/claude-sonnet-4.5")
+      expect(USE_CASE_FALLBACKS.implementation).toContain("github-copilot/gpt-5.2-codex")
+      expect(USE_CASE_FALLBACKS.implementation).toContain("github-copilot/gpt-5-mini")
     })
 
     it("includes github-copilot models in orchestrator fallbacks", () => {
-      expect(USE_CASE_FALLBACKS.orchestrator).toContain("github-copilot/claude-3.5-sonnet")
-      expect(USE_CASE_FALLBACKS.orchestrator).toContain("github-copilot/gpt-4o")
+      expect(USE_CASE_FALLBACKS.orchestrator).toContain("github-copilot/claude-sonnet-4.5")
+      expect(USE_CASE_FALLBACKS.orchestrator).toContain("github-copilot/gpt-5.2-codex")
     })
 
     it("has parallel-worker use case optimized for copilot", () => {
       const parallelWorker = USE_CASE_FALLBACKS["parallel-worker"]
       expect(parallelWorker).toBeDefined()
-      expect(parallelWorker).toContain("github-copilot/gpt-4o-mini")
-      expect(parallelWorker).toContain("github-copilot/gpt-4o")
+      expect(parallelWorker).toContain("github-copilot/gpt-5-mini")
+      expect(parallelWorker).toContain("github-copilot/gpt-4.1")
       // copilot should be first for parallel-worker (optimal load distribution)
-      expect(parallelWorker[0]).toBe("github-copilot/gpt-4o-mini")
+      expect(parallelWorker[0]).toBe("github-copilot/gpt-5-mini")
     })
 
     it("always has opencode/big-pickle as ultimate fallback", () => {
@@ -118,7 +118,7 @@ describe("GlobalOverrideManager", () => {
         "anthropic/claude-sonnet-4-5",
         ["github-copilot"]
       )
-      expect(result).toBe("github-copilot/claude-3.5-sonnet")
+      expect(result).toBe("github-copilot/claude-sonnet-4.5")
     })
 
     it("returns an opencode model when all other providers disabled", () => {
@@ -157,7 +157,7 @@ describe("GlobalOverrideManager", () => {
         ["github-copilot", "google"]
       )
       // Should use copilot since it's first in fallback list for parallel-worker
-      expect(result).toBe("github-copilot/gpt-4o-mini")
+      expect(result).toBe("github-copilot/gpt-5-mini")
     })
   })
 
@@ -165,7 +165,7 @@ describe("GlobalOverrideManager", () => {
     it("allows github-copilot models when provider available", () => {
       const manager = createFreshManager()
       const result = manager.isModelAllowed(
-        "github-copilot/gpt-4o",
+        "github-copilot/gpt-5-mini",
         ["github-copilot"]
       )
       expect(result).toBe(true)
@@ -174,7 +174,7 @@ describe("GlobalOverrideManager", () => {
     it("disallows github-copilot models when provider not available", () => {
       const manager = createFreshManager()
       const result = manager.isModelAllowed(
-        "github-copilot/gpt-4o",
+        "github-copilot/gpt-5-mini",
         ["anthropic", "google"]
       )
       expect(result).toBe(false)
@@ -184,7 +184,7 @@ describe("GlobalOverrideManager", () => {
       const manager = createFreshManager()
       manager.disableProvider("github-copilot")
       const result = manager.isModelAllowed(
-        "github-copilot/gpt-4o",
+        "github-copilot/gpt-5-mini",
         ["github-copilot"]
       )
       expect(result).toBe(false)

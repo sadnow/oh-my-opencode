@@ -41,7 +41,7 @@ const MODEL_PRICING: Record<string, ModelPricing> = {
   "gpt-5.2-codex": { inputPer1M: 15.0, outputPer1M: 60.0 },
   "gpt-5-nano": { inputPer1M: 0.15, outputPer1M: 0.60 },
   // Google Gemini (approximate)
-  "gemini-3-flash": { inputPer1M: 0.075, outputPer1M: 0.30 },
+  "gemini-3-flash-preview": { inputPer1M: 0.075, outputPer1M: 0.30 },
   "gemini-3-pro": { inputPer1M: 1.25, outputPer1M: 5.0 },
   // OpenCode models via providers
   "big-pickle": { inputPer1M: 0.5, outputPer1M: 2.0 },
@@ -329,7 +329,7 @@ export class UsageTracker {
       "haiku": "budget",
       "gpt-5.2": "premium",
       "gpt-5-nano": "budget",
-      "gemini-3-flash": "budget",
+      "gemini-3-flash-preview": "budget",
       "gemini-3-pro": "standard",
       "kimi-k2-thinking": "premium",
       "big-pickle": "budget",

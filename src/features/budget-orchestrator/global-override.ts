@@ -39,13 +39,14 @@ export const USE_CASE_FALLBACKS = {
   librarian: [
     "anthropic/claude-sonnet-4-5",       // Best overall for tool use
     "openai/gpt-5.2",                    // Strong tool use
-    "github-copilot/claude-3.5-sonnet",  // Good tool use, free with subscription
-    "github-copilot/gpt-4o",             // Strong alternative, free
+    "github-copilot/claude-sonnet-4.5",  // Good tool use, free with subscription
+    "github-copilot/gpt-5.1-codex",      // Strong alternative, free (1x)
     "google/gemini-3-flash-preview",     // Fast with good tool use
     "opencode/glm-4.7",                  // Good at agentic tasks
     "opencode/kimi-k2-thinking",         // Thinking model, good at analysis
     "anthropic/claude-haiku-4-5",        // Fast Claude
-    "github-copilot/gpt-4o-mini",        // Budget copilot option
+    "github-copilot/gpt-5-mini",         // Budget copilot option (0x FREE!)
+    "github-copilot/gpt-4.1",            // Budget copilot (0x FREE!)
     "google/gemini-2.5-flash",           // Previous gen flash
     "opencode/big-pickle",               // Ultimate fallback
   ],
@@ -53,11 +54,14 @@ export const USE_CASE_FALLBACKS = {
   /** Explorer - fast codebase search, needs SPEED not deep reasoning */
   explorer: [
     "google/gemini-3-flash-preview",     // Fastest current gen
-    "github-copilot/gpt-4o-mini",        // Fast + free with subscription (load distribution)
+    "github-copilot/gpt-5-mini",         // Fast + free with subscription (0x FREE!)
+    "github-copilot/gpt-4.1",            // Fast + free (0x FREE!)
     "google/gemini-2.5-flash",           // Fast previous gen
-    "github-copilot/gpt-4o",             // Good speed, free (load distribution)
+    "github-copilot/gemini-3-flash",     // Fast via Copilot (0.33x)
+    "github-copilot/grok-code-fast-1",   // Very fast via Copilot (0.25x)
     "openai/gpt-4.1-nano",               // Very fast
     "anthropic/claude-haiku-4-5",        // Fast Claude
+    "github-copilot/claude-haiku-4.5",   // Fast Claude via Copilot (0.33x)
     "opencode/glm-4.7-flash",            // Fast GLM
     "opencode/glm-4.6",                  // Budget GLM
     "opencode/qwen3-coder-flash",        // Fast Qwen
@@ -69,10 +73,10 @@ export const USE_CASE_FALLBACKS = {
     "anthropic/claude-opus-4-5",         // Best reasoning overall
     "openai/o3",                         // Strong reasoning
     "openai/gpt-5.2",                    // Very strong
-    "github-copilot/o1",                 // Premium copilot reasoning, free
+    "github-copilot/gpt-5.2-codex",      // Premium copilot reasoning, free
     "opencode/kimi-k2-thinking",         // Great thinking model
     "anthropic/claude-sonnet-4-5",       // Good reasoning
-    "github-copilot/claude-3.5-sonnet",  // Good reasoning, free fallback
+    "github-copilot/claude-sonnet-4.5",  // Good reasoning, free fallback
     "google/gemini-3-pro-preview",       // Strong Gemini
     "opencode/glm-4.7",                  // Capable
     "opencode/big-pickle",               // Ultimate fallback
@@ -83,9 +87,10 @@ export const USE_CASE_FALLBACKS = {
     "anthropic/claude-opus-4-5",         // Best for orchestration
     "anthropic/claude-sonnet-4-5",       // Good alternative
     "openai/gpt-5.2-codex",              // Strong coding orchestration
-    "github-copilot/claude-3.5-sonnet",  // Good orchestration, free
+    "github-copilot/claude-opus-4.5",    // Best via Copilot (3x but free with sub)
+    "github-copilot/claude-sonnet-4.5",  // Good orchestration, free (1x)
+    "github-copilot/gpt-5.2-codex",      // Strong via Copilot (1x)
     "openai/o3",                         // Good reasoning
-    "github-copilot/gpt-4o",             // Strong alternative, free
     "opencode/kimi-k2-thinking",         // Good for planning
     "opencode/glm-4.7",                  // Capable at agentic tasks
     "google/gemini-3-pro-preview",       // Strong Gemini
@@ -96,13 +101,15 @@ export const USE_CASE_FALLBACKS = {
   implementation: [
     "anthropic/claude-sonnet-4-5",       // Best coding
     "openai/gpt-5.2-codex",              // Strong coding
-    "github-copilot/claude-3.5-sonnet",  // Strong coding, free
+    "github-copilot/claude-sonnet-4.5",  // Strong coding, free (1x)
+    "github-copilot/gpt-5.2-codex",      // Strong coding via Copilot (1x)
+    "github-copilot/gpt-5.1-codex",      // Good coding via Copilot (1x)
     "anthropic/claude-opus-4-5",         // Premium quality
-    "github-copilot/gpt-4o",             // Good coding, free
     "opencode/glm-4.7",                  // Good at coding
     "opencode/qwen3-coder",              // Specialized for code
     "google/gemini-3-flash-preview",     // Fast coding
-    "github-copilot/gpt-4o-mini",        // Budget coding, free
+    "github-copilot/gpt-5-mini",         // Budget coding, free (0x FREE!)
+    "github-copilot/gpt-5.1-codex-mini", // Budget coding (0.33x)
     "opencode/kimi-k2-thinking",         // Can code well
     "opencode/big-pickle",               // Ultimate fallback
   ],
@@ -110,9 +117,12 @@ export const USE_CASE_FALLBACKS = {
   /** Quick - fast responses for simple queries */
   quick: [
     "google/gemini-3-flash-preview",     // Fastest
-    "github-copilot/gpt-4o-mini",        // Fast + free (load distribution)
+    "github-copilot/gpt-5-mini",         // Fast + free (0x FREE!)
+    "github-copilot/gpt-4.1",            // Fast + free (0x FREE!)
     "google/gemini-2.5-flash",           // Fast
-    "github-copilot/gpt-4o",             // Good speed, free (load distribution)
+    "github-copilot/gemini-3-flash",     // Fast via Copilot (0.33x)
+    "github-copilot/grok-code-fast-1",   // Very fast via Copilot (0.25x)
+    "github-copilot/claude-haiku-4.5",   // Fast Claude via Copilot (0.33x)
     "anthropic/claude-haiku-4-5",        // Fast Claude
     "openai/gpt-4.1-nano",               // Very fast
     "opencode/glm-4.6",                  // Fast budget
@@ -126,10 +136,10 @@ export const USE_CASE_FALLBACKS = {
     "anthropic/claude-opus-4-5",         // Best reasoning overall
     "openai/o3",                         // Strong reasoning
     "openai/gpt-5.2",                    // Very strong
-    "github-copilot/o1",                 // Premium copilot reasoning, free
+    "github-copilot/gpt-5.2-codex",      // Premium copilot reasoning, free
     "opencode/kimi-k2-thinking",         // Great thinking model
     "anthropic/claude-sonnet-4-5",       // Good reasoning
-    "github-copilot/claude-3.5-sonnet",  // Good reasoning, free fallback
+    "github-copilot/claude-sonnet-4.5",  // Good reasoning, free fallback
     "google/gemini-3-pro-preview",       // Strong Gemini
     "opencode/glm-4.7",                  // Capable
     "opencode/big-pickle",               // Ultimate fallback
@@ -137,10 +147,13 @@ export const USE_CASE_FALLBACKS = {
   
   /** Parallel Worker - tasks that run in parallel, optimize for load distribution */
   "parallel-worker": [
-    "github-copilot/gpt-4o-mini",        // Fast + free (optimal for parallel load)
+    "github-copilot/gpt-5-mini",         // Fast + free (0x FREE! optimal for parallel)
+    "github-copilot/gpt-4.1",            // Fast + free (0x FREE!)
     "google/gemini-3-flash-preview",     // Fast
-    "github-copilot/gpt-4o",             // Good speed, free (distribute load)
+    "github-copilot/gemini-3-flash",     // Fast via Copilot (0.33x)
+    "github-copilot/grok-code-fast-1",   // Very fast via Copilot (0.25x)
     "google/gemini-2.5-flash",           // Fast
+    "github-copilot/claude-haiku-4.5",   // Fast Claude via Copilot (0.33x)
     "anthropic/claude-haiku-4-5",        // Fast Claude
     "opencode/glm-4.7-flash",            // Fast GLM
     "opencode/glm-4.6",                  // Budget

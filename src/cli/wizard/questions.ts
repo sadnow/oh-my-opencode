@@ -54,7 +54,7 @@ export interface WizardAnswers {
 export const ZEN_MODELS = [
   { value: "big-pickle", label: "big-pickle", hint: "Versatile general-purpose model" },
   { value: "gpt-5-nano", label: "gpt-5-nano", hint: "Fast, lightweight GPT" },
-  { value: "gemini-3-flash", label: "gemini-3-flash", hint: "Ultra-fast Gemini" },
+  { value: "gemini-3-flash-preview", label: "gemini-3-flash-preview", hint: "Ultra-fast Gemini" },
   { value: "glm-4.6", label: "glm-4.6", hint: "Budget-friendly GLM" },
   { value: "glm-4.7", label: "glm-4.7", hint: "Advanced GLM for complex tasks" },
   { value: "kimi-k2-0905", label: "kimi-k2-0905", hint: "Balanced Kimi model" },
@@ -176,7 +176,7 @@ export async function askZenModels(
   const models = await p.multiselect({
     message: "Which OpenCode Zen models do you want to use?",
     options: ZEN_MODELS,
-    initialValues: ["big-pickle", "gemini-3-flash"],
+    initialValues: ["big-pickle", "gemini-3-flash-preview"],
     required: false,
   })
 
