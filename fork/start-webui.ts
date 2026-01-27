@@ -1,19 +1,25 @@
 /**
- * Start WebUI Server (for testing)
+ * Start WebUI Server
+ * Fork-specific WebUI launcher with usage monitoring
  */
 
-import { startWebUI } from "./src/webui"
-import { initHotConfigManager } from "./src/features/hot-config"
-import { UsageTracker } from "./src/features/usage-tracker"
-import { BudgetOrchestrator } from "./src/features/budget-orchestrator"
-import { getClaudeMaxUsageTracker } from "./src/features/claude-max-usage"
-import { getCopilotUsageTracker } from "./src/features/copilot-usage"
-import { loadPluginConfig } from "./src/plugin-config"
+import { dirname, join } from "path"
+import { startWebUI } from "../src/webui"
+import { initHotConfigManager } from "../src/features/hot-config"
+import { UsageTracker } from "../src/features/usage-tracker"
+import { BudgetOrchestrator } from "../src/features/budget-orchestrator"
+import { getClaudeMaxUsageTracker } from "../src/features/claude-max-usage"
+import { getCopilotUsageTracker } from "../src/features/copilot-usage"
+import { loadPluginConfig } from "../src/plugin-config"
+
+// Get project root (parent of fork/)
+const projectRoot = dirname(__dirname)
 
 console.log("Starting WebUI Server...")
+console.log(`Project root: ${projectRoot}`)
 
-// Load config
-const pluginConfig = loadPluginConfig(process.cwd(), null)
+// Load config from project root
+const pluginConfig = loadPluginConfig(projectRoot, null)
 
 // Initialize components
 const usageTracker = new UsageTracker({
@@ -30,7 +36,7 @@ const budgetOrchestrator = pluginConfig.budget?.enabled
   : null
 
 const hotConfigManager = initHotConfigManager({
-  directory: process.cwd(),
+  directory: projectRoot,
   initialConfig: pluginConfig,
   watchFiles: true,
 })
