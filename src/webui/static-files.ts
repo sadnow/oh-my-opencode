@@ -1131,6 +1131,166 @@ footer kbd {
   padding: 2px 5px;
 }
 
+/* Toggle Switch */
+.toggle-switch {
+  position: relative;
+  display: inline-block;
+  width: 48px;
+  height: 26px;
+}
+
+.toggle-switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.toggle-slider {
+  position: absolute;
+  cursor: pointer;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 26px;
+  transition: 0.3s;
+}
+
+.toggle-slider:before {
+  position: absolute;
+  content: "";
+  height: 18px;
+  width: 18px;
+  left: 3px;
+  bottom: 3px;
+  background-color: var(--text-secondary);
+  border-radius: 50%;
+  transition: 0.3s;
+}
+
+.toggle-switch input:checked + .toggle-slider {
+  background-color: var(--accent);
+  border-color: var(--accent);
+}
+
+.toggle-switch input:checked + .toggle-slider:before {
+  transform: translateX(22px);
+  background-color: white;
+}
+
+/* Learning Mode Buttons */
+.learning-mode-btn {
+  padding: 12px 16px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+  text-align: left;
+  min-width: 140px;
+}
+
+.learning-mode-btn:hover {
+  border-color: var(--accent);
+  background: var(--bg-card);
+}
+
+.learning-mode-btn.active {
+  border-color: var(--accent);
+  background: var(--accent);
+}
+
+.learning-mode-btn.active span {
+  color: white !important;
+}
+
+/* Analytics Cards */
+.analytics-card {
+  transition: border-color 0.2s;
+}
+
+.analytics-card:hover {
+  border-color: var(--accent);
+}
+
+/* Category Pills */
+.category-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  background: var(--bg-secondary);
+  border-radius: 16px;
+  font-size: 13px;
+}
+
+.category-pill .cat-name {
+  color: var(--text-primary);
+}
+
+.category-pill .cat-cost {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+/* Efficiency Model Card */
+.efficiency-card {
+  background: var(--bg-secondary);
+  padding: 10px 14px;
+  border-radius: 8px;
+  text-align: center;
+}
+
+.efficiency-card .model-name {
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin-bottom: 4px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.efficiency-card .model-efficiency {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--success);
+}
+
+/* Quota Slider Styling */
+input[type="range"] {
+  -webkit-appearance: none;
+  width: 100%;
+  height: 6px;
+  border-radius: 3px;
+  background: var(--bg-primary);
+  outline: none;
+}
+
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--accent);
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+input[type="range"]::-webkit-slider-thumb:hover {
+  background: var(--accent-hover);
+}
+
+input[type="range"]::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--accent);
+  cursor: pointer;
+  border: none;
+}
+
 @media (max-width: 768px) {
   nav {
     flex-direction: column;
@@ -1156,6 +1316,10 @@ footer kbd {
 
   .shortcuts-grid {
     grid-template-columns: 1fr;
+  }
+
+  .learning-mode-btn {
+    min-width: 100%;
   }
 }
 `
@@ -1558,6 +1722,137 @@ export const BUDGET_DASHBOARD_HTML = `<!DOCTYPE html>
               <button onclick="toggleTrendsChart()" style="padding: 6px 12px; font-size: 13px;">Hide</button>
             </div>
             <canvas id="spending-chart" height="100"></canvas>
+          </div>
+
+          <!-- Tier Management Section (NEW) -->
+          <div class="controls-section" style="margin-bottom: 20px;">
+            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px;">
+              <h3 style="margin: 0;">Tier Management</h3>
+              <button onclick="toggleTierManagement()" id="tier-mgmt-toggle" style="padding: 6px 12px; font-size: 13px;">Show</button>
+            </div>
+            <div id="tier-mgmt-content" style="display: none;">
+              <!-- Auto-upgrade/downgrade toggles -->
+              <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; margin-bottom: 20px;">
+                <div class="toggle-card" style="background: var(--bg-secondary); padding: 16px; border-radius: 8px;">
+                  <div style="display: flex; align-items: center; justify-content: space-between;">
+                    <div>
+                      <div style="font-weight: 600;">Auto-Upgrade</div>
+                      <div style="font-size: 12px; color: var(--text-secondary);" title="Automatically switch to higher-quality models when budget headroom allows.">Switch to premium when budget allows</div>
+                    </div>
+                    <label class="toggle-switch">
+                      <input type="checkbox" id="auto-upgrade-toggle" onchange="setAutoUpgrade(this.checked)">
+                      <span class="toggle-slider"></span>
+                    </label>
+                  </div>
+                </div>
+                <div class="toggle-card" style="background: var(--bg-secondary); padding: 16px; border-radius: 8px;">
+                  <div style="display: flex; align-items: center; justify-content: space-between;">
+                    <div>
+                      <div style="font-weight: 600;">Auto-Downgrade</div>
+                      <div style="font-size: 12px; color: var(--text-secondary);" title="Automatically switch to cheaper models when approaching budget limits.">Switch to cheaper when over budget</div>
+                    </div>
+                    <label class="toggle-switch">
+                      <input type="checkbox" id="auto-downgrade-toggle" onchange="setAutoDowngrade(this.checked)" checked>
+                      <span class="toggle-slider"></span>
+                    </label>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Learning Mode Selector -->
+              <div style="margin-bottom: 20px;">
+                <div style="font-weight: 600; margin-bottom: 8px;">Learning Mode</div>
+                <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+                  <button class="learning-mode-btn" data-mode="conservative" onclick="setLearningMode('conservative')">
+                    <span style="display: block; font-weight: 600;">Conservative</span>
+                    <span style="font-size: 11px; color: var(--text-secondary);">Slow learning, high stability</span>
+                  </button>
+                  <button class="learning-mode-btn active" data-mode="balanced" onclick="setLearningMode('balanced')">
+                    <span style="display: block; font-weight: 600;">Balanced</span>
+                    <span style="font-size: 11px; color: var(--text-secondary);">Recommended default</span>
+                  </button>
+                  <button class="learning-mode-btn" data-mode="aggressive" onclick="setLearningMode('aggressive')">
+                    <span style="display: block; font-weight: 600;">Aggressive</span>
+                    <span style="font-size: 11px; color: var(--text-secondary);">Fast learning, quick adjustments</span>
+                  </button>
+                </div>
+              </div>
+
+              <!-- Quota Targets -->
+              <div style="margin-bottom: 20px;">
+                <div style="font-weight: 600; margin-bottom: 8px;">Quota Targets</div>
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px;">
+                  <div class="quota-target" style="background: var(--bg-secondary); padding: 12px; border-radius: 8px;">
+                    <label style="font-size: 13px; display: block; margin-bottom: 6px;">Claude Max Weekly</label>
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                      <input type="range" id="claude-quota-slider" min="0" max="100" value="70" oninput="updateQuotaDisplay('claude')">
+                      <span id="claude-quota-value" style="min-width: 40px;">70%</span>
+                    </div>
+                  </div>
+                  <div class="quota-target" style="background: var(--bg-secondary); padding: 12px; border-radius: 8px;">
+                    <label style="font-size: 13px; display: block; margin-bottom: 6px;">Copilot Monthly</label>
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                      <input type="range" id="copilot-quota-slider" min="0" max="100" value="80" oninput="updateQuotaDisplay('copilot')">
+                      <span id="copilot-quota-value" style="min-width: 40px;">80%</span>
+                    </div>
+                  </div>
+                </div>
+                <button onclick="saveQuotaTargets()" style="margin-top: 12px;">Save Quota Targets</button>
+              </div>
+
+              <!-- Stability Status Display -->
+              <div id="stability-status" style="background: var(--bg-secondary); padding: 12px; border-radius: 8px; display: none;">
+                <div style="font-size: 13px; color: var(--text-secondary);">Stability Status</div>
+                <div id="stability-info" style="font-size: 14px; margin-top: 4px;">-- of -- checks until upgrade allowed</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Analytics Section (NEW) -->
+          <div class="controls-section" style="margin-bottom: 20px;">
+            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px;">
+              <h3 style="margin: 0;">Analytics</h3>
+              <button onclick="toggleAnalytics()" id="analytics-toggle" style="padding: 6px 12px; font-size: 13px;">Show</button>
+            </div>
+            <div id="analytics-content" style="display: none;">
+              <!-- Period Summary -->
+              <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 16px; margin-bottom: 20px;">
+                <div class="analytics-card" style="background: var(--bg-secondary); padding: 16px; border-radius: 8px;">
+                  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                    <h4 style="margin: 0; font-size: 14px; color: var(--text-secondary);">This Week</h4>
+                    <select id="period-selector" onchange="loadAnalytics(this.value)" style="padding: 4px 8px; font-size: 12px;">
+                      <option value="weekly">Weekly</option>
+                      <option value="monthly">Monthly</option>
+                    </select>
+                  </div>
+                  <div id="period-cost" style="font-size: 24px; font-weight: 600;">$--</div>
+                  <div id="period-change" style="font-size: 13px; color: var(--text-secondary);">-- vs previous</div>
+                  <div id="period-daily-avg" style="font-size: 12px; color: var(--text-secondary); margin-top: 4px;">Avg $--/day</div>
+                </div>
+                <div class="analytics-card" style="background: var(--bg-secondary); padding: 16px; border-radius: 8px;">
+                  <h4 style="margin: 0 0 8px 0; font-size: 14px; color: var(--text-secondary);">Sessions</h4>
+                  <div id="session-count" style="font-size: 24px; font-weight: 600;">--</div>
+                  <div id="session-avg-cost" style="font-size: 13px; color: var(--text-secondary);">Avg $-- per session</div>
+                  <div id="session-avg-duration" style="font-size: 12px; color: var(--text-secondary); margin-top: 4px;">Avg -- min duration</div>
+                </div>
+              </div>
+
+              <!-- Category Breakdown -->
+              <div style="margin-bottom: 20px;">
+                <h4 style="margin: 0 0 12px 0; font-size: 14px; color: var(--text-secondary);">Cost by Category</h4>
+                <div id="category-breakdown" style="display: flex; flex-wrap: wrap; gap: 8px;">
+                  <span style="color: var(--text-secondary); font-size: 13px;">Loading...</span>
+                </div>
+              </div>
+
+              <!-- Model Efficiency -->
+              <div>
+                <h4 style="margin: 0 0 12px 0; font-size: 14px; color: var(--text-secondary);">Model Efficiency (Tokens/$1)</h4>
+                <div id="model-efficiency" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px;">
+                  <span style="color: var(--text-secondary); font-size: 13px;">Loading...</span>
+                </div>
+              </div>
+            </div>
           </div>
 
           <!-- Override Controls (collapsible) -->
@@ -2425,5 +2720,217 @@ async function loadCopilotHistory() {
     console.error('Copilot history error:', err);
     document.getElementById('copilot-history-info').textContent = 'Error loading history';
   }
+}
+
+// Tier Management Functions
+let tierMgmtExpanded = false;
+let analyticsExpanded = false;
+
+function toggleTierManagement() {
+  tierMgmtExpanded = !tierMgmtExpanded;
+  document.getElementById('tier-mgmt-content').style.display = tierMgmtExpanded ? 'block' : 'none';
+  document.getElementById('tier-mgmt-toggle').textContent = tierMgmtExpanded ? 'Hide' : 'Show';
+  if (tierMgmtExpanded) {
+    loadAdaptiveSettings();
+  }
+}
+
+function toggleAnalytics() {
+  analyticsExpanded = !analyticsExpanded;
+  document.getElementById('analytics-content').style.display = analyticsExpanded ? 'block' : 'none';
+  document.getElementById('analytics-toggle').textContent = analyticsExpanded ? 'Hide' : 'Show';
+  if (analyticsExpanded) {
+    loadAnalytics('weekly');
+  }
+}
+
+async function loadAdaptiveSettings() {
+  try {
+    const res = await fetch(API_BASE + '/adaptive/settings');
+    const { success, data } = await res.json();
+    if (!success) return;
+
+    // Set toggle states
+    document.getElementById('auto-upgrade-toggle').checked = data.autoUpgrade || false;
+    document.getElementById('auto-downgrade-toggle').checked = data.autoDowngrade !== false;
+
+    // Set learning mode
+    const mode = data.learningMode || 'balanced';
+    document.querySelectorAll('.learning-mode-btn').forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.mode === mode);
+    });
+
+    // Set quota sliders
+    if (data.quotaTargets) {
+      if (data.quotaTargets.claude_max_weekly_percent !== undefined) {
+        document.getElementById('claude-quota-slider').value = data.quotaTargets.claude_max_weekly_percent;
+        document.getElementById('claude-quota-value').textContent = data.quotaTargets.claude_max_weekly_percent + '%';
+      }
+      if (data.quotaTargets.copilot_monthly_percent !== undefined) {
+        document.getElementById('copilot-quota-slider').value = data.quotaTargets.copilot_monthly_percent;
+        document.getElementById('copilot-quota-value').textContent = data.quotaTargets.copilot_monthly_percent + '%';
+      }
+    }
+
+    // Show stability status if available
+    const stabilityEl = document.getElementById('stability-status');
+    const infoEl = document.getElementById('stability-info');
+    if (data.stabilityStatus && Object.keys(data.stabilityStatus).length > 0) {
+      stabilityEl.style.display = 'block';
+      const entries = Object.entries(data.stabilityStatus);
+      const statusText = entries.map(([provider, status]) => {
+        return provider + ': ' + status.current + ' of ' + status.required + ' checks';
+      }).join(' | ');
+      infoEl.textContent = statusText || 'No stability data';
+    } else {
+      stabilityEl.style.display = 'none';
+    }
+  } catch (err) {
+    console.error('Load adaptive settings error:', err);
+  }
+}
+
+async function setAutoUpgrade(enabled) {
+  try {
+    const res = await fetch(API_BASE + '/adaptive/auto-upgrade', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ enabled: enabled }),
+    });
+    const result = await res.json();
+    showToast(result.success ? result.message : result.error);
+  } catch (err) {
+    showToast('Error: ' + err);
+  }
+}
+
+async function setAutoDowngrade(enabled) {
+  try {
+    const res = await fetch(API_BASE + '/adaptive/auto-downgrade', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ enabled: enabled }),
+    });
+    const result = await res.json();
+    showToast(result.success ? result.message : result.error);
+  } catch (err) {
+    showToast('Error: ' + err);
+  }
+}
+
+async function setLearningMode(mode) {
+  try {
+    document.querySelectorAll('.learning-mode-btn').forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.mode === mode);
+    });
+
+    const res = await fetch(API_BASE + '/adaptive/learning-mode', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ mode: mode }),
+    });
+    const result = await res.json();
+    showToast(result.success ? result.message : result.error);
+  } catch (err) {
+    showToast('Error: ' + err);
+  }
+}
+
+function updateQuotaDisplay(provider) {
+  const slider = document.getElementById(provider + '-quota-slider');
+  const valueEl = document.getElementById(provider + '-quota-value');
+  valueEl.textContent = slider.value + '%';
+}
+
+async function saveQuotaTargets() {
+  try {
+    const claudeValue = parseInt(document.getElementById('claude-quota-slider').value);
+    const copilotValue = parseInt(document.getElementById('copilot-quota-slider').value);
+
+    const res = await fetch(API_BASE + '/adaptive/quota-targets', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        claude_max_weekly_percent: claudeValue,
+        copilot_monthly_percent: copilotValue,
+      }),
+    });
+    const result = await res.json();
+    showToast(result.success ? result.message : result.error);
+  } catch (err) {
+    showToast('Error: ' + err);
+  }
+}
+
+// Analytics Functions
+async function loadAnalytics(period) {
+  try {
+    const [summaryRes, sessionsRes, categoryRes, efficiencyRes] = await Promise.all([
+      fetch(API_BASE + '/stats/summary?period=' + period).then(r => r.json()).catch(() => null),
+      fetch(API_BASE + '/stats/sessions').then(r => r.json()).catch(() => null),
+      fetch(API_BASE + '/stats/by-category').then(r => r.json()).catch(() => null),
+      fetch(API_BASE + '/stats/efficiency').then(r => r.json()).catch(() => null),
+    ]);
+
+    // Period Summary
+    if (summaryRes?.success && summaryRes.data) {
+      const d = summaryRes.data;
+      document.getElementById('period-cost').textContent = '$' + (d.totalCost || 0).toFixed(2);
+
+      const changeEl = document.getElementById('period-change');
+      if (d.previousCost !== undefined && d.previousCost > 0) {
+        const pctChange = ((d.totalCost - d.previousCost) / d.previousCost * 100);
+        const arrow = pctChange > 0 ? '↑' : pctChange < 0 ? '↓' : '→';
+        changeEl.textContent = arrow + ' ' + Math.abs(pctChange).toFixed(0) + '% vs previous ' + period;
+        changeEl.style.color = pctChange > 10 ? 'var(--error)' : pctChange < -10 ? 'var(--success)' : 'var(--text-secondary)';
+      } else {
+        changeEl.textContent = 'No previous data';
+      }
+
+      document.getElementById('period-daily-avg').textContent = 'Avg $' + (d.dailyAverage || 0).toFixed(2) + '/day';
+    }
+
+    // Sessions
+    if (sessionsRes?.success && sessionsRes.data) {
+      const s = sessionsRes.data;
+      document.getElementById('session-count').textContent = s.totalSessions || '--';
+      document.getElementById('session-avg-cost').textContent = 'Avg $' + (s.avgCostPerSession || 0).toFixed(2) + ' per session';
+      document.getElementById('session-avg-duration').textContent = 'Avg ' + (s.avgDurationMinutes || 0).toFixed(0) + ' min duration';
+    }
+
+    // Category Breakdown
+    if (categoryRes?.success && categoryRes.data?.categories) {
+      const cats = categoryRes.data.categories;
+      const container = document.getElementById('category-breakdown');
+      if (cats.length === 0) {
+        container.innerHTML = '<span style="color: var(--text-secondary);">No category data</span>';
+      } else {
+        container.innerHTML = cats.slice(0, 6).map(c => {
+          return '<span class="category-pill"><span class="cat-name">' + c.category + '</span><span class="cat-cost">$' + c.cost.toFixed(2) + '</span></span>';
+        }).join('');
+      }
+    }
+
+    // Model Efficiency
+    if (efficiencyRes?.success && efficiencyRes.data?.byModel) {
+      const models = efficiencyRes.data.byModel;
+      const container = document.getElementById('model-efficiency');
+      if (models.length === 0) {
+        container.innerHTML = '<span style="color: var(--text-secondary);">No efficiency data</span>';
+      } else {
+        container.innerHTML = models.slice(0, 6).map(m => {
+          return '<div class="efficiency-card"><div class="model-name">' + (m.model || 'unknown') + '</div><div class="model-efficiency">' + formatNumber(m.tokensPer$1 || 0) + '</div></div>';
+        }).join('');
+      }
+    }
+  } catch (err) {
+    console.error('Analytics load error:', err);
+  }
+}
+
+function formatNumber(num) {
+  if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M';
+  if (num >= 1000) return (num / 1000).toFixed(1) + 'K';
+  return num.toFixed(0);
 }
 `
