@@ -1403,11 +1403,7 @@ export const BUDGET_DASHBOARD_HTML = `<!DOCTYPE html>
       </div>
       <nav>
         <a href="/" class="tab-btn">Overview</a>
-        <button class="tab-btn active">Usage & Budget</button>
-        <a href="/#presets" class="tab-btn">Presets</a>
-        <a href="/#features" class="tab-btn">Features</a>
-        <a href="/#advanced" class="tab-btn">Config</a>
-        <a href="/#docs" class="tab-btn">Docs</a>
+        <span class="tab-btn active" style="cursor: default;">Usage & Budget</span>
       </nav>
     </header>
 
@@ -1421,14 +1417,13 @@ export const BUDGET_DASHBOARD_HTML = `<!DOCTYPE html>
         </div>
 
         <div id="enabled-content">
-          <div class="global-summary" id="global-summary"></div>
 
           <!-- Claude Max Subscription Section (Real-time from Anthropic API) -->
           <div id="claude-max-section" class="budget-card" style="margin-bottom: 30px; display: none;">
             <h3>
-              <span style="color: #ff9d00;">Claude Max</span> Subscription Usage
+              <span style="color: #ff9d00;">Claude Max</span> Subscription
               <span class="tier-badge tier-premium" id="claude-max-tier">MAX 20X</span>
-              <span style="font-size: 11px; color: var(--text-secondary); margin-left: 8px;">(Real-time from Anthropic)</span>
+              <a href="https://claude.ai/settings/usage" target="_blank" style="margin-left: auto; font-size: 12px; color: var(--accent); text-decoration: none;">Open Claude Console &rarr;</a>
             </h3>
             <!-- Usage Meters -->
             <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; margin-bottom: 16px;">
@@ -1503,7 +1498,7 @@ export const BUDGET_DASHBOARD_HTML = `<!DOCTYPE html>
             <h3>
               <span style="color: #238636;">GitHub Copilot</span> Premium Requests
               <span class="tier-badge" style="background: linear-gradient(135deg, #238636, #2ea043);" id="copilot-plan-badge">PRO</span>
-              <span style="font-size: 11px; color: var(--text-secondary); margin-left: 8px;">(Monthly reset)</span>
+              <a href="https://github.com/settings/copilot" target="_blank" style="margin-left: auto; font-size: 12px; color: var(--accent); text-decoration: none;">Copilot Settings &rarr;</a>
             </h3>
             <!-- Usage Meter -->
             <div style="margin-bottom: 16px;">
@@ -1544,17 +1539,33 @@ export const BUDGET_DASHBOARD_HTML = `<!DOCTYPE html>
             <div id="copilot-error" style="display: none; margin-top: 12px; padding: 8px 12px; background: rgba(255,100,100,0.1); border-radius: 6px; color: #ff6b6b; font-size: 12px;"></div>
           </div>
 
-          <!-- Provider API Usage Cards -->
-          <div style="font-size: 14px; color: var(--text-secondary); margin-bottom: 12px;">API Usage by Provider</div>
-          <div class="budget-grid" id="providers-grid"></div>
+          <!-- Other Providers (collapsible) -->
+          <div id="other-providers-section" style="margin-bottom: 30px; display: none;">
+            <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 12px;">
+              <button onclick="toggleOtherProviders()" id="other-providers-toggle" style="padding: 6px 12px; font-size: 13px;">
+                <span id="other-providers-arrow">&#9654;</span> Other API Providers
+              </button>
+              <span style="font-size: 12px; color: var(--text-secondary);" id="other-providers-summary"></span>
+            </div>
+            <div id="providers-grid" class="budget-grid" style="display: none;"></div>
+          </div>
 
-          <div class="chart-container">
-            <h3>Spending Trends</h3>
+          <!-- Spending Trends (collapsible) -->
+          <div class="chart-container" id="trends-section" style="display: none;">
+            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px;">
+              <h3 style="margin: 0;">Spending Trends</h3>
+              <button onclick="toggleTrendsChart()" style="padding: 6px 12px; font-size: 13px;">Hide</button>
+            </div>
             <canvas id="spending-chart" height="100"></canvas>
           </div>
 
+          <!-- Override Controls (collapsible) -->
           <div class="controls-section">
-            <h3>Override Controls</h3>
+            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px;">
+              <h3 style="margin: 0;">Advanced Controls</h3>
+              <button onclick="toggleControls()" id="controls-toggle" style="padding: 6px 12px; font-size: 13px;">Show</button>
+            </div>
+            <div id="controls-content" style="display: none;">
             <div class="control-group">
               <label>
                 Force Tier:
@@ -1575,6 +1586,7 @@ export const BUDGET_DASHBOARD_HTML = `<!DOCTYPE html>
               <button onclick="resetLearning()">Reset Learning</button>
             </div>
             <div id="override-status" class="override-status" style="display: none;"></div>
+            </div>
           </div>
         </div>
       </div>
@@ -1680,62 +1692,76 @@ async function loadDashboard() {
   }
 }
 
+// Provider console URLs
+const PROVIDER_URLS = {
+  openai: 'https://platform.openai.com/usage',
+  google: 'https://console.cloud.google.com/apis/dashboard',
+  opencode: null, // Free via opencode
+  anthropic: null, // We use Claude Max section instead
+};
+
 function renderGlobalSummary(data) {
   const container = document.getElementById('global-summary');
-  const tierClass = 'tier-' + data.globalTier;
+  // Hide global summary - we show tier in status bar already
+  container.style.display = 'none';
+}
 
-  container.innerHTML = '<div class="global-tier">' +
-    '<span>Recommended Tier:</span>' +
-    '<span class="tier-badge ' + tierClass + '">' + data.globalTier + '</span>' +
-    '</div>' +
-    '<div>' +
-    '<span style="color: var(--text-secondary);">Providers: </span>' +
-    '<span style="font-weight: 600;">' + data.providers.length + '</span>' +
-    '</div>';
+// Toggle states
+let otherProvidersExpanded = false;
+let controlsExpanded = false;
+
+function toggleOtherProviders() {
+  otherProvidersExpanded = !otherProvidersExpanded;
+  document.getElementById('providers-grid').style.display = otherProvidersExpanded ? 'grid' : 'none';
+  document.getElementById('other-providers-arrow').innerHTML = otherProvidersExpanded ? '&#9660;' : '&#9654;';
+}
+
+function toggleControls() {
+  controlsExpanded = !controlsExpanded;
+  document.getElementById('controls-content').style.display = controlsExpanded ? 'block' : 'none';
+  document.getElementById('controls-toggle').textContent = controlsExpanded ? 'Hide' : 'Show';
+}
+
+function toggleTrendsChart() {
+  document.getElementById('trends-section').style.display = 'none';
 }
 
 function renderProviders(providers) {
   const container = document.getElementById('providers-grid');
+  const section = document.getElementById('other-providers-section');
+  const summary = document.getElementById('other-providers-summary');
 
-  if (!providers.length) {
-    container.innerHTML = '<div class="card"><p>No providers configured</p></div>';
+  // Filter out anthropic (we have Claude Max) and opencode (free)
+  const filteredProviders = providers.filter(function(p) {
+    const name = p.provider.toLowerCase();
+    return name !== 'anthropic' && name !== 'opencode';
+  });
+
+  // Only show section if there are providers with actual usage
+  const activeProviders = filteredProviders.filter(function(p) {
+    return p.used > 0 || p.budget > 0;
+  });
+
+  if (activeProviders.length === 0) {
+    section.style.display = 'none';
     return;
   }
 
-  container.innerHTML = providers.map(function(p) {
+  section.style.display = 'block';
+  summary.textContent = activeProviders.length + ' provider' + (activeProviders.length === 1 ? '' : 's') + ' configured';
+
+  container.innerHTML = activeProviders.map(function(p) {
     const progressClass = p.percentage < 70 ? 'green' : p.percentage < 90 ? 'yellow' : 'red';
     const trendClass = 'trend-' + p.trend.replace('-', '');
     const trendIcon = { under: '↓', 'on-track': '→', over: '↑' }[p.trend] || '•';
     const tierClass = 'tier-' + p.recommendedTier;
-
-    let adaptiveHtml = '';
-    if (p.adaptive) {
-      adaptiveHtml = '<div class="adaptive-section">' +
-        '<h4>Adaptive Intelligence</h4>' +
-        '<div class="metrics-grid">' +
-        '<div class="metric-item">' +
-        '<div class="metric-label">Accumulated Credits</div>' +
-        '<div class="metric-value" style="color: #4caf50;">+$' + p.adaptive.accumulatedCredits.toFixed(2) + '</div>' +
-        '</div>' +
-        '<div class="metric-item">' +
-        '<div class="metric-label">Budget Headroom</div>' +
-        '<div class="metric-value">$' + p.adaptive.budgetHeadroom.toFixed(2) + '</div>' +
-        '</div>' +
-        '<div class="metric-item">' +
-        '<div class="metric-label">Spending Velocity</div>' +
-        '<div class="metric-value">$' + p.adaptive.spendingVelocity.toFixed(2) + '/hr</div>' +
-        '</div>' +
-        '<div class="metric-item">' +
-        '<div class="metric-label">Learning Progress</div>' +
-        '<div class="metric-value">' + (p.adaptive.learningProgress * 100).toFixed(0) + '%</div>' +
-        '</div>' +
-        '</div>' +
-        '</div>';
-    }
+    const consoleUrl = PROVIDER_URLS[p.provider.toLowerCase()];
+    const consoleLink = consoleUrl ? '<a href="' + consoleUrl + '" target="_blank" style="margin-left: auto; font-size: 11px; color: var(--accent); text-decoration: none;">Console &rarr;</a>' : '';
 
     return '<div class="budget-card">' +
-      '<h3>' + p.provider.toUpperCase() +
-      '<span class="tier-badge ' + tierClass + '">' + p.recommendedTier + '</span>' +
+      '<h3 style="display: flex; align-items: center;">' + p.provider.toUpperCase() +
+      '<span class="tier-badge ' + tierClass + '" style="margin-left: 8px;">' + p.recommendedTier + '</span>' +
+      consoleLink +
       '</h3>' +
       '<div class="progress-container">' +
       '<div class="progress-bar">' +
@@ -1746,25 +1772,11 @@ function renderProviders(providers) {
       '<span class="budget-total">$' + p.budget.toFixed(2) + ' budget</span>' +
       '</div>' +
       '</div>' +
-      '<div class="metrics-grid">' +
-      '<div class="metric-item">' +
-      '<div class="metric-label">Percentage Used</div>' +
-      '<div class="metric-value">' + p.percentage.toFixed(1) + '%</div>' +
+      '<div style="display: flex; gap: 16px; margin-top: 12px; font-size: 13px; color: var(--text-secondary);">' +
+      '<span>' + p.percentage.toFixed(1) + '% used</span>' +
+      '<span>' + p.daysRemaining + ' days left</span>' +
+      '<span class="trend-indicator ' + trendClass + '">' + trendIcon + ' ' + p.trend.replace('-', ' ') + '</span>' +
       '</div>' +
-      '<div class="metric-item">' +
-      '<div class="metric-label">Days Remaining</div>' +
-      '<div class="metric-value">' + p.daysRemaining + '</div>' +
-      '</div>' +
-      '<div class="metric-item">' +
-      '<div class="metric-label">Trend</div>' +
-      '<div class="metric-value trend-indicator ' + trendClass + '">' + trendIcon + ' ' + p.trend.replace('-', ' ') + '</div>' +
-      '</div>' +
-      '<div class="metric-item">' +
-      '<div class="metric-label">Period</div>' +
-      '<div class="metric-value">' + p.daysElapsed + ' days</div>' +
-      '</div>' +
-      '</div>' +
-      adaptiveHtml +
       '</div>';
   }).join('');
 }

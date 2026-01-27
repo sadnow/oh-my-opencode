@@ -43,7 +43,7 @@ const copilotTracker = getCopilotUsageTracker()
 copilotTracker.startLiveRefresh() // Refresh usage from API every 60 seconds
 
 // Start server
-const port = pluginConfig.webui?.port ?? 3847
+const port = process.env.WEBUI_PORT ? parseInt(process.env.WEBUI_PORT) : (pluginConfig.webui?.port ?? 3847)
 const bind = pluginConfig.webui?.bind ?? "localhost"
 
 const server = startWebUI({
