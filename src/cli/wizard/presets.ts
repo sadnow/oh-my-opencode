@@ -183,8 +183,8 @@ export const DEFAULT_PRESET: PresetConfig = {
       model: "opencode/kimi-k2-thinking",
     },
     "parallel-worker": {
-      description: "Background agents - fast parallel execution",
-      model: "google/gemini-3-flash-preview",
+      description: "Background agents - copilot for load distribution (free with subscription)",
+      model: "github-copilot/gpt-4o-mini",
     },
     exploration: {
       description: "Codebase exploration - speed matters",
@@ -230,6 +230,10 @@ export const BALANCED_PRESET: PresetConfig = {
       description: "Documentation and content creation",
       model: "anthropic/claude-sonnet-4-5",
     },
+    "parallel-worker": {
+      description: "Background agents - copilot for load distribution",
+      model: "github-copilot/gpt-4o-mini",
+    },
   },
 }
 
@@ -260,6 +264,10 @@ export const CLAUDE_HEAVY_PRESET: PresetConfig = {
     writing: {
       description: "Documentation and content creation",
       model: "anthropic/claude-sonnet-4-5",
+    },
+    "parallel-worker": {
+      description: "Background agents - copilot for load distribution",
+      model: "github-copilot/claude-3.5-sonnet",
     },
   },
 }
@@ -307,6 +315,10 @@ export const BUDGET_CONSCIOUS_PRESET: PresetConfig = {
     "unspecified-high": {
       description: "Complex tasks - budget reasoning",
       model: "opencode/kimi-k2-thinking",
+    },
+    "parallel-worker": {
+      description: "Background parallel tasks - copilot free with subscription, distributes load",
+      model: "github-copilot/gpt-4o-mini",
     },
   },
 }
@@ -381,8 +393,8 @@ export const SPEED_OPTIMIZED_PRESET: PresetConfig = {
       model: "google/gemini-3-flash-preview",
     },
     "parallel-worker": {
-      description: "Parallel background tasks",
-      model: "google/gemini-2.5-flash-lite",
+      description: "Parallel background tasks - copilot for load distribution",
+      model: "github-copilot/gpt-4o-mini",
     },
   },
 }
@@ -449,8 +461,8 @@ export const PARALLEL_AGENT_PRESET: PresetConfig = {
       model: "opencode/glm-4.7",
     },
     "parallel-worker": {
-      description: "Background agents - optimized for I/O-bound parallel tasks",
-      model: "google/gemini-3-flash-preview",
+      description: "Background agents - copilot + gemini for load distribution",
+      model: "github-copilot/gpt-4o-mini",
     },
   },
 }

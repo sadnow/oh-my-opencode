@@ -37,12 +37,15 @@ import { getRoutingLogger } from "./routing-logger"
 export const USE_CASE_FALLBACKS = {
   /** Librarian - docs search, GitHub, needs moderate reasoning + tool use */
   librarian: [
-    "anthropic/claude-sonnet-4-5",      // Best overall for tool use
+    "anthropic/claude-sonnet-4-5",       // Best overall for tool use
     "openai/gpt-5.2",                    // Strong tool use
+    "github-copilot/claude-3.5-sonnet",  // Good tool use, free with subscription
+    "github-copilot/gpt-4o",             // Strong alternative, free
     "google/gemini-3-flash-preview",     // Fast with good tool use
     "opencode/glm-4.7",                  // Good at agentic tasks
     "opencode/kimi-k2-thinking",         // Thinking model, good at analysis
     "anthropic/claude-haiku-4-5",        // Fast Claude
+    "github-copilot/gpt-4o-mini",        // Budget copilot option
     "google/gemini-2.5-flash",           // Previous gen flash
     "opencode/big-pickle",               // Ultimate fallback
   ],
@@ -50,7 +53,9 @@ export const USE_CASE_FALLBACKS = {
   /** Explorer - fast codebase search, needs SPEED not deep reasoning */
   explorer: [
     "google/gemini-3-flash-preview",     // Fastest current gen
+    "github-copilot/gpt-4o-mini",        // Fast + free with subscription (load distribution)
     "google/gemini-2.5-flash",           // Fast previous gen
+    "github-copilot/gpt-4o",             // Good speed, free (load distribution)
     "openai/gpt-4.1-nano",               // Very fast
     "anthropic/claude-haiku-4-5",        // Fast Claude
     "opencode/glm-4.7-flash",            // Fast GLM
@@ -62,10 +67,12 @@ export const USE_CASE_FALLBACKS = {
   /** Oracle - debugging, architecture, needs BEST reasoning */
   oracle: [
     "anthropic/claude-opus-4-5",         // Best reasoning overall
-    "openai/o3",                          // Strong reasoning
-    "openai/gpt-5.2",                     // Very strong
+    "openai/o3",                         // Strong reasoning
+    "openai/gpt-5.2",                    // Very strong
+    "github-copilot/o1",                 // Premium copilot reasoning, free
     "opencode/kimi-k2-thinking",         // Great thinking model
     "anthropic/claude-sonnet-4-5",       // Good reasoning
+    "github-copilot/claude-3.5-sonnet",  // Good reasoning, free fallback
     "google/gemini-3-pro-preview",       // Strong Gemini
     "opencode/glm-4.7",                  // Capable
     "opencode/big-pickle",               // Ultimate fallback
@@ -76,7 +83,9 @@ export const USE_CASE_FALLBACKS = {
     "anthropic/claude-opus-4-5",         // Best for orchestration
     "anthropic/claude-sonnet-4-5",       // Good alternative
     "openai/gpt-5.2-codex",              // Strong coding orchestration
-    "openai/o3",                          // Good reasoning
+    "github-copilot/claude-3.5-sonnet",  // Good orchestration, free
+    "openai/o3",                         // Good reasoning
+    "github-copilot/gpt-4o",             // Strong alternative, free
     "opencode/kimi-k2-thinking",         // Good for planning
     "opencode/glm-4.7",                  // Capable at agentic tasks
     "google/gemini-3-pro-preview",       // Strong Gemini
@@ -87,10 +96,13 @@ export const USE_CASE_FALLBACKS = {
   implementation: [
     "anthropic/claude-sonnet-4-5",       // Best coding
     "openai/gpt-5.2-codex",              // Strong coding
+    "github-copilot/claude-3.5-sonnet",  // Strong coding, free
     "anthropic/claude-opus-4-5",         // Premium quality
+    "github-copilot/gpt-4o",             // Good coding, free
     "opencode/glm-4.7",                  // Good at coding
     "opencode/qwen3-coder",              // Specialized for code
     "google/gemini-3-flash-preview",     // Fast coding
+    "github-copilot/gpt-4o-mini",        // Budget coding, free
     "opencode/kimi-k2-thinking",         // Can code well
     "opencode/big-pickle",               // Ultimate fallback
   ],
@@ -98,7 +110,9 @@ export const USE_CASE_FALLBACKS = {
   /** Quick - fast responses for simple queries */
   quick: [
     "google/gemini-3-flash-preview",     // Fastest
+    "github-copilot/gpt-4o-mini",        // Fast + free (load distribution)
     "google/gemini-2.5-flash",           // Fast
+    "github-copilot/gpt-4o",             // Good speed, free (load distribution)
     "anthropic/claude-haiku-4-5",        // Fast Claude
     "openai/gpt-4.1-nano",               // Very fast
     "opencode/glm-4.6",                  // Fast budget
@@ -109,14 +123,28 @@ export const USE_CASE_FALLBACKS = {
   
   /** Ultrabrain - deep reasoning and complex analysis */
   ultrabrain: [
-    "anthropic/claude-opus-4-5",
-    "openai/o3",
-    "openai/gpt-5.2",
-    "opencode/kimi-k2-thinking",
-    "anthropic/claude-sonnet-4-5",
-    "google/gemini-3-pro-preview",
-    "opencode/glm-4.7",
-    "opencode/big-pickle",
+    "anthropic/claude-opus-4-5",         // Best reasoning overall
+    "openai/o3",                         // Strong reasoning
+    "openai/gpt-5.2",                    // Very strong
+    "github-copilot/o1",                 // Premium copilot reasoning, free
+    "opencode/kimi-k2-thinking",         // Great thinking model
+    "anthropic/claude-sonnet-4-5",       // Good reasoning
+    "github-copilot/claude-3.5-sonnet",  // Good reasoning, free fallback
+    "google/gemini-3-pro-preview",       // Strong Gemini
+    "opencode/glm-4.7",                  // Capable
+    "opencode/big-pickle",               // Ultimate fallback
+  ],
+  
+  /** Parallel Worker - tasks that run in parallel, optimize for load distribution */
+  "parallel-worker": [
+    "github-copilot/gpt-4o-mini",        // Fast + free (optimal for parallel load)
+    "google/gemini-3-flash-preview",     // Fast
+    "github-copilot/gpt-4o",             // Good speed, free (distribute load)
+    "google/gemini-2.5-flash",           // Fast
+    "anthropic/claude-haiku-4-5",        // Fast Claude
+    "opencode/glm-4.7-flash",            // Fast GLM
+    "opencode/glm-4.6",                  // Budget
+    "opencode/big-pickle",               // Ultimate fallback
   ],
 } as const
 
@@ -203,7 +231,22 @@ export class GlobalOverrideManager {
       "oh-my-opencode-global-override.json"
     )
     
-    this.state = this.loadState() ?? { ...DEFAULT_GLOBAL_OVERRIDE_STATE }
+    // Deep copy to avoid mutating DEFAULT_GLOBAL_OVERRIDE_STATE
+    this.state = this.loadState() ?? {
+      disabledProviders: [...DEFAULT_GLOBAL_OVERRIDE_STATE.disabledProviders],
+      maxTierCap: DEFAULT_GLOBAL_OVERRIDE_STATE.maxTierCap,
+      autoDisableOnQuota: {
+        ...DEFAULT_GLOBAL_OVERRIDE_STATE.autoDisableOnQuota,
+        autoDisabledProviders: [...DEFAULT_GLOBAL_OVERRIDE_STATE.autoDisableOnQuota.autoDisabledProviders],
+      },
+      preserveForCritical: {
+        ...DEFAULT_GLOBAL_OVERRIDE_STATE.preserveForCritical,
+        criticalUseCases: [...DEFAULT_GLOBAL_OVERRIDE_STATE.preserveForCritical.criticalUseCases],
+      },
+      emergencyMode: DEFAULT_GLOBAL_OVERRIDE_STATE.emergencyMode,
+      modifiedAt: DEFAULT_GLOBAL_OVERRIDE_STATE.modifiedAt,
+      modifiedBy: DEFAULT_GLOBAL_OVERRIDE_STATE.modifiedBy,
+    }
     
     log("[global-override] Initialized:", {
       disabledProviders: this.state.disabledProviders,
@@ -629,9 +672,22 @@ export class GlobalOverrideManager {
   clearAll(options: GlobalOverrideOptions = {}): void {
     const { source = "cli" } = options
     
-    this.state = { ...DEFAULT_GLOBAL_OVERRIDE_STATE }
-    this.state.modifiedAt = Date.now()
-    this.state.modifiedBy = source
+    // Deep copy to avoid mutating DEFAULT_GLOBAL_OVERRIDE_STATE
+    this.state = {
+      disabledProviders: [...DEFAULT_GLOBAL_OVERRIDE_STATE.disabledProviders],
+      maxTierCap: DEFAULT_GLOBAL_OVERRIDE_STATE.maxTierCap,
+      autoDisableOnQuota: {
+        ...DEFAULT_GLOBAL_OVERRIDE_STATE.autoDisableOnQuota,
+        autoDisabledProviders: [...DEFAULT_GLOBAL_OVERRIDE_STATE.autoDisableOnQuota.autoDisabledProviders],
+      },
+      preserveForCritical: {
+        ...DEFAULT_GLOBAL_OVERRIDE_STATE.preserveForCritical,
+        criticalUseCases: [...DEFAULT_GLOBAL_OVERRIDE_STATE.preserveForCritical.criticalUseCases],
+      },
+      emergencyMode: DEFAULT_GLOBAL_OVERRIDE_STATE.emergencyMode,
+      modifiedAt: Date.now(),
+      modifiedBy: source,
+    }
     
     log("[global-override] All overrides cleared")
     
