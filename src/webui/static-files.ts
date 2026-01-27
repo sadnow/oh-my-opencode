@@ -1855,6 +1855,79 @@ export const BUDGET_DASHBOARD_HTML = `<!DOCTYPE html>
             </div>
           </div>
 
+          <!-- Routing Logs Section -->
+          <div class="budget-card" style="margin-top: 30px;">
+            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px;">
+              <h3 style="margin: 0;">🔁 Auto-Routing System Logs</h3>
+              <div style="display: flex; gap: 8px;">
+                <button onclick="refreshRoutingLogs()" style="padding: 6px 12px; font-size: 13px;">Refresh</button>
+                <button onclick="clearRoutingLogs()" style="padding: 6px 12px; font-size: 13px;">Clear Logs</button>
+              </div>
+            </div>
+
+            <!-- Filter Controls -->
+            <div style="display: flex; gap: 12px; margin-bottom: 16px; flex-wrap: wrap;">
+              <label style="display: flex; align-items: center; gap: 6px;">
+                Level:
+                <select id="log-level-filter" onchange="filterRoutingLogs()" style="padding: 4px 8px;">
+                  <option value="">All</option>
+                  <option value="info">Info</option>
+                  <option value="warning">Warning</option>
+                  <option value="error">Error</option>
+                  <option value="decision">Decision</option>
+                </select>
+              </label>
+              <label style="display: flex; align-items: center; gap: 6px;">
+                Category:
+                <select id="log-category-filter" onchange="filterRoutingLogs()" style="padding: 4px 8px;">
+                  <option value="">All</option>
+                  <option value="tier_change">Tier Change</option>
+                  <option value="upgrade_scheduled">Upgrade Scheduled</option>
+                  <option value="downgrade_scheduled">Downgrade Scheduled</option>
+                  <option value="upgrade_executed">Upgrade Executed</option>
+                  <option value="downgrade_executed">Downgrade Executed</option>
+                  <option value="budget_alert">Budget Alert</option>
+                  <option value="override">Override</option>
+                  <option value="adaptive">Adaptive Learning</option>
+                </select>
+              </label>
+              <label style="display: flex; align-items: center; gap: 6px;">
+                Limit:
+                <select id="log-limit" onchange="refreshRoutingLogs()" style="padding: 4px 8px;">
+                  <option value="50">50</option>
+                  <option value="100" selected>100</option>
+                  <option value="200">200</option>
+                  <option value="500">500</option>
+                </select>
+              </label>
+            </div>
+
+            <!-- Log Stats -->
+            <div id="routing-log-stats" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 12px; margin-bottom: 16px; padding: 12px; background: var(--bg-secondary); border-radius: 8px;">
+              <div>
+                <div style="font-size: 11px; color: var(--text-secondary);">Total Logs</div>
+                <div id="log-stat-total" style="font-size: 18px; font-weight: 600; color: var(--text-primary);">0</div>
+              </div>
+              <div>
+                <div style="font-size: 11px; color: var(--text-secondary);">Last 24h</div>
+                <div id="log-stat-24h" style="font-size: 18px; font-weight: 600; color: var(--text-primary);">0</div>
+              </div>
+              <div>
+                <div style="font-size: 11px; color: var(--text-secondary);">Warnings</div>
+                <div id="log-stat-warnings" style="font-size: 18px; font-weight: 600; color: var(--warning);">0</div>
+              </div>
+              <div>
+                <div style="font-size: 11px; color: var(--text-secondary);">Errors</div>
+                <div id="log-stat-errors" style="font-size: 18px; font-weight: 600; color: var(--error);">0</div>
+              </div>
+            </div>
+
+            <!-- Log Entries -->
+            <div id="routing-logs-container" style="max-height: 500px; overflow-y: auto; border: 1px solid var(--border); border-radius: 8px; background: var(--bg-secondary);">
+              <div style="padding: 16px; text-align: center; color: var(--text-secondary);">Loading routing logs...</div>
+            </div>
+          </div>
+
           <!-- Override Controls (collapsible) -->
           <div class="controls-section">
             <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px;">
@@ -1907,9 +1980,11 @@ document.addEventListener('DOMContentLoaded', () => {
   initKeyboardShortcuts();
   loadDashboard();
   loadQuickStatus();
+  refreshRoutingLogs();
   // Refresh every 60 seconds
   setInterval(loadDashboard, 60000);
   setInterval(loadQuickStatus, 60000);
+  setInterval(refreshRoutingLogs, 60000);
 });
 
 // Keyboard shortcuts
@@ -2932,5 +3007,127 @@ function formatNumber(num) {
   if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M';
   if (num >= 1000) return (num / 1000).toFixed(1) + 'K';
   return num.toFixed(0);
+}
+
+// Routing Logs Functions
+let routingLogsCache = [];
+
+async function refreshRoutingLogs() {
+  try {
+    const limit = document.getElementById('log-limit').value;
+    const level = document.getElementById('log-level-filter').value;
+    const category = document.getElementById('log-category-filter').value;
+
+    let url = API_BASE + '/routing-logs?limit=' + limit;
+    if (level) url += '&level=' + level;
+    if (category) url += '&category=' + category;
+
+    const res = await fetch(url);
+    const { success, data } = await res.json();
+
+    if (!success || !data.logs) {
+      document.getElementById('routing-logs-container').innerHTML =
+        '<div style="padding: 16px; text-align: center; color: var(--error);">Failed to load routing logs</div>';
+      return;
+    }
+
+    routingLogsCache = data.logs;
+    renderRoutingLogs(data.logs);
+
+    // Load stats
+    const statsRes = await fetch(API_BASE + '/routing-logs/stats');
+    const statsData = await statsRes.json();
+    if (statsData.success) {
+      renderRoutingLogStats(statsData.data);
+    }
+  } catch (err) {
+    console.error('Routing logs load error:', err);
+    document.getElementById('routing-logs-container').innerHTML =
+      '<div style="padding: 16px; text-align: center; color: var(--error);">Error: ' + err.message + '</div>';
+  }
+}
+
+function renderRoutingLogs(logs) {
+  const container = document.getElementById('routing-logs-container');
+
+  if (logs.length === 0) {
+    container.innerHTML =
+      '<div style="padding: 16px; text-align: center; color: var(--text-secondary);">No routing logs yet. Logs will appear when models are scheduled for upgrades/downgrades.</div>';
+    return;
+  }
+
+  const levelColors = {
+    info: 'var(--text-primary)',
+    warning: 'var(--warning)',
+    error: 'var(--error)',
+    decision: 'var(--accent)'
+  };
+
+  const categoryIcons = {
+    tier_change: '🔄',
+    upgrade_scheduled: '⬆️',
+    downgrade_scheduled: '⬇️',
+    upgrade_executed: '✅',
+    downgrade_executed: '↘️',
+    budget_alert: '⚠️',
+    override: '🔐',
+    adaptive: '🧠'
+  };
+
+  container.innerHTML = logs.map(function(log) {
+    const icon = categoryIcons[log.category] || '•';
+    const color = levelColors[log.level] || 'var(--text-primary)';
+    const timestamp = new Date(log.timestamp).toLocaleString();
+
+    return '<div style="padding: 12px; border-bottom: 1px solid var(--border); display: flex; gap: 12px; align-items: flex-start;">' +
+      '<span style="font-size: 18px; flex-shrink: 0;">' + icon + '</span>' +
+      '<div style="flex: 1;">' +
+        '<div style="display: flex; gap: 8px; align-items: center; margin-bottom: 4px;">' +
+          '<span style="font-size: 11px; color: var(--text-secondary);">' + timestamp + '</span>' +
+          '<span style="font-size: 10px; padding: 2px 6px; background: var(--bg-card); border-radius: 4px; color: ' + color + '; text-transform: uppercase;">' + log.level + '</span>' +
+          '<span style="font-size: 10px; padding: 2px 6px; background: var(--bg-card); border-radius: 4px; color: var(--text-secondary);">' + log.category.replace(/_/g, ' ') + '</span>' +
+        '</div>' +
+        '<div style="color: ' + color + '; font-size: 14px;">' + log.message + '</div>' +
+        (log.metadata ? '<div style="font-size: 11px; color: var(--text-secondary); margin-top: 4px;">' + JSON.stringify(log.metadata) + '</div>' : '') +
+      '</div>' +
+    '</div>';
+  }).join('');
+}
+
+function renderRoutingLogStats(stats) {
+  document.getElementById('log-stat-total').textContent = stats.total || 0;
+  document.getElementById('log-stat-24h').textContent = stats.last24h || 0;
+  document.getElementById('log-stat-warnings').textContent = stats.byLevel?.warning || 0;
+  document.getElementById('log-stat-errors').textContent = stats.byLevel?.error || 0;
+}
+
+function filterRoutingLogs() {
+  const level = document.getElementById('log-level-filter').value;
+  const category = document.getElementById('log-category-filter').value;
+
+  let filtered = routingLogsCache;
+  if (level) {
+    filtered = filtered.filter(function(log) { return log.level === level; });
+  }
+  if (category) {
+    filtered = filtered.filter(function(log) { return log.category === category; });
+  }
+
+  renderRoutingLogs(filtered);
+}
+
+async function clearRoutingLogs() {
+  if (!confirm('Clear all routing logs? This cannot be undone.')) return;
+
+  try {
+    const res = await fetch(API_BASE + '/routing-logs/clear', { method: 'POST' });
+    const result = await res.json();
+    showToast(result.success ? result.message : result.error);
+    if (result.success) {
+      refreshRoutingLogs();
+    }
+  } catch (err) {
+    showToast('Error: ' + err);
+  }
 }
 `
