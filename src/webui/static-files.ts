@@ -14,29 +14,28 @@ export const INDEX_HTML = `<!DOCTYPE html>
 <body>
   <div id="app">
     <header>
-      <h1>oh-my-opencode</h1>
+      <div class="header-top">
+        <h1>oh-my-opencode</h1>
+        <div class="quick-status" id="quick-status">
+          <span class="status-item" id="qs-tier" title="Current tier">--</span>
+          <span class="status-item" id="qs-claude" title="Claude Max usage">Claude: --%</span>
+          <span class="status-item" id="qs-copilot" title="Copilot usage">Copilot: --%</span>
+        </div>
+      </div>
       <nav>
-        <button class="tab-btn active" data-tab="dashboard">Dashboard</button>
-        <a href="/budget-dashboard" class="tab-btn">Budget</a>
-        <button class="tab-btn" data-tab="wizard">Wizard</button>
+        <button class="tab-btn active" data-tab="dashboard">Overview</button>
+        <a href="/budget-dashboard" class="tab-btn">Usage & Budget</a>
         <button class="tab-btn" data-tab="presets">Presets</button>
         <button class="tab-btn" data-tab="features">Features</button>
-        <button class="tab-btn" data-tab="advanced">Advanced</button>
+        <button class="tab-btn" data-tab="advanced">Config</button>
+        <button class="tab-btn" data-tab="docs">Docs</button>
       </nav>
     </header>
 
     <main>
       <section id="dashboard" class="tab-content active">
-        <h2>Dashboard</h2>
+        <h2>Overview</h2>
         <div class="grid">
-          <div class="card">
-            <h3>Budget Status</h3>
-            <div id="budget-status">Loading...</div>
-          </div>
-          <div class="card">
-            <h3>Usage Summary</h3>
-            <div id="usage-summary">Loading...</div>
-          </div>
           <div class="card">
             <h3>Current Preset</h3>
             <div id="current-preset">Loading...</div>
@@ -45,76 +44,213 @@ export const INDEX_HTML = `<!DOCTYPE html>
             <h3>Recommended Tier</h3>
             <div id="recommended-tier">Loading...</div>
           </div>
+          <div class="card">
+            <h3>Active Providers</h3>
+            <div id="active-providers">Loading...</div>
+          </div>
+          <div class="card">
+            <h3>Quick Actions</h3>
+            <div class="quick-actions">
+              <button onclick="window.location.href='/budget-dashboard'">View Usage Details</button>
+              <button onclick="switchTab('presets')">Switch Preset</button>
+            </div>
+          </div>
         </div>
-      </section>
-
-      <section id="wizard" class="tab-content">
-        <h2>Orchestration Wizard</h2>
+        <div class="section-divider"></div>
+        <h3>Setup Wizard</h3>
         <div class="wizard-container">
           <div class="wizard-step" id="step-subscriptions">
-            <h3>Step 1: Subscriptions</h3>
+            <h4>Configure Subscriptions</h4>
+            <p class="wizard-help">Select which AI services you have access to:</p>
             <form id="subscriptions-form">
               <label>
                 <input type="checkbox" name="hasAnthropicOAuth" checked>
-                Anthropic OAuth (Claude Pro/Max)
+                Anthropic (Claude Pro/Max)
               </label>
               <label>
                 <input type="checkbox" name="hasChatGPT">
-                ChatGPT Plus/Pro
+                OpenAI (ChatGPT Plus/Pro)
               </label>
               <label>
                 <input type="checkbox" name="hasGemini">
-                Google Gemini
+                Google (Gemini)
               </label>
               <label>
                 <input type="checkbox" name="hasCopilot">
                 GitHub Copilot
               </label>
-              <label>
-                <input type="checkbox" name="hasOpencodeZen">
-                OpenCode Zen
-              </label>
-              <button type="button" onclick="nextWizardStep()">Next</button>
+              <button type="button" onclick="nextWizardStep()">Next: Choose Preset</button>
             </form>
           </div>
-
           <div class="wizard-step hidden" id="step-preset">
-            <h3>Step 2: Choose Preset</h3>
+            <h4>Choose Preset</h4>
+            <p class="wizard-help">Select a configuration preset based on your usage pattern:</p>
             <div id="preset-options"></div>
-            <button type="button" onclick="prevWizardStep()">Back</button>
-            <button type="button" onclick="applyWizard()">Apply</button>
+            <div class="wizard-buttons">
+              <button type="button" onclick="prevWizardStep()">Back</button>
+              <button type="button" class="primary" onclick="applyWizard()">Apply Configuration</button>
+            </div>
           </div>
         </div>
       </section>
 
       <section id="presets" class="tab-content">
         <h2>Orchestration Presets</h2>
+        <p class="section-help">Presets configure model routing for different task types. Choose based on your budget and quality needs.</p>
         <div id="presets-list" class="presets-grid">Loading...</div>
       </section>
 
       <section id="features" class="tab-content">
         <h2>Features</h2>
+        <p class="section-help">Toggle individual features. Changes take effect immediately.</p>
         <div id="features-list">Loading...</div>
       </section>
 
       <section id="advanced" class="tab-content">
-        <h2>Advanced Configuration</h2>
+        <h2>Configuration Editor</h2>
+        <p class="section-help">Edit the raw JSON configuration. Use with caution.</p>
         <div class="advanced-editor">
-          <textarea id="config-editor" rows="30"></textarea>
+          <textarea id="config-editor" rows="25"></textarea>
           <div class="button-group">
             <button onclick="loadConfig()">Reload</button>
-            <button onclick="saveConfig()">Save</button>
+            <button onclick="saveConfig()" class="primary">Save Changes</button>
+          </div>
+        </div>
+      </section>
+
+      <section id="docs" class="tab-content">
+        <h2>Documentation</h2>
+        <div class="docs-container">
+          <div class="docs-nav">
+            <button class="docs-nav-btn active" data-doc="quickstart">Quick Start</button>
+            <button class="docs-nav-btn" data-doc="shortcuts">Keyboard Shortcuts</button>
+            <button class="docs-nav-btn" data-doc="api">API Reference</button>
+            <button class="docs-nav-btn" data-doc="config">Configuration</button>
+          </div>
+          <div class="docs-content">
+            <div id="doc-quickstart" class="doc-section active">
+              <h3>Quick Start Guide</h3>
+              <div class="doc-block">
+                <h4>1. Configure Subscriptions</h4>
+                <p>Use the Setup Wizard on the Overview tab to select which AI services you have access to.</p>
+              </div>
+              <div class="doc-block">
+                <h4>2. Choose a Preset</h4>
+                <ul>
+                  <li><strong>balanced</strong> - Best for daily development. Uses Claude for complex tasks, cheaper models for routine work.</li>
+                  <li><strong>best</strong> - Maximum quality. Uses premium models (Opus, GPT-4.5) for everything.</li>
+                  <li><strong>free</strong> - Zero cost. Uses only free tiers (Copilot, Gemini Flash).</li>
+                </ul>
+              </div>
+              <div class="doc-block">
+                <h4>3. Monitor Usage</h4>
+                <p>The <strong>Usage & Budget</strong> tab shows real-time usage from Claude Max and Copilot APIs.</p>
+              </div>
+            </div>
+            <div id="doc-shortcuts" class="doc-section">
+              <h3>Keyboard Shortcuts</h3>
+              <div class="shortcuts-grid">
+                <div class="shortcut"><kbd>1</kbd> Overview tab</div>
+                <div class="shortcut"><kbd>2</kbd> Usage & Budget</div>
+                <div class="shortcut"><kbd>3</kbd> Presets tab</div>
+                <div class="shortcut"><kbd>4</kbd> Features tab</div>
+                <div class="shortcut"><kbd>5</kbd> Config tab</div>
+                <div class="shortcut"><kbd>6</kbd> Docs tab</div>
+                <div class="shortcut"><kbd>r</kbd> Refresh data</div>
+                <div class="shortcut"><kbd>?</kbd> Show shortcuts</div>
+              </div>
+            </div>
+            <div id="doc-api" class="doc-section">
+              <h3>API Reference</h3>
+              <div class="doc-block">
+                <h4>Endpoints</h4>
+                <pre class="code-block">GET  /api/budget/dashboard    - Budget overview
+GET  /api/claude-max/usage    - Claude Max real-time usage
+GET  /api/claude-max/history  - 24h usage history
+POST /api/claude-max/refresh  - Force refresh from API
+GET  /api/copilot/usage       - Copilot premium requests
+GET  /api/copilot/history     - 24h usage history
+POST /api/copilot/refresh     - Force refresh from API
+GET  /api/config              - Current configuration
+POST /api/config              - Update configuration
+GET  /api/presets             - Available presets
+POST /api/preset/:name        - Apply preset</pre>
+              </div>
+              <div class="doc-block">
+                <h4>Example: Get Claude Max Usage</h4>
+                <pre class="code-block">curl http://localhost:3847/api/claude-max/usage
+# Response:
+{
+  "success": true,
+  "data": {
+    "currentSession": { "percentUsed": 30 },
+    "allModels": { "percentUsed": 77 },
+    "sonnetOnly": { "percentUsed": 0 }
+  }
+}</pre>
+              </div>
+            </div>
+            <div id="doc-config" class="doc-section">
+              <h3>Configuration Reference</h3>
+              <div class="doc-block">
+                <h4>Budget Settings</h4>
+                <pre class="code-block">{
+  "budget": {
+    "enabled": true,
+    "anthropic": {
+      "period": "weekly",
+      "limit": 20.0,
+      "reset_day": "sunday"
+    }
+  }
+}</pre>
+              </div>
+              <div class="doc-block">
+                <h4>Background Task Settings</h4>
+                <pre class="code-block">{
+  "background_task": {
+    "staleTimeoutMs": 600000,
+    "maxStabilityResets": 25
+  }
+}</pre>
+              </div>
+              <div class="doc-block">
+                <h4>Ralph Loop Settings</h4>
+                <pre class="code-block">{
+  "ralph_loop": {
+    "enabled": true,
+    "verbose_continuations": false
+  }
+}</pre>
+              </div>
+            </div>
           </div>
         </div>
       </section>
     </main>
 
     <footer>
-      <p>oh-my-opencode WebUI</p>
+      <p>oh-my-opencode WebUI &bull; <a href="https://github.com/sadnow/oh-my-opencode" target="_blank">GitHub</a> &bull; Press <kbd>?</kbd> for shortcuts</p>
     </footer>
   </div>
 
   <div id="toast" class="toast hidden"></div>
+  <div id="shortcuts-modal" class="modal hidden">
+    <div class="modal-content">
+      <h3>Keyboard Shortcuts</h3>
+      <div class="shortcuts-grid">
+        <div class="shortcut"><kbd>1</kbd> Overview</div>
+        <div class="shortcut"><kbd>2</kbd> Usage & Budget</div>
+        <div class="shortcut"><kbd>3</kbd> Presets</div>
+        <div class="shortcut"><kbd>4</kbd> Features</div>
+        <div class="shortcut"><kbd>5</kbd> Config</div>
+        <div class="shortcut"><kbd>6</kbd> Docs</div>
+        <div class="shortcut"><kbd>r</kbd> Refresh</div>
+        <div class="shortcut"><kbd>Esc</kbd> Close</div>
+      </div>
+      <button onclick="closeShortcutsModal()">Close</button>
+    </div>
+  </div>
 
   <script src="/app.js"></script>
 </body>
@@ -128,21 +264,75 @@ let currentTab = 'dashboard';
 let wizardStep = 0;
 let wizardData = {};
 
+// Tab mapping for keyboard shortcuts
+const TAB_MAP = {
+  '1': 'dashboard',
+  '2': null, // Budget page (separate URL)
+  '3': 'presets',
+  '4': 'features',
+  '5': 'advanced',
+  '6': 'docs'
+};
+
 // Initialize
 document.addEventListener('DOMContentLoaded', () => {
   initTabs();
+  initKeyboardShortcuts();
+  initDocsNav();
   loadDashboard();
   loadPresets();
   loadFeatures();
   loadConfig();
+  loadQuickStatus();
+  // Refresh quick status every 60 seconds
+  setInterval(loadQuickStatus, 60000);
 });
+
+// Keyboard shortcuts
+function initKeyboardShortcuts() {
+  document.addEventListener('keydown', (e) => {
+    // Ignore if typing in input/textarea
+    if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+
+    const key = e.key.toLowerCase();
+
+    if (key === '?') {
+      e.preventDefault();
+      showShortcutsModal();
+    } else if (key === 'escape') {
+      closeShortcutsModal();
+    } else if (key === 'r') {
+      e.preventDefault();
+      refreshAll();
+    } else if (key === '2') {
+      window.location.href = '/budget-dashboard';
+    } else if (TAB_MAP[key]) {
+      e.preventDefault();
+      switchTab(TAB_MAP[key]);
+    }
+  });
+}
+
+function showShortcutsModal() {
+  document.getElementById('shortcuts-modal').classList.remove('hidden');
+}
+
+function closeShortcutsModal() {
+  document.getElementById('shortcuts-modal').classList.add('hidden');
+}
+
+function refreshAll() {
+  loadDashboard();
+  loadQuickStatus();
+  showToast('Refreshed');
+}
 
 // Tab navigation
 function initTabs() {
   document.querySelectorAll('.tab-btn').forEach(btn => {
     btn.addEventListener('click', () => {
       const tab = btn.dataset.tab;
-      switchTab(tab);
+      if (tab) switchTab(tab);
     });
   });
 }
@@ -159,47 +349,85 @@ function switchTab(tab) {
   if (tab === 'dashboard') loadDashboard();
 }
 
+// Docs navigation
+function initDocsNav() {
+  document.querySelectorAll('.docs-nav-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const doc = btn.dataset.doc;
+      document.querySelectorAll('.docs-nav-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      document.querySelectorAll('.doc-section').forEach(s => s.classList.remove('active'));
+      document.getElementById('doc-' + doc).classList.add('active');
+    });
+  });
+}
+
+// Quick status bar
+async function loadQuickStatus() {
+  try {
+    const [claudeRes, copilotRes, orchRes] = await Promise.all([
+      fetch(API_BASE + '/claude-max/usage').then(r => r.json()).catch(() => null),
+      fetch(API_BASE + '/copilot/usage').then(r => r.json()).catch(() => null),
+      fetch(API_BASE + '/orchestration/status').then(r => r.json()).catch(() => null),
+    ]);
+
+    // Tier
+    const tierEl = document.getElementById('qs-tier');
+    if (orchRes?.success && orchRes.data?.currentTier) {
+      tierEl.textContent = orchRes.data.currentTier.toUpperCase();
+      tierEl.className = 'status-item tier-' + orchRes.data.currentTier;
+    }
+
+    // Claude Max
+    const claudeEl = document.getElementById('qs-claude');
+    if (claudeRes?.success && claudeRes.data?.allModels) {
+      const pct = claudeRes.data.allModels.percentUsed || 0;
+      claudeEl.textContent = 'Claude: ' + pct.toFixed(0) + '%';
+      claudeEl.className = 'status-item ' + (pct >= 90 ? 'status-critical' : pct >= 70 ? 'status-warning' : 'status-ok');
+    }
+
+    // Copilot
+    const copilotEl = document.getElementById('qs-copilot');
+    if (copilotRes?.success && copilotRes.data) {
+      const pct = copilotRes.data.percentUsed || 0;
+      copilotEl.textContent = 'Copilot: ' + pct.toFixed(0) + '%';
+      copilotEl.className = 'status-item ' + (pct >= 90 ? 'status-critical' : pct >= 70 ? 'status-warning' : 'status-ok');
+    }
+  } catch (err) {
+    console.error('Quick status error:', err);
+  }
+}
+
 // Dashboard
 async function loadDashboard() {
   try {
-    const [budgetRes, usageRes, configRes, orchRes] = await Promise.all([
-      fetch(API_BASE + '/budget').then(r => r.json()).catch(() => ({ success: false })),
-      fetch(API_BASE + '/usage').then(r => r.json()).catch(() => ({ success: false })),
+    const [configRes, orchRes, budgetRes] = await Promise.all([
       fetch(API_BASE + '/config').then(r => r.json()),
       fetch(API_BASE + '/orchestration/status').then(r => r.json()).catch(() => ({ success: false })),
+      fetch(API_BASE + '/budget/dashboard').then(r => r.json()).catch(() => ({ success: false })),
     ]);
-
-    // Budget status
-    const budgetEl = document.getElementById('budget-status');
-    if (budgetRes.success && budgetRes.data.enabled) {
-      const messages = Object.entries(budgetRes.data.statusMessages || {})
-        .map(([k, v]) => '<div><strong>' + k + ':</strong> ' + v + '</div>')
-        .join('');
-      budgetEl.innerHTML = messages || 'No budget data';
-    } else {
-      budgetEl.innerHTML = '<em>Budget tracking disabled</em>';
-    }
-
-    // Usage summary
-    const usageEl = document.getElementById('usage-summary');
-    if (usageRes.success) {
-      const total = usageRes.data.totalCost?.toFixed(2) || '0.00';
-      usageEl.innerHTML = '<div>Total Cost: <strong>$' + total + '</strong></div>';
-    } else {
-      usageEl.innerHTML = '<em>Usage tracking disabled</em>';
-    }
 
     // Current preset
     const presetEl = document.getElementById('current-preset');
     const preset = configRes.data?.orchestration_preset || 'custom';
-    presetEl.innerHTML = '<div>Preset: <strong>' + preset + '</strong></div>';
+    presetEl.innerHTML = '<div class="big-value">' + preset + '</div><div class="sub-label">Active configuration</div>';
 
     // Recommended tier
     const tierEl = document.getElementById('recommended-tier');
     if (orchRes.success && orchRes.data.currentTier) {
-      tierEl.innerHTML = '<div>Tier: <strong>' + orchRes.data.currentTier + '</strong></div>';
+      const tier = orchRes.data.currentTier;
+      tierEl.innerHTML = '<div class="big-value tier-badge tier-' + tier + '">' + tier.toUpperCase() + '</div><div class="sub-label">Recommended by budget system</div>';
     } else {
-      tierEl.innerHTML = '<em>N/A</em>';
+      tierEl.innerHTML = '<div class="big-value">--</div><div class="sub-label">Budget system not active</div>';
+    }
+
+    // Active providers
+    const providersEl = document.getElementById('active-providers');
+    if (budgetRes.success && budgetRes.data?.providers?.length) {
+      const providers = budgetRes.data.providers.map(p => p.provider).join(', ');
+      providersEl.innerHTML = '<div class="big-value">' + budgetRes.data.providers.length + '</div><div class="sub-label">' + providers + '</div>';
+    } else {
+      providersEl.innerHTML = '<div class="big-value">0</div><div class="sub-label">Configure in Budget settings</div>';
     }
   } catch (err) {
     console.error('Dashboard load error:', err);
@@ -415,29 +643,58 @@ header {
   margin-bottom: 30px;
 }
 
+.header-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 15px;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
 header h1 {
   color: var(--accent);
-  margin-bottom: 15px;
+  margin: 0;
 }
+
+.quick-status {
+  display: flex;
+  gap: 12px;
+  font-size: 13px;
+}
+
+.status-item {
+  padding: 4px 10px;
+  background: var(--bg-card);
+  border-radius: 4px;
+  border: 1px solid var(--border);
+}
+
+.status-ok { border-color: var(--success); color: var(--success); }
+.status-warning { border-color: var(--warning); color: var(--warning); }
+.status-critical { border-color: var(--error); color: var(--error); }
 
 nav {
   display: flex;
-  gap: 10px;
+  gap: 8px;
   flex-wrap: wrap;
 }
 
 .tab-btn {
-  padding: 10px 20px;
+  padding: 10px 18px;
   background: var(--bg-secondary);
   border: 1px solid var(--border);
   color: var(--text-primary);
   cursor: pointer;
   border-radius: 5px;
   transition: all 0.2s;
+  text-decoration: none;
+  font-size: 14px;
 }
 
 .tab-btn:hover {
   background: var(--bg-card);
+  border-color: var(--accent);
 }
 
 .tab-btn.active {
@@ -454,15 +711,30 @@ nav {
 }
 
 h2 {
+  margin-bottom: 10px;
+  font-size: 1.5rem;
+}
+
+h3 {
+  margin-top: 20px;
+  margin-bottom: 15px;
+}
+
+.section-help {
+  color: var(--text-secondary);
   margin-bottom: 20px;
-  padding-bottom: 10px;
-  border-bottom: 1px solid var(--border);
+  font-size: 14px;
+}
+
+.section-divider {
+  margin: 30px 0;
+  border-top: 1px solid var(--border);
 }
 
 .grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-  gap: 20px;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 16px;
 }
 
 .card {
@@ -473,14 +745,47 @@ h2 {
 }
 
 .card h3 {
-  margin-bottom: 10px;
-  color: var(--accent);
+  margin: 0 0 12px 0;
+  color: var(--text-secondary);
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.big-value {
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.sub-label {
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin-top: 4px;
+}
+
+.quick-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.quick-actions button {
+  width: 100%;
+  text-align: left;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+}
+
+.quick-actions button:hover {
+  background: var(--accent);
+  border-color: var(--accent);
 }
 
 .presets-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-  gap: 20px;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 16px;
 }
 
 .preset-card {
@@ -488,29 +793,47 @@ h2 {
   padding: 20px;
   border-radius: 8px;
   border: 1px solid var(--border);
+  transition: border-color 0.2s;
+}
+
+.preset-card:hover {
+  border-color: var(--accent);
 }
 
 .preset-card h3 {
   color: var(--accent);
-  margin-bottom: 10px;
+  margin: 0 0 8px 0;
+  font-size: 1.1rem;
 }
 
 .preset-card p {
   color: var(--text-secondary);
   margin-bottom: 15px;
+  font-size: 14px;
 }
 
 button {
   padding: 8px 16px;
-  background: var(--accent);
-  border: none;
-  color: white;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  color: var(--text-primary);
   border-radius: 5px;
   cursor: pointer;
-  transition: background 0.2s;
+  transition: all 0.2s;
+  font-size: 14px;
 }
 
 button:hover {
+  background: var(--bg-card);
+  border-color: var(--accent);
+}
+
+button.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+button.primary:hover {
   background: var(--accent-hover);
 }
 
@@ -526,12 +849,14 @@ button:hover {
   display: flex;
   align-items: center;
   gap: 10px;
+  cursor: pointer;
 }
 
 .feature-item p {
   color: var(--text-secondary);
   margin-top: 5px;
   margin-left: 25px;
+  font-size: 13px;
 }
 
 .advanced-editor textarea {
@@ -540,7 +865,7 @@ button:hover {
   background: var(--bg-secondary);
   border: 1px solid var(--border);
   color: var(--text-primary);
-  font-family: 'Monaco', 'Menlo', monospace;
+  font-family: 'Monaco', 'Menlo', 'Consolas', monospace;
   font-size: 13px;
   border-radius: 8px;
   resize: vertical;
@@ -553,29 +878,207 @@ button:hover {
 }
 
 .wizard-container {
-  max-width: 600px;
+  max-width: 550px;
+  margin-top: 10px;
 }
 
 .wizard-step {
   background: var(--bg-card);
-  padding: 25px;
+  padding: 24px;
   border-radius: 8px;
   border: 1px solid var(--border);
 }
 
-.wizard-step h3 {
-  margin-bottom: 20px;
+.wizard-step h4 {
+  margin: 0 0 8px 0;
+  color: var(--accent);
+}
+
+.wizard-help {
+  color: var(--text-secondary);
+  font-size: 14px;
+  margin-bottom: 16px;
 }
 
 .wizard-step label {
-  display: block;
+  display: flex;
+  align-items: center;
+  gap: 10px;
   margin-bottom: 10px;
+  cursor: pointer;
+  padding: 8px;
+  border-radius: 4px;
+  transition: background 0.2s;
 }
 
-.wizard-step button {
-  margin-top: 20px;
-  margin-right: 10px;
+.wizard-step label:hover {
+  background: var(--bg-secondary);
 }
+
+.wizard-buttons {
+  margin-top: 20px;
+  display: flex;
+  gap: 10px;
+}
+
+/* Docs Section */
+.docs-container {
+  display: grid;
+  grid-template-columns: 200px 1fr;
+  gap: 24px;
+  margin-top: 20px;
+}
+
+.docs-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.docs-nav-btn {
+  text-align: left;
+  padding: 10px 14px;
+  background: transparent;
+  border: none;
+  color: var(--text-secondary);
+  border-radius: 4px;
+}
+
+.docs-nav-btn:hover {
+  background: var(--bg-card);
+  color: var(--text-primary);
+}
+
+.docs-nav-btn.active {
+  background: var(--bg-card);
+  color: var(--accent);
+  border-left: 3px solid var(--accent);
+}
+
+.docs-content {
+  background: var(--bg-card);
+  padding: 24px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+}
+
+.doc-section {
+  display: none;
+}
+
+.doc-section.active {
+  display: block;
+}
+
+.doc-section h3 {
+  margin: 0 0 20px 0;
+  color: var(--accent);
+}
+
+.doc-block {
+  margin-bottom: 24px;
+}
+
+.doc-block h4 {
+  margin: 0 0 8px 0;
+  font-size: 14px;
+}
+
+.doc-block p {
+  color: var(--text-secondary);
+  font-size: 14px;
+}
+
+.doc-block ul {
+  margin: 10px 0;
+  padding-left: 20px;
+}
+
+.doc-block li {
+  color: var(--text-secondary);
+  font-size: 14px;
+  margin-bottom: 6px;
+}
+
+.code-block {
+  background: var(--bg-secondary);
+  padding: 12px 16px;
+  border-radius: 6px;
+  font-family: 'Monaco', 'Menlo', 'Consolas', monospace;
+  font-size: 12px;
+  overflow-x: auto;
+  white-space: pre;
+  color: #a0ffa0;
+}
+
+.shortcuts-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+  margin: 16px 0;
+}
+
+.shortcut {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 14px;
+}
+
+kbd {
+  display: inline-block;
+  padding: 4px 8px;
+  font-family: 'Monaco', 'Menlo', 'Consolas', monospace;
+  font-size: 12px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  min-width: 28px;
+  text-align: center;
+}
+
+/* Modal */
+.modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0,0,0,0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.modal-content {
+  background: var(--bg-card);
+  padding: 24px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  max-width: 400px;
+  width: 90%;
+}
+
+.modal-content h3 {
+  margin: 0 0 16px 0;
+  color: var(--accent);
+}
+
+/* Tier badges */
+.tier-badge {
+  display: inline-block;
+  font-size: 11px;
+  padding: 3px 8px;
+  border-radius: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.tier-premium { background: linear-gradient(135deg, #9d4edd, #7b2cbf); color: white; }
+.tier-standard { background: linear-gradient(135deg, #3a86ff, #0077b6); color: white; }
+.tier-budget { background: linear-gradient(135deg, #f9c74f, #f9844a); color: #333; }
+.tier-economy { background: linear-gradient(135deg, #6c757d, #495057); color: white; }
 
 .hidden {
   display: none !important;
@@ -585,11 +1088,13 @@ button:hover {
   position: fixed;
   bottom: 20px;
   right: 20px;
-  padding: 15px 25px;
+  padding: 12px 20px;
   background: var(--bg-card);
   border: 1px solid var(--accent);
   border-radius: 8px;
   animation: slideIn 0.3s ease;
+  z-index: 1001;
+  font-size: 14px;
 }
 
 @keyframes slideIn {
@@ -609,6 +1114,21 @@ footer {
   border-top: 1px solid var(--border);
   text-align: center;
   color: var(--text-secondary);
+  font-size: 13px;
+}
+
+footer a {
+  color: var(--accent);
+  text-decoration: none;
+}
+
+footer a:hover {
+  text-decoration: underline;
+}
+
+footer kbd {
+  font-size: 10px;
+  padding: 2px 5px;
 }
 
 @media (max-width: 768px) {
@@ -618,6 +1138,24 @@ footer {
 
   .tab-btn {
     width: 100%;
+  }
+
+  .header-top {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .docs-container {
+    grid-template-columns: 1fr;
+  }
+
+  .docs-nav {
+    flex-direction: row;
+    flex-wrap: wrap;
+  }
+
+  .shortcuts-grid {
+    grid-template-columns: 1fr;
   }
 }
 `
@@ -631,6 +1169,32 @@ export const BUDGET_DASHBOARD_HTML = `<!DOCTYPE html>
   <link rel="stylesheet" href="/styles.css">
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <style>
+    .header-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 15px;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+
+    .quick-status {
+      display: flex;
+      gap: 12px;
+      font-size: 13px;
+    }
+
+    .status-item {
+      padding: 4px 10px;
+      background: var(--bg-card);
+      border-radius: 4px;
+      border: 1px solid var(--border);
+    }
+
+    .status-ok { border-color: var(--success); color: var(--success); }
+    .status-warning { border-color: var(--warning); color: var(--warning); }
+    .status-critical { border-color: var(--error); color: var(--error); }
+
     .budget-grid {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
@@ -829,10 +1393,21 @@ export const BUDGET_DASHBOARD_HTML = `<!DOCTYPE html>
 <body>
   <div id="app">
     <header>
-      <h1>Budget Dashboard</h1>
+      <div class="header-top">
+        <h1>oh-my-opencode</h1>
+        <div class="quick-status" id="quick-status">
+          <span class="status-item" id="qs-tier" title="Current tier">--</span>
+          <span class="status-item" id="qs-claude" title="Claude Max usage">Claude: --%</span>
+          <span class="status-item" id="qs-copilot" title="Copilot usage">Copilot: --%</span>
+        </div>
+      </div>
       <nav>
-        <a href="/" class="tab-btn">Settings</a>
-        <button class="tab-btn active">Budget Dashboard</button>
+        <a href="/" class="tab-btn">Overview</a>
+        <button class="tab-btn active">Usage & Budget</button>
+        <a href="/#presets" class="tab-btn">Presets</a>
+        <a href="/#features" class="tab-btn">Features</a>
+        <a href="/#advanced" class="tab-btn">Config</a>
+        <a href="/#docs" class="tab-btn">Docs</a>
       </nav>
     </header>
 
@@ -1006,7 +1581,7 @@ export const BUDGET_DASHBOARD_HTML = `<!DOCTYPE html>
     </main>
 
     <footer>
-      <p>oh-my-opencode Budget Dashboard</p>
+      <p>oh-my-opencode WebUI &bull; <a href="https://github.com/sadnow/oh-my-opencode" target="_blank">GitHub</a> &bull; Press <kbd>r</kbd> to refresh, <kbd>1</kbd>-<kbd>6</kbd> for tabs</p>
     </footer>
   </div>
 
@@ -1021,10 +1596,60 @@ const API_BASE = window.location.origin + '/api';
 let spendingChart = null;
 
 document.addEventListener('DOMContentLoaded', () => {
+  initKeyboardShortcuts();
   loadDashboard();
+  loadQuickStatus();
   // Refresh every 60 seconds
   setInterval(loadDashboard, 60000);
+  setInterval(loadQuickStatus, 60000);
 });
+
+// Keyboard shortcuts
+function initKeyboardShortcuts() {
+  document.addEventListener('keydown', (e) => {
+    if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+    const key = e.key.toLowerCase();
+    if (key === '1') window.location.href = '/';
+    else if (key === '3') window.location.href = '/#presets';
+    else if (key === '4') window.location.href = '/#features';
+    else if (key === '5') window.location.href = '/#advanced';
+    else if (key === '6') window.location.href = '/#docs';
+    else if (key === 'r') { e.preventDefault(); loadDashboard(); showToast('Refreshed'); }
+  });
+}
+
+// Quick status bar
+async function loadQuickStatus() {
+  try {
+    const [claudeRes, copilotRes, orchRes] = await Promise.all([
+      fetch(API_BASE + '/claude-max/usage').then(r => r.json()).catch(() => null),
+      fetch(API_BASE + '/copilot/usage').then(r => r.json()).catch(() => null),
+      fetch(API_BASE + '/orchestration/status').then(r => r.json()).catch(() => null),
+    ]);
+
+    const tierEl = document.getElementById('qs-tier');
+    if (orchRes?.success && orchRes.data?.currentTier) {
+      tierEl.textContent = orchRes.data.currentTier.toUpperCase();
+      tierEl.className = 'status-item tier-' + orchRes.data.currentTier;
+    }
+
+    const claudeEl = document.getElementById('qs-claude');
+    if (claudeRes?.success && claudeRes.data?.allModels) {
+      const pct = claudeRes.data.allModels.percentUsed || 0;
+      claudeEl.textContent = 'Claude: ' + pct.toFixed(0) + '%';
+      claudeEl.className = 'status-item ' + (pct >= 90 ? 'status-critical' : pct >= 70 ? 'status-warning' : 'status-ok');
+    }
+
+    const copilotEl = document.getElementById('qs-copilot');
+    if (copilotRes?.success && copilotRes.data) {
+      const pct = copilotRes.data.percentUsed || 0;
+      copilotEl.textContent = 'Copilot: ' + pct.toFixed(0) + '%';
+      copilotEl.className = 'status-item ' + (pct >= 90 ? 'status-critical' : pct >= 70 ? 'status-warning' : 'status-ok');
+    }
+  } catch (err) {
+    console.error('Quick status error:', err);
+  }
+}
 
 async function loadDashboard() {
   try {
@@ -1571,9 +2196,9 @@ async function loadCopilotUsage() {
 
     section.style.display = 'block';
 
-    // Show error or login prompt if present
-    if (data.needsLogin) {
-      errorEl.innerHTML = '<strong>Login Required:</strong> Click "Refresh" to open a browser window and log into GitHub. Your session will be saved for future fetches.';
+    // Show error or auth prompt if present
+    if (data.needsAuth) {
+      errorEl.innerHTML = '<strong>Auth Required:</strong> Run <code>gh auth login</code> in your terminal to authenticate with GitHub CLI.';
       errorEl.style.display = 'block';
       errorEl.style.background = 'rgba(255, 157, 0, 0.1)';
       errorEl.style.color = '#ff9d00';
@@ -1623,14 +2248,14 @@ async function loadCopilotUsage() {
 
     // Fetch method indicator
     const methodEl = document.getElementById('copilot-fetch-method');
-    if (data.fetchMethod === 'browser') {
-      methodEl.textContent = '(live)';
+    if (data.fetchMethod === 'api') {
+      methodEl.textContent = '(via GitHub API)';
       methodEl.style.color = '#4caf50';
     } else if (data.fetchMethod === 'cached') {
       methodEl.textContent = '(cached)';
       methodEl.style.color = '#888';
-    } else if (data.needsLogin) {
-      methodEl.textContent = '(login needed)';
+    } else if (data.needsAuth) {
+      methodEl.textContent = '(auth needed)';
       methodEl.style.color = '#ff9d00';
     } else {
       methodEl.textContent = '';
@@ -1643,7 +2268,7 @@ async function loadCopilotUsage() {
 
 async function refreshCopilot() {
   try {
-    showToast('Launching browser to fetch Copilot usage...');
+    showToast('Refreshing Copilot usage from GitHub API...');
     const res = await fetch(API_BASE + '/copilot/refresh', { method: 'POST' });
     const result = await res.json();
 
