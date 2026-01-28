@@ -118,6 +118,14 @@ export function createUsageTrackingHook(
         const sessionId = input.sessionID
         const messageId = input.messageID
         
+        log("[usage-tracking] chat.message event fired:", {
+          sessionId,
+          messageId,
+          hasInputModel: !!input.model,
+          inputModel: input.model,
+          agent: input.agent,
+        })
+        
         if (!messageId) {
           return
         }
@@ -182,25 +190,53 @@ export function createUsageTrackingHook(
                 const inputTokens = estimateTokensFromParts(userMsg.parts)
                 const outputTokens = estimateTokensFromParts(msg.parts)
 
+                log("[usage-tracking] Token estimation:", {
+                  userMsgParts: userMsg.parts.length,
+                  assistantMsgParts: msg.parts.length,
+                  inputTokens,
+                  outputTokens,
+                })
+
+                // Skip if no output (assistant message is empty or being built)
+                if (outputTokens === 0) {
+                  log("[usage-tracking] Skipping - assistant message has no content yet")
+                  continue
+                }
+
                 // Extract model and provider from info
                 const modelInfo = (msg.info as any).model
                 let modelStr = "unknown"
+                let providerSource: string | undefined
                 
-                log("[usage-tracking] Model info from message:", {
-                  modelInfo,
-                  hasProviderID: !!modelInfo?.providerID,
-                  hasModelID: !!modelInfo?.modelID,
-                  inputAgent: input.agent,
-                })
-                
-                if (modelInfo?.providerID && modelInfo?.modelID) {
+                // First try to get from input.model (available in chat.message)
+                if (input.model?.providerID && input.model?.modelID) {
+                  modelStr = `${input.model.providerID}/${input.model.modelID}`
+                  providerSource = input.model.providerID
+                  log("[usage-tracking] Using input.model:", modelStr)
+                }
+                // Then try from message info
+                else if (modelInfo?.providerID && modelInfo?.modelID) {
                   modelStr = `${modelInfo.providerID}/${modelInfo.modelID}`
-                } else if (input.agent) {
+                  providerSource = modelInfo.providerID
+                  log("[usage-tracking] Using msg.info.model:", modelStr)
+                }
+                // Fallback to agent name
+                else if (input.agent) {
                   modelStr = input.agent
+                  log("[usage-tracking] Falling back to input.agent:", modelStr)
                 }
                 
+                log("[usage-tracking] Model info from message:", {
+                  inputModel: input.model,
+                  msgInfoModel: modelInfo,
+                  hasProviderID: !!modelInfo?.providerID,
+                  hasModelID: !!modelInfo?.modelID,
+                  finalModelStr: modelStr,
+                  providerSource,
+                })
+                
                 const modelName = extractModelName(modelStr)
-                const provider = extractProvider(modelStr)
+                const provider = providerSource ?? extractProvider(modelStr)
 
                 log("[usage-tracking] Extracted model info:", {
                   modelStr,
@@ -222,6 +258,7 @@ export function createUsageTrackingHook(
                   outputTokens,
                   taskType: "primary",
                   sessionID: sessionId,
+                  providerSource,
                 })
 
                 log("[usage-tracking] Recorded estimated usage:", {

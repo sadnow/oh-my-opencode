@@ -78,6 +78,7 @@ import {
   handleGetStatsTrends,
   handleGetStatsSessions,
   handleGetStatsAllProviders,
+  handleGetEnhancedStats,
   type StatsRouteContext,
 } from "./routes/stats"
 
@@ -369,6 +370,10 @@ async function handleAPI(
   if (pathname === "/stats/all-providers" && method === "GET") {
     const range = url.searchParams.get("range") || "7d"
     return handleGetStatsAllProviders(range, ctx.statsCtx)
+  }
+  if (pathname === "/stats/enhanced" && method === "GET") {
+    const period = url.searchParams.get("period") || "weekly"
+    return handleGetEnhancedStats(period, ctx.statsCtx)
   }
   if (pathname.startsWith("/stats/trends/") && method === "GET") {
     const provider = pathname.replace("/stats/trends/", "")

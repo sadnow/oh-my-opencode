@@ -219,3 +219,34 @@ export function handleGetStatsAllProviders(
     )
   }
 }
+
+/**
+ * GET /api/stats/enhanced?period=weekly|monthly
+ * Get enhanced analytics with provider sources and subscription quota info
+ */
+export function handleGetEnhancedStats(
+  period: string,
+  ctx: StatsRouteContext
+): Response {
+  if (!ctx.usageTracker) {
+    return Response.json(
+      { success: false, error: "Usage tracking not enabled" },
+      { status: 503 }
+    )
+  }
+
+  try {
+    const periodType = period === "monthly" ? "monthly" : "weekly"
+    const analytics = ctx.usageTracker.getEnhancedAnalytics(periodType)
+
+    return Response.json({
+      success: true,
+      data: analytics,
+    })
+  } catch (error) {
+    return Response.json(
+      { success: false, error: String(error) },
+      { status: 500 }
+    )
+  }
+}

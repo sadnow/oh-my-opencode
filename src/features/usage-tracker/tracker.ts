@@ -12,6 +12,7 @@ import type {
   UsageStorage,
   ModelPricing,
 } from "./types"
+import { SUBSCRIPTION_QUOTAS } from "./types"
 import {
   loadUsageStorage,
   saveUsageStorage,
@@ -560,6 +561,138 @@ export class UsageTracker {
     this.flush()
   }
 
+  /**
+   * Get enhanced analytics with provider sources and relative costs for subscriptions.
+   * Includes breakdown by provider source (e.g., "github-copilot/anthropic", "anthropic/claude").
+   */
+  getEnhancedAnalytics(periodType: "weekly" | "monthly" = "weekly"): {
+    byProviderSource: Record<string, {
+      providerSource: string
+      totalCost: number
+      totalTokens: number
+      callCount: number
+      models: string[]
+      relativeCost?: {
+        percentOfQuota: number
+        dollarEquivalent: number
+        quotaLimit: number
+        resetPeriod: string
+      }
+    }>
+    totalCost: number
+    periodStart: Date
+    periodEnd: Date
+  } {
+    const now = new Date()
+    const periodStart = periodType === "monthly" 
+      ? new Date(now.getFullYear(), now.getMonth(), 1)
+      : new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
+    
+    const records = this.storage.records.filter(r => {
+      const recordDate = new Date(r.timestamp)
+      return recordDate >= periodStart && recordDate <= now
+    })
+
+    const byProviderSource: Record<string, {
+      providerSource: string
+      totalCost: number
+      totalTokens: number
+      callCount: number
+      models: Set<string>
+      baseProvider: string
+    }> = {}
+
+    for (const record of records) {
+      // Use providerSource if available, otherwise fall back to provider
+      const source = record.providerSource || record.provider
+      const baseProvider = record.provider
+      
+      if (!byProviderSource[source]) {
+        byProviderSource[source] = {
+          providerSource: source,
+          totalCost: 0,
+          totalTokens: 0,
+          callCount: 0,
+          models: new Set(),
+          baseProvider,
+        }
+      }
+
+      byProviderSource[source].totalCost += record.estimatedCost
+      byProviderSource[source].totalTokens += record.inputTokens + record.outputTokens
+      byProviderSource[source].callCount += 1
+      byProviderSource[source].models.add(record.model)
+    }
+
+    // Calculate relative costs for subscription providers
+    const result: Record<string, any> = {}
+    let totalCost = 0
+
+    for (const [source, data] of Object.entries(byProviderSource)) {
+      totalCost += data.totalCost
+      
+      const entry: any = {
+        providerSource: data.providerSource,
+        totalCost: data.totalCost,
+        totalTokens: data.totalTokens,
+        callCount: data.callCount,
+        models: Array.from(data.models),
+      }
+
+      // Add relative cost for subscription providers
+      const quota = this.getSubscriptionQuota(data.baseProvider, periodType)
+      if (quota) {
+        const percentOfQuota = (data.totalCost / quota.limit) * 100
+        entry.relativeCost = {
+          percentOfQuota,
+          dollarEquivalent: data.totalCost,
+          quotaLimit: quota.limit,
+          resetPeriod: quota.period,
+        }
+      }
+
+      result[source] = entry
+    }
+
+    return {
+      byProviderSource: result,
+      totalCost,
+      periodStart,
+      periodEnd: now,
+    }
+  }
+
+  /**
+   * Get subscription quota for a provider based on period type.
+   */
+  private getSubscriptionQuota(provider: string, periodType: "weekly" | "monthly"): {
+    limit: number
+    period: string
+  } | null {
+    const quota = SUBSCRIPTION_QUOTAS[provider]
+    if (!quota) return null
+
+    if (periodType === "weekly") {
+      if (quota.resetPeriod === "weekly") {
+        return {
+          limit: quota.weeklyCostEquivalent || quota.monthlyCost / 4,
+          period: "weekly",
+        }
+      }
+      // For monthly quotas, estimate weekly portion
+      return {
+        limit: quota.monthlyCost / 4,
+        period: "weekly (estimated)",
+      }
+    }
+
+    // Monthly
+    return {
+      limit: quota.monthlyCost,
+      period: "monthly",
+    }
+  }
+
   private createRecord(input: RecordUsageInput): UsageRecord {
     const estimatedCost = this.estimateCost(
       input.provider,
@@ -578,6 +711,7 @@ export class UsageTracker {
       estimatedCost,
       taskType: input.taskType,
       sessionID: input.sessionID,
+      providerSource: input.providerSource,
     }
   }
 

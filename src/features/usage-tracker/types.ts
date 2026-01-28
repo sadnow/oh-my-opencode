@@ -26,6 +26,8 @@ export interface UsageRecord {
   taskType: TaskType
   /** Optional session ID for tracking */
   sessionID?: string
+  /** Source of the model (e.g., "anthropic/claude", "github-copilot/anthropic", "opencode/openai") */
+  providerSource?: string
 }
 
 export interface ProviderUsageSummary {
@@ -81,4 +83,36 @@ export interface RecordUsageInput {
   outputTokens: number
   taskType: TaskType
   sessionID?: string
+  providerSource?: string
+}
+
+/**
+ * Subscription quota information for providers with fixed monthly/weekly limits
+ */
+export interface SubscriptionQuota {
+  /** Provider name (e.g., "github-copilot", "anthropic") */
+  provider: string
+  /** Monthly cost in USD */
+  monthlyCost: number
+  /** Reset period */
+  resetPeriod: "weekly" | "monthly"
+  /** Weekly cost equivalent (for weekly reset providers) */
+  weeklyCostEquivalent?: number
+}
+
+/**
+ * Subscription quotas for known providers
+ */
+export const SUBSCRIPTION_QUOTAS: Record<string, SubscriptionQuota> = {
+  "github-copilot": {
+    provider: "github-copilot",
+    monthlyCost: 39, // GitHub Copilot Pro: $39/mo
+    resetPeriod: "monthly",
+  },
+  "anthropic": {
+    provider: "anthropic",
+    monthlyCost: 200, // Claude Max: $200/mo ($50/week)
+    resetPeriod: "weekly",
+    weeklyCostEquivalent: 50, // $200/mo ÷ 4 weeks
+  },
 }

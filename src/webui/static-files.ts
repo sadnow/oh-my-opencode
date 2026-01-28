@@ -22,9 +22,8 @@ export const INDEX_HTML = `<!DOCTYPE html>
           <span class="status-item" id="qs-copilot" title="Copilot usage">Copilot: --%</span>
         </div>
       </div>
-      <nav>
-        <button class="tab-btn active" data-tab="dashboard">Overview</button>
-        <a href="/budget-dashboard" class="tab-btn">Usage & Budget</a>
+<nav>
+        <button class="tab-btn active" data-tab="dashboard">Dashboard</button>
         <button class="tab-btn" data-tab="presets">Presets</button>
         <button class="tab-btn" data-tab="features">Features</button>
         <button class="tab-btn" data-tab="advanced">Config</button>
@@ -34,7 +33,152 @@ export const INDEX_HTML = `<!DOCTYPE html>
 
     <main>
       <section id="dashboard" class="tab-content active">
-        <h2>Overview</h2>
+        <h2>Dashboard</h2>
+
+        <!-- Hero Section: Large KPI Cards -->
+        <div class="dashboard-hero">
+          <div class="hero-card">
+            <div class="label">
+              Total Cost
+              <span class="tooltip-trigger" data-tooltip="Estimated API cost based on token usage tracked by oh-my-opencode. Uses public pricing data. Real costs depend on your subscription plan (Claude Max, Copilot, etc.). Resets every Monday.">ⓘ</span>
+            </div>
+            <div class="value" id="hero-total-cost">$0.00</div>
+            <div class="sub-value" id="hero-period-label">This Week</div>
+            <div class="trend" id="hero-cost-trend">
+              <span class="trend-neutral">--</span>
+            </div>
+          </div>
+          <div class="hero-card">
+            <div class="label">
+              Claude Max
+              <span class="tooltip-trigger" data-tooltip="Real-time usage percentage from Anthropic's API. Shows how much of your $50/week Claude Max allowance you've used. Resets every Thursday.">ⓘ</span>
+            </div>
+            <div class="value" id="hero-claude-percent">--%</div>
+            <div class="sub-value" id="hero-claude-cost">$0/$50/week</div>
+            <div class="trend" id="hero-claude-trend">
+              <span class="trend-neutral">--</span>
+            </div>
+          </div>
+          <div class="hero-card">
+            <div class="label">
+              GitHub Copilot
+              <span class="tooltip-trigger" data-tooltip="Premium request usage from GitHub Copilot. Shows how many of your 1500 monthly premium requests you've used. Resets on the 1st of each month.">ⓘ</span>
+            </div>
+            <div class="value" id="hero-copilot-percent">--%</div>
+            <div class="sub-value" id="hero-copilot-reqs">0/1500 reqs</div>
+            <div class="trend" id="hero-copilot-trend">
+              <span class="trend-neutral">--</span>
+            </div>
+          </div>
+          <div class="hero-card">
+            <div class="label">
+              Current Tier
+              <span class="tooltip-trigger" data-tooltip="Recommended model tier based on your budget system. Premium = best quality, Standard = balanced, Budget = cost-optimized, Economy = cheapest.">ⓘ</span>
+            </div>
+            <div class="value" id="hero-tier">--</div>
+            <div class="sub-value">Recommended by budget system</div>
+          </div>
+        </div>
+
+        <!-- Period Selector -->
+        <div class="period-selector">
+          <button class="period-btn active" data-period="24h" onclick="changePeriod('24h')">24 Hours</button>
+          <button class="period-btn" data-period="week" onclick="changePeriod('week')">This Week</button>
+          <button class="period-btn" data-period="month" onclick="changePeriod('month')">This Month</button>
+        </div>
+
+        <!-- Cost Trend Chart -->
+        <div class="chart-section">
+          <h3>
+            Cost Trend
+            <span class="tooltip-trigger" data-tooltip="API cost over time during the selected period. Shows spending patterns and helps identify usage spikes.">ⓘ</span>
+          </h3>
+          <div class="cost-chart" id="cost-trend-chart">
+            <canvas id="trendCanvas"></canvas>
+          </div>
+        </div>
+
+        <!-- Provider Breakdown -->
+        <div class="provider-grid" id="provider-breakdown">
+          <!-- Provider cards will be populated by JavaScript -->
+        </div>
+
+        <!-- Session Stats -->
+        <div class="session-grid">
+          <div class="session-card">
+            <div class="session-value" id="session-count">--</div>
+            <div class="session-label">
+              Total Sessions
+              <span class="tooltip-trigger" data-tooltip="Number of AI sessions during this period. Each session represents a conversation or task.">ⓘ</span>
+            </div>
+          </div>
+          <div class="session-card">
+            <div class="session-value" id="session-avg-cost">$0.00</div>
+            <div class="session-label">
+              Avg Cost/Session
+              <span class="tooltip-trigger" data-tooltip="Average cost per session. Calculated by dividing total cost by number of sessions.">ⓘ</span>
+            </div>
+          </div>
+          <div class="session-card">
+            <div class="session-value" id="session-avg-duration">--</div>
+            <div class="session-label">
+              Avg Duration
+              <span class="tooltip-trigger" data-tooltip="Average session duration in minutes. Helps understand task complexity.">ⓘ</span>
+            </div>
+          </div>
+          <div class="session-card">
+            <div class="session-value" id="session-daily-avg">$0.00</div>
+            <div class="session-label">
+              Daily Avg
+              <span class="tooltip-trigger" data-tooltip="Average daily cost during this period. Calculated by dividing total cost by days in period.">ⓘ</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Category Efficiency -->
+        <div class="category-section">
+          <h3>
+            Category Efficiency
+            <span class="tooltip-trigger" data-tooltip="Cost breakdown by task category. Shows which types of tasks consume the most budget. Categories are configured in your orchestration preset.">ⓘ</span>
+          </h3>
+          <div class="category-list" id="category-list">
+            <!-- Category items will be populated by JavaScript -->
+          </div>
+        </div>
+
+        <!-- Footer Stats Bar -->
+        <div class="footer-stats">
+          <div class="stat-group">
+            <div class="stat-item">
+              <span class="stat-label">Claude Max:</span>
+              <span class="stat-value" id="footer-claude-dph">$0.00/hr</span>
+              <span class="tooltip-trigger" data-tooltip="Average cost per hour for Claude Max usage. Calculated from Anthropic API data.">ⓘ</span>
+            </div>
+            <div class="stat-item">
+              <span class="stat-label">Copilot:</span>
+              <span class="stat-value" id="footer-copilot-dph">$0.00/hr</span>
+              <span class="tooltip-trigger" data-tooltip="Average cost per hour for Copilot usage. Based on premium request quota.">ⓘ</span>
+            </div>
+            <div class="stat-item">
+              <span class="stat-label">Other:</span>
+              <span class="stat-value" id="footer-other-dph">$0.00/hr</span>
+              <span class="tooltip-trigger" data-tooltip="Average cost per hour for other providers (OpenAI, Google, etc.).">ⓘ</span>
+            </div>
+          </div>
+          <div class="stat-group">
+            <div class="stat-item">
+              <span class="stat-label">Claude Max:</span>
+              <span class="stat-value" id="footer-claude-pph">0%/hr</span>
+              <span class="tooltip-trigger" data-tooltip="Percentage of Claude Max quota used per hour. Helps pace your usage.">ⓘ</span>
+            </div>
+            <div class="stat-item">
+              <span class="stat-label">Copilot:</span>
+              <span class="stat-value" id="footer-copilot-pph">0%/hr</span>
+              <span class="tooltip-trigger" data-tooltip="Percentage of Copilot quota used per hour. Helps pace your usage.">ⓘ</span>
+            </div>
+          </div>
+        </div>
+
         <div class="grid">
           <div class="card">
             <h3>Current Preset</h3>
@@ -517,6 +661,7 @@ document.addEventListener('DOMContentLoaded', () => {
   initKeyboardShortcuts();
   initDocsNav();
   loadDashboard();
+  loadAnalytics('week'); // Load unified dashboard analytics
   loadPresets();
   loadFeatures();
   loadConfig();
@@ -645,33 +790,73 @@ async function loadQuickStatus() {
 // Dashboard
 async function loadDashboard() {
   try {
-    const [configRes, orchRes, budgetRes] = await Promise.all([
+    const [configRes, orchRes, budgetRes, summaryRes, claudeMaxRes, copilotRes] = await Promise.all([
       fetch(API_BASE + '/config').then(r => r.json()),
       fetch(API_BASE + '/orchestration/status').then(r => r.json()).catch(() => ({ success: false })),
       fetch(API_BASE + '/budget/dashboard').then(r => r.json()).catch(() => ({ success: false })),
+      fetch(API_BASE + '/stats/summary?period=weekly').then(r => r.json()).catch(() => null),
+      fetch(API_BASE + '/claude-max/usage').then(r => r.json()).catch(() => null),
+      fetch(API_BASE + '/copilot/usage').then(r => r.json()).catch(() => null),
     ]);
 
-    // Current preset
-    const presetEl = document.getElementById('current-preset');
-    const preset = configRes.data?.orchestration_preset || 'custom';
-    presetEl.innerHTML = '<div class="big-value">' + preset + '</div><div class="sub-label">Active configuration</div>';
-
-    // Recommended tier
-    const tierEl = document.getElementById('recommended-tier');
-    if (orchRes.success && orchRes.data.currentTier) {
-      const tier = orchRes.data.currentTier;
-      tierEl.innerHTML = '<div class="big-value tier-badge tier-' + tier + '">' + tier.toUpperCase() + '</div><div class="sub-label">Recommended by budget system</div>';
-    } else {
-      tierEl.innerHTML = '<div class="big-value">--</div><div class="sub-label">Budget system not active</div>';
+    // Analytics overview on homepage
+    if (summaryRes?.success && summaryRes.data) {
+      const d = summaryRes.data;
+      const totalCost = d.current?.totalCost || 0;
+      const costDisplay = totalCost < 0.01 && totalCost > 0 
+        ? '$' + totalCost.toFixed(4) 
+        : '$' + totalCost.toFixed(2);
+      
+      const costEl = document.getElementById('hero-total-cost');
+      const trendEl = document.getElementById('hero-cost-trend');
+      
+      if (costEl) costEl.textContent = costDisplay;
+      
+      if (trendEl) {
+        const previousCost = d.previous?.totalCost || 0;
+        if (previousCost > 0) {
+          const pctChange = ((totalCost - previousCost) / previousCost * 100);
+          const arrow = pctChange > 0 ? '↑' : pctChange < 0 ? '↓' : '→';
+          const trendClass = pctChange > 10 ? 'trend-up' : pctChange < -10 ? 'trend-down' : 'trend-neutral';
+          trendEl.innerHTML = '<span class="' + trendClass + '">' + arrow + ' ' + Math.abs(pctChange).toFixed(0) + '% vs last week</span>';
+        } else {
+          trendEl.innerHTML = '<span class="trend-neutral">--</span>';
+        }
+      }
+    }
+    
+    // Claude Max usage
+    if (claudeMaxRes?.success && claudeMaxRes.data?.allModels) {
+      const percent = claudeMaxRes.data.allModels.percentUsed || 0;
+      const cost = (percent / 100) * 50; // $50/week
+      const usageEl = document.getElementById('hero-claude-percent');
+      const detailEl = document.getElementById('hero-claude-cost');
+      
+      if (usageEl) usageEl.textContent = percent.toFixed(0) + '%';
+      if (detailEl) detailEl.textContent = '$' + cost.toFixed(2) + '/$50/week';
+    }
+    
+    // Copilot usage
+    if (copilotRes?.success && copilotRes.data) {
+      const percent = copilotRes.data.percentUsed || 0;
+      const usedReqs = copilotRes.data.usedRequests || 0;
+      const totalReqs = copilotRes.data.totalRequests || 1500;
+      const usageEl = document.getElementById('hero-copilot-percent');
+      const detailEl = document.getElementById('hero-copilot-reqs');
+      
+      if (usageEl) {
+        usageEl.textContent = percent.toFixed(0) + '%';
+        usageEl.style.color = percent > 100 ? 'var(--error)' : percent > 75 ? 'var(--warning, #ffa500)' : '';
+      }
+      if (detailEl) detailEl.textContent = usedReqs + '/' + totalReqs + ' reqs';
     }
 
-    // Active providers
-    const providersEl = document.getElementById('active-providers');
-    if (budgetRes.success && budgetRes.data?.providers?.length) {
-      const providers = budgetRes.data.providers.map(p => p.provider).join(', ');
-      providersEl.innerHTML = '<div class="big-value">' + budgetRes.data.providers.length + '</div><div class="sub-label">' + providers + '</div>';
+    // Current tier
+    const tierEl = document.getElementById('hero-tier');
+    if (orchRes?.success && orchRes.data?.currentTier) {
+      tierEl.textContent = orchRes.data.currentTier.toUpperCase();
     } else {
-      providersEl.innerHTML = '<div class="big-value">0</div><div class="sub-label">Configure in Budget settings</div>';
+      tierEl.textContent = '--';
     }
   } catch (err) {
     console.error('Dashboard load error:', err);
@@ -847,21 +1032,847 @@ function showToast(message) {
   toast.classList.remove('hidden');
   setTimeout(() => toast.classList.add('hidden'), 3000);
 }
+
+// Analytics Functions
+async function loadAnalytics(period) {
+  try {
+    const [summaryRes, sessionsRes, categoryRes, enhancedRes, claudeMaxRes, copilotRes] = await Promise.all([
+      fetch(API_BASE + '/stats/summary?period=' + period).then(r => r.json()).catch(() => null),
+      fetch(API_BASE + '/stats/sessions').then(r => r.json()).catch(() => null),
+      fetch(API_BASE + '/stats/by-category').then(r => r.json()).catch(() => null),
+      fetch(API_BASE + '/stats/enhanced?period=' + period).then(r => r.json()).catch(() => null),
+      fetch(API_BASE + '/claude-max/usage').then(r => r.json()).catch(() => null),
+      fetch(API_BASE + '/copilot/usage').then(r => r.json()).catch(() => null),
+    ]);
+
+    // Sessions
+    if (sessionsRes?.success && sessionsRes.data) {
+      const s = sessionsRes.data;
+      const countEl = document.getElementById('session-count');
+      const avgCostEl = document.getElementById('session-avg-cost');
+      const avgDurEl = document.getElementById('session-avg-duration');
+      const dailyAvgEl = document.getElementById('session-daily-avg');
+      
+      if (countEl) countEl.textContent = s.totalSessions || '--';
+      if (avgCostEl) avgCostEl.textContent = '$' + (s.avgCostPerSession || 0).toFixed(2);
+      if (avgDurEl) avgDurEl.textContent = (s.avgDurationMinutes || 0).toFixed(0) + ' min';
+      
+      if (dailyAvgEl && summaryRes?.success && summaryRes.data) {
+        const avgDaily = summaryRes.data.avgDailySpend || 0;
+        dailyAvgEl.textContent = '$' + avgDaily.toFixed(4);
+      }
+    }
+
+    // Category Breakdown
+    if (categoryRes?.success && categoryRes.data?.categories) {
+      const cats = categoryRes.data.categories;
+      const container = document.getElementById('category-list');
+      if (container) {
+        if (cats.length === 0) {
+          container.innerHTML = '<span style="color: var(--text-secondary);">No API usage tracked yet.</span>';
+        } else {
+          container.innerHTML = cats.slice(0, 6).map(c => {
+            const costDisplay = c.cost < 0.01 && c.cost > 0 
+              ? '$' + c.cost.toFixed(4) 
+              : '$' + c.cost.toFixed(2);
+            return '<div class="category-item"><span class="cat-name">' + c.category + '</span><span class="cat-cost">' + costDisplay + '</span></div>';
+          }).join('');
+        }
+      }
+    }
+
+    // Provider Breakdown
+    if (enhancedRes?.success && enhancedRes.data?.byProviderSource) {
+      const providerSources = enhancedRes.data.byProviderSource;
+      const providersContainer = document.getElementById('provider-breakdown');
+      
+      const providersArray = Object.values(providerSources);
+      
+      if (providersContainer && providersArray.length > 0) {
+        providersContainer.innerHTML = providersArray.map(p => {
+          let displayName = p.providerSource || 'unknown';
+          if (p.providerSource === 'github-copilot') {
+            displayName = 'GitHub Copilot';
+          } else if (p.providerSource === 'anthropic') {
+            displayName = 'Claude Max (OAuth)';
+          } else if (p.providerSource === 'openai') {
+            displayName = 'OpenAI (Direct)';
+          } else if (p.providerSource === 'google') {
+            displayName = 'Google (Direct)';
+          }
+          
+          const costDisplay = p.totalCost < 0.01 && p.totalCost > 0 
+            ? '$' + p.totalCost.toFixed(4) 
+            : '$' + p.totalCost.toFixed(2);
+          
+          return '<div class="provider-card"><div class="provider-name">' + displayName + '</div><div class="provider-cost">' + costDisplay + '</div></div>';
+        }).join('');
+      }
+    }
+    
+    // Footer stats
+    if (claudeMaxRes?.success && claudeMaxRes.data?.allModels) {
+      const percent = claudeMaxRes.data.allModels.percentUsed || 0;
+      const weeklyLimit = 50;
+      const cost = (percent / 100) * weeklyLimit;
+      
+      const now = new Date();
+      const dayOfWeek = now.getDay();
+      const daysFromMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+      const mondayStart = new Date(now);
+      mondayStart.setDate(now.getDate() - daysFromMonday);
+      mondayStart.setHours(0, 0, 0, 0);
+      const hoursElapsed = (now - mondayStart) / (1000 * 60 * 60);
+      
+      const dph = hoursElapsed > 0 ? cost / hoursElapsed : 0;
+      const pph = hoursElapsed > 0 ? percent / hoursElapsed : 0;
+      
+      const dphEl = document.getElementById('footer-claude-dph');
+      const pphEl = document.getElementById('footer-claude-pph');
+      if (dphEl) dphEl.textContent = '$' + dph.toFixed(4) + '/hr';
+      if (pphEl) pphEl.textContent = pph.toFixed(2) + '%/hr';
+    }
+    
+    if (copilotRes?.success && copilotRes.data) {
+      const percent = copilotRes.data.percentUsed || 0;
+      const monthlyCost = 39;
+      const cost = (percent / 100) * monthlyCost;
+      
+      const now = new Date();
+      const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+      const hoursElapsed = (now - monthStart) / (1000 * 60 * 60);
+      
+      const dph = hoursElapsed > 0 ? cost / hoursElapsed : 0;
+      const pph = hoursElapsed > 0 ? percent / hoursElapsed : 0;
+      
+      const dphEl = document.getElementById('footer-copilot-dph');
+      const pphEl = document.getElementById('footer-copilot-pph');
+      if (dphEl) dphEl.textContent = '$' + dph.toFixed(4) + '/hr';
+      if (pphEl) pphEl.textContent = pph.toFixed(2) + '%/hr';
+    }
+    
+    if (summaryRes?.success && summaryRes.data) {
+      const totalCost = summaryRes.data.current?.totalCost || 0;
+      let otherCost = totalCost;
+      if (claudeMaxRes?.success && claudeMaxRes.data?.allModels) {
+        const claudeCost = (claudeMaxRes.data.allModels.percentUsed / 100) * 50;
+        otherCost -= claudeCost;
+      }
+      if (copilotRes?.success && copilotRes.data) {
+        const copilotCost = (copilotRes.data.percentUsed / 100) * 39;
+        otherCost -= copilotCost;
+      }
+      
+      let hoursElapsed = 24;
+      if (period === 'week') {
+        const now = new Date();
+        const dayOfWeek = now.getDay();
+        const daysFromMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+        const mondayStart = new Date(now);
+        mondayStart.setDate(now.getDate() - daysFromMonday);
+        mondayStart.setHours(0, 0, 0, 0);
+        hoursElapsed = (now - mondayStart) / (1000 * 60 * 60);
+      } else if (period === 'month') {
+        const now = new Date();
+        const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+        hoursElapsed = (now - monthStart) / (1000 * 60 * 60);
+      }
+      
+      const dph = hoursElapsed > 0 ? otherCost / hoursElapsed : 0;
+      const dphEl = document.getElementById('footer-other-dph');
+      if (dphEl) dphEl.textContent = '$' + dph.toFixed(4) + '/hr';
+    }
+    
+    // Cost Trend - Combined Relative Costs
+    // Render Chart.js time-series graph
+    const canvas = document.getElementById('trendCanvas');
+    if (canvas) {
+      try {
+        // Fetch time-series data for all providers
+        const [claudeHistoryRes, copilotHistoryRes] = await Promise.all([
+          fetch('/api/claude-max/history').then(r => r.json()),
+          fetch('/api/copilot/history').then(r => r.json())
+        ]);
+
+        // Prepare datasets
+        const datasets = [];
+        let allTimestamps = new Set();
+
+        // Claude Max dataset
+        if (claudeHistoryRes?.success && claudeHistoryRes.data?.points) {
+          const points = claudeHistoryRes.data.points;
+          points.forEach(p => allTimestamps.add(p.timestamp));
+          
+          datasets.push({
+            label: 'Claude Max (OAuth)',
+            data: points.map(p => ({
+              x: new Date(p.timestamp),
+              y: p.allModelsPercent || 0
+            })),
+            borderColor: '#8b5cf6',
+            backgroundColor: 'rgba(139, 92, 246, 0.1)',
+            tension: 0.4,
+            fill: true,
+            pointRadius: 0,
+            pointHoverRadius: 6,
+            borderWidth: 2
+          });
+        }
+
+        // Copilot dataset
+        if (copilotHistoryRes?.success && copilotHistoryRes.data?.points) {
+          const points = copilotHistoryRes.data.points;
+          points.forEach(p => allTimestamps.add(p.timestamp));
+          
+          datasets.push({
+            label: 'GitHub Copilot',
+            data: points.map(p => ({
+              x: new Date(p.timestamp),
+              y: p.percentUsed || 0
+            })),
+            borderColor: '#10b981',
+            backgroundColor: 'rgba(16, 185, 129, 0.1)',
+            tension: 0.4,
+            fill: true,
+            pointRadius: 0,
+            pointHoverRadius: 6,
+            borderWidth: 2
+          });
+        }
+
+        // Direct API cost dataset (if we have trend data)
+        if (summaryRes?.success && summaryRes.data?.current?.totalCost > 0) {
+          // For now, show as flat line - can be enhanced with /api/stats/trends later
+          const now = Date.now();
+          const dayMs = 24 * 60 * 60 * 1000;
+          const cost = summaryRes.data.current.totalCost;
+          
+          datasets.push({
+            label: 'Direct API Usage',
+            data: [
+              { x: new Date(now - 7 * dayMs), y: cost },
+              { x: new Date(now), y: cost }
+            ],
+            borderColor: '#f59e0b',
+            backgroundColor: 'rgba(245, 158, 11, 0.1)',
+            tension: 0.4,
+            fill: true,
+            pointRadius: 0,
+            pointHoverRadius: 6,
+            borderWidth: 2,
+            borderDash: [5, 5]
+          });
+        }
+
+        // Destroy existing chart if present
+        if (window.costTrendChart) {
+          window.costTrendChart.destroy();
+        }
+
+        // Create Chart.js instance
+        const ctx = canvas.getContext('2d');
+        window.costTrendChart = new Chart(ctx, {
+          type: 'line',
+          data: { datasets },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            interaction: {
+              mode: 'index',
+              intersect: false
+            },
+            plugins: {
+              legend: {
+                display: true,
+                position: 'top',
+                labels: {
+                  color: '#e5e7eb',
+                  font: { size: 12 },
+                  usePointStyle: true,
+                  padding: 15
+                }
+              },
+              tooltip: {
+                backgroundColor: 'rgba(17, 24, 39, 0.95)',
+                titleColor: '#f9fafb',
+                bodyColor: '#e5e7eb',
+                borderColor: '#374151',
+                borderWidth: 1,
+                padding: 12,
+                displayColors: true,
+                callbacks: {
+                  title: (items) => {
+                    if (items.length > 0) {
+                      const date = new Date(items[0].parsed.x);
+                      return date.toLocaleString('en-US', {
+                        month: 'short',
+                        day: 'numeric',
+                        hour: '2-digit',
+                        minute: '2-digit'
+                      });
+                    }
+                    return '';
+                  },
+                  label: (context) => {
+                    const label = context.dataset.label || '';
+                    const value = context.parsed.y;
+                    return label + ': ' + value.toFixed(1) + '%';
+                  }
+                }
+              }
+            },
+            scales: {
+              x: {
+                type: 'time',
+                time: {
+                  unit: period === '24h' ? 'hour' : period === 'week' ? 'day' : 'day',
+                  displayFormats: {
+                    hour: 'HH:mm',
+                    day: 'MMM d'
+                  }
+                },
+                grid: {
+                  color: 'rgba(75, 85, 99, 0.3)',
+                  drawBorder: false
+                },
+                ticks: {
+                  color: '#9ca3af',
+                  font: { size: 11 }
+                }
+              },
+              y: {
+                beginAtZero: true,
+                grid: {
+                  color: 'rgba(75, 85, 99, 0.3)',
+                  drawBorder: false
+                },
+                ticks: {
+                  color: '#9ca3af',
+                  font: { size: 11 },
+                  callback: (value) => value + '%'
+                }
+              }
+            }
+          }
+        });
+
+      } catch (err) {
+        console.error('Chart rendering error:', err);
+        const chartContainer = document.getElementById('cost-trend-chart');
+        if (chartContainer) {
+          chartContainer.innerHTML = '<div class="chart-placeholder">Failed to load chart data</div>';
+        }
+      }
+    }
+  } catch (err) {
+    console.error('Analytics load error:', err);
+  }
+}
+
+function changePeriod(period) {
+  document.querySelectorAll('.period-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.period === period);
+  });
+  
+  const periodLabel = document.getElementById('hero-period-label');
+  if (periodLabel) {
+    const labels = {
+      '24h': '24 Hours',
+      'week': 'This Week',
+      'month': 'This Month'
+    };
+    periodLabel.textContent = labels[period] || 'This Week';
+  }
+  
+  loadAnalytics(period);
+}
 `
 
 export const STYLES_CSS = `/* oh-my-opencode WebUI Styles */
 :root {
-  --bg-primary: #0f0f0f;
-  --bg-secondary: #1a1a1a;
-  --bg-card: #242424;
-  --text-primary: #e0e0e0;
-  --text-secondary: #888;
-  --accent: #9d4edd;
-  --accent-hover: #b668e8;
-  --success: #4caf50;
-  --warning: #ff9800;
-  --error: #f44336;
-  --border: #333;
+  /* Enhanced Dark Mode Palette */
+  --bg-primary: #0a0e1a;
+  --bg-secondary: #111827;
+  --bg-card: #1a1f2e;
+  --bg-elevated: #242b3d;
+  --text-primary: #f1f5f9;
+  --text-secondary: #94a3b8;
+  --text-muted: #64748b;
+  --accent: #8b5cf6;
+  --accent-hover: #a78bfa;
+  --accent-glow: rgba(139, 92, 246, 0.15);
+  --success: #10b981;
+  --warning: #f59e0b;
+  --error: #ef4444;
+  --border: #334155;
+  --border-light: #475569;
+  
+  /* Provider Colors */
+  --provider-anthropic: #ff9d00;
+  --provider-copilot: #238636;
+  --provider-openai: #10a37f;
+  --provider-google: #4285f4;
+  --provider-opencode: #6366f1;
+  
+  /* Chart Colors */
+  --chart-line-1: #8b5cf6;
+  --chart-line-2: #06b6d4;
+  --chart-line-3: #10b981;
+  --chart-line-4: #f59e0b;
+  
+  /* Tooltip Colors */
+  --bg-tooltip: #1e293b;
+  --text-tooltip: #f1f5f9;
+}
+
+/* Tooltip Styles */
+.tooltip-trigger {
+  cursor: help;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--text-muted);
+  color: var(--bg-primary);
+  font-size: 10px;
+  font-weight: 600;
+  margin-left: 6px;
+  position: relative;
+  transition: all 0.2s;
+}
+
+.tooltip-trigger:hover {
+  background: var(--accent);
+  color: white;
+}
+
+.tooltip-trigger::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 12px 16px;
+  background: var(--bg-tooltip);
+  color: var(--text-tooltip);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 12px;
+  line-height: 1.5;
+  width: max-content;
+  max-width: 320px;
+  white-space: normal;
+  z-index: 1000;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+  opacity: 0;
+  visibility: hidden;
+  transition: all 0.2s ease;
+  pointer-events: none;
+  text-align: left;
+}
+
+.tooltip-trigger:hover::after {
+  opacity: 1;
+  visibility: visible;
+}
+
+/* Prevent tooltip overflow on right edge */
+.tooltip-trigger.right-edge::after {
+  left: auto;
+  right: 0;
+  transform: translateX(0);
+}
+
+/* Prevent tooltip overflow on left edge */
+.tooltip-trigger.left-edge::after {
+  left: 0;
+  transform: translateX(0);
+}
+
+/* Unified Dashboard Styles */
+.dashboard-hero {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.hero-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 20px;
+  transition: all 0.3s ease;
+}
+
+.hero-card:hover {
+  border-color: var(--accent);
+  box-shadow: 0 4px 20px var(--accent-glow);
+}
+
+.hero-card .label {
+  font-size: 12px;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 8px;
+  display: flex;
+  align-items: center;
+}
+
+.hero-card .value {
+  font-size: 32px;
+  font-weight: 700;
+  color: var(--text-primary);
+  line-height: 1;
+  margin-bottom: 4px;
+}
+
+.hero-card .sub-value {
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.hero-card .trend {
+  font-size: 12px;
+  margin-top: 8px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.trend-up { color: var(--success); }
+.trend-down { color: var(--error); }
+.trend-neutral { color: var(--text-secondary); }
+
+/* Period Selector */
+.period-selector {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 24px;
+  background: var(--bg-secondary);
+  padding: 4px;
+  border-radius: 8px;
+  width: fit-content;
+}
+
+.period-btn {
+  padding: 8px 20px;
+  background: transparent;
+  border: none;
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-weight: 500;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.period-btn:hover {
+  color: var(--text-primary);
+}
+
+.period-btn.active {
+  background: var(--accent);
+  color: white;
+}
+
+/* Cost Trend Chart */
+.chart-section {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 24px;
+  margin-bottom: 24px;
+}
+
+.chart-section h3 {
+  margin: 0 0 16px 0;
+  font-size: 16px;
+  color: var(--text-primary);
+  display: flex;
+  align-items: center;
+}
+
+.cost-chart {
+  height: auto;
+  min-height: 200px;
+  position: relative;
+  background: var(--bg-secondary);
+  border-radius: 8px;
+  padding: 16px;
+  overflow: hidden;
+}
+
+.cost-breakdown-bars {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.cost-bar-item {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.cost-bar-label {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 14px;
+  color: var(--text-primary);
+  font-weight: 500;
+}
+
+.cost-bar-value {
+  font-size: 12px;
+  color: var(--text-secondary);
+  font-weight: 400;
+}
+
+.cost-bar-track {
+  height: 24px;
+  background: var(--bg-primary);
+  border-radius: 6px;
+  overflow: hidden;
+  position: relative;
+}
+
+.cost-bar-fill {
+  height: 100%;
+  border-radius: 6px;
+  transition: width 0.5s ease;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding-right: 8px;
+  font-size: 11px;
+  color: white;
+  font-weight: 600;
+}
+
+.cost-bar-total {
+  margin-top: 8px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+  text-align: right;
+  font-size: 14px;
+  color: var(--text-secondary);
+}
+
+.cost-bar-total strong {
+  color: var(--accent);
+  font-size: 16px;
+}
+
+.chart-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 150px;
+  color: var(--text-secondary);
+  font-size: 14px;
+}
+
+/* Provider Breakdown */
+.provider-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.provider-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 20px;
+  transition: all 0.3s ease;
+}
+
+.provider-card:hover {
+  border-color: var(--border-light);
+}
+
+.provider-card .provider-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.provider-card .provider-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.provider-card .provider-badge {
+  font-size: 10px;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.provider-card .usage-bar {
+  height: 8px;
+  background: var(--bg-secondary);
+  border-radius: 4px;
+  overflow: hidden;
+  margin-bottom: 8px;
+}
+
+.provider-card .usage-fill {
+  height: 100%;
+  border-radius: 4px;
+  transition: width 0.5s ease;
+}
+
+.provider-card .usage-stats {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+/* Session Stats */
+.session-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.session-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 16px;
+  text-align: center;
+}
+
+.session-card .session-value {
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-bottom: 4px;
+}
+
+.session-card .session-label {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+/* Category Efficiency */
+.category-section {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 24px;
+  margin-bottom: 24px;
+}
+
+.category-section h3 {
+  margin: 0 0 16px 0;
+  font-size: 16px;
+  color: var(--text-primary);
+}
+
+.category-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.category-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.category-name {
+  flex: 0 0 140px;
+  font-size: 13px;
+  color: var(--text-primary);
+}
+
+.category-bar {
+  flex: 1;
+  height: 6px;
+  background: var(--bg-secondary);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.category-fill {
+  height: 100%;
+  border-radius: 3px;
+  transition: width 0.5s ease;
+}
+
+.category-value {
+  flex: 0 0 80px;
+  font-size: 12px;
+  color: var(--text-secondary);
+  text-align: right;
+}
+
+/* Footer Stats Bar */
+.footer-stats {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: var(--bg-elevated);
+  border-top: 1px solid var(--border);
+  padding: 12px 20px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 12px;
+  z-index: 100;
+}
+
+.footer-stats .stat-group {
+  display: flex;
+  gap: 24px;
+}
+
+.footer-stats .stat-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.footer-stats .stat-label {
+  color: var(--text-secondary);
+}
+
+.footer-stats .stat-value {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+/* Provider-specific colors */
+.provider-anthropic { color: var(--provider-anthropic); }
+.provider-copilot { color: var(--provider-copilot); }
+.provider-openai { color: var(--provider-openai); }
+.provider-google { color: var(--provider-google); }
+.provider-opencode { color: var(--provider-opencode); }
+
+/* Progress bar colors */
+.progress-green { background: linear-gradient(90deg, var(--success), #34d399); }
+.progress-yellow { background: linear-gradient(90deg, var(--warning), #fbbf24); }
+.progress-red { background: linear-gradient(90deg, var(--error), #f87171); }
+.progress-purple { background: linear-gradient(90deg, var(--accent), var(--accent-hover)); }
+.progress-blue { background: linear-gradient(90deg, var(--chart-line-2), #22d3ee); }
 }
 
 * {
@@ -2116,9 +3127,17 @@ export const BUDGET_DASHBOARD_HTML = `<!DOCTYPE html>
               </div>
 
               <!-- Model Efficiency -->
-              <div>
+              <div style="margin-bottom: 20px;">
                 <h4 style="margin: 0 0 12px 0; font-size: 14px; color: var(--text-secondary);">Model Efficiency (Tokens/$1)</h4>
                 <div id="model-efficiency" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px;">
+                  <span style="color: var(--text-secondary); font-size: 13px;">Loading...</span>
+                </div>
+              </div>
+
+              <!-- Provider Sources -->
+              <div>
+                <h4 style="margin: 0 0 12px 0; font-size: 14px; color: var(--text-secondary);">Cost by Provider Source</h4>
+                <div id="provider-sources-breakdown" style="display: flex; flex-direction: column; gap: 8px;">
                   <span style="color: var(--text-secondary); font-size: 13px;">Loading...</span>
                 </div>
               </div>
@@ -3442,67 +4461,183 @@ async function saveQuotaTargets() {
 // Analytics Functions
 async function loadAnalytics(period) {
   try {
-    const [summaryRes, sessionsRes, categoryRes, efficiencyRes] = await Promise.all([
+    const [summaryRes, sessionsRes, categoryRes, efficiencyRes, claudeMaxRes, copilotRes, enhancedRes] = await Promise.all([
       fetch(API_BASE + '/stats/summary?period=' + period).then(r => r.json()).catch(() => null),
       fetch(API_BASE + '/stats/sessions').then(r => r.json()).catch(() => null),
       fetch(API_BASE + '/stats/by-category').then(r => r.json()).catch(() => null),
       fetch(API_BASE + '/stats/efficiency').then(r => r.json()).catch(() => null),
+      fetch(API_BASE + '/claude-max/usage').then(r => r.json()).catch(() => null),
+      fetch(API_BASE + '/copilot/usage').then(r => r.json()).catch(() => null),
+      fetch(API_BASE + '/stats/enhanced?period=' + period).then(r => r.json()).catch(() => null),
     ]);
-
-    // Period Summary
-    if (summaryRes?.success && summaryRes.data) {
-      const d = summaryRes.data;
-      document.getElementById('period-cost').textContent = '$' + (d.totalCost || 0).toFixed(2);
-
-      const changeEl = document.getElementById('period-change');
-      if (d.previousCost !== undefined && d.previousCost > 0) {
-        const pctChange = ((d.totalCost - d.previousCost) / d.previousCost * 100);
-        const arrow = pctChange > 0 ? '↑' : pctChange < 0 ? '↓' : '→';
-        changeEl.textContent = arrow + ' ' + Math.abs(pctChange).toFixed(0) + '% vs previous ' + period;
-        changeEl.style.color = pctChange > 10 ? 'var(--error)' : pctChange < -10 ? 'var(--success)' : 'var(--text-secondary)';
-      } else {
-        changeEl.textContent = 'No previous data';
-      }
-
-      document.getElementById('period-daily-avg').textContent = 'Avg $' + (d.dailyAverage || 0).toFixed(2) + '/day';
-    }
 
     // Sessions
     if (sessionsRes?.success && sessionsRes.data) {
       const s = sessionsRes.data;
-      document.getElementById('session-count').textContent = s.totalSessions || '--';
-      document.getElementById('session-avg-cost').textContent = 'Avg $' + (s.avgCostPerSession || 0).toFixed(2) + ' per session';
-      document.getElementById('session-avg-duration').textContent = 'Avg ' + (s.avgDurationMinutes || 0).toFixed(0) + ' min duration';
+      const countEl = document.getElementById('session-count');
+      const avgCostEl = document.getElementById('session-avg-cost');
+      const avgDurEl = document.getElementById('session-avg-duration');
+      const dailyAvgEl = document.getElementById('session-daily-avg');
+      
+      if (countEl) countEl.textContent = s.totalSessions || '--';
+      if (avgCostEl) avgCostEl.textContent = '$' + (s.avgCostPerSession || 0).toFixed(2);
+      if (avgDurEl) avgDurEl.textContent = (s.avgDurationMinutes || 0).toFixed(0) + ' min';
+      
+      // Calculate daily average
+      if (dailyAvgEl && summaryRes?.success && summaryRes.data) {
+        const avgDaily = summaryRes.data.avgDailySpend || 0;
+        dailyAvgEl.textContent = '$' + avgDaily.toFixed(4);
+      }
     }
 
-    // Category Breakdown
+    // Category Breakdown - update to use 'category-list' instead of 'category-breakdown'
     if (categoryRes?.success && categoryRes.data?.categories) {
       const cats = categoryRes.data.categories;
-      const container = document.getElementById('category-breakdown');
-      if (cats.length === 0) {
-        container.innerHTML = '<span style="color: var(--text-secondary);">No API usage tracked yet. Cost data will appear here after making API calls through the plugin.</span>';
-      } else {
-        container.innerHTML = cats.slice(0, 6).map(c => {
-          return '<span class="category-pill"><span class="cat-name">' + c.category + '</span><span class="cat-cost">$' + c.cost.toFixed(2) + '</span></span>';
-        }).join('');
+      const container = document.getElementById('category-list');
+      if (container) {
+        if (cats.length === 0) {
+          container.innerHTML = '<span style="color: var(--text-secondary);">No API usage tracked yet.</span>';
+        } else {
+          container.innerHTML = cats.slice(0, 6).map(c => {
+            const costDisplay = c.cost < 0.01 && c.cost > 0 
+              ? '$' + c.cost.toFixed(4) 
+              : '$' + c.cost.toFixed(2);
+            return '<div class="category-item"><span class="cat-name">' + c.category + '</span><span class="cat-cost">' + costDisplay + '</span></div>';
+          }).join('');
+        }
       }
     }
 
-    // Model Efficiency
-    if (efficiencyRes?.success && efficiencyRes.data?.byModel) {
-      const models = efficiencyRes.data.byModel;
-      const container = document.getElementById('model-efficiency');
-      if (models.length === 0) {
-        container.innerHTML = '<span style="color: var(--text-secondary);">No API usage tracked yet. Model efficiency data will appear here after making API calls through the plugin.</span>';
-      } else {
-        container.innerHTML = models.slice(0, 6).map(m => {
-          return '<div class="efficiency-card"><div class="model-name">' + (m.model || 'unknown') + '</div><div class="model-efficiency">' + formatNumber(m.tokensPer$1 || 0) + '</div></div>';
+    // Provider Breakdown - update to use 'provider-breakdown' instead of 'provider-sources-breakdown'
+    if (enhancedRes?.success && enhancedRes.data?.byProviderSource) {
+      const providerSources = enhancedRes.data.byProviderSource;
+      const providersContainer = document.getElementById('provider-breakdown');
+      
+      const providersArray = Object.values(providerSources);
+      
+      if (providersContainer && providersArray.length > 0) {
+        providersContainer.innerHTML = providersArray.map(p => {
+          let displayName = p.providerSource || 'unknown';
+          if (p.providerSource === 'github-copilot') {
+            displayName = 'GitHub Copilot';
+          } else if (p.providerSource === 'anthropic') {
+            displayName = 'Claude Max (OAuth)';
+          } else if (p.providerSource === 'openai') {
+            displayName = 'OpenAI (Direct)';
+          } else if (p.providerSource === 'google') {
+            displayName = 'Google (Direct)';
+          }
+          
+          const costDisplay = p.totalCost < 0.01 && p.totalCost > 0 
+            ? '$' + p.totalCost.toFixed(4) 
+            : '$' + p.totalCost.toFixed(2);
+          
+          return '<div class="provider-card"><div class="provider-name">' + displayName + '</div><div class="provider-cost">' + costDisplay + '</div></div>';
         }).join('');
       }
+    }
+    
+    // Footer stats - calculate $/hr and %/hr for each provider
+    if (claudeMaxRes?.success && claudeMaxRes.data?.allModels) {
+      const percent = claudeMaxRes.data.allModels.percentUsed || 0;
+      const weeklyLimit = 50;
+      const cost = (percent / 100) * weeklyLimit;
+      
+      // Calculate hours since week start (Monday)
+      const now = new Date();
+      const dayOfWeek = now.getDay();
+      const daysFromMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+      const mondayStart = new Date(now);
+      mondayStart.setDate(now.getDate() - daysFromMonday);
+      mondayStart.setHours(0, 0, 0, 0);
+      const hoursElapsed = (now - mondayStart) / (1000 * 60 * 60);
+      
+      const dph = hoursElapsed > 0 ? cost / hoursElapsed : 0;
+      const pph = hoursElapsed > 0 ? percent / hoursElapsed : 0;
+      
+      const dphEl = document.getElementById('footer-claude-dph');
+      const pphEl = document.getElementById('footer-claude-pph');
+      if (dphEl) dphEl.textContent = '$' + dph.toFixed(4) + '/hr';
+      if (pphEl) pphEl.textContent = pph.toFixed(2) + '%/hr';
+    }
+    
+    if (copilotRes?.success && copilotRes.data) {
+      const percent = copilotRes.data.percentUsed || 0;
+      const monthlyCost = 39;
+      const cost = (percent / 100) * monthlyCost;
+      
+      // Calculate hours since month start
+      const now = new Date();
+      const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+      const hoursElapsed = (now - monthStart) / (1000 * 60 * 60);
+      
+      const dph = hoursElapsed > 0 ? cost / hoursElapsed : 0;
+      const pph = hoursElapsed > 0 ? percent / hoursElapsed : 0;
+      
+      const dphEl = document.getElementById('footer-copilot-dph');
+      const pphEl = document.getElementById('footer-copilot-pph');
+      if (dphEl) dphEl.textContent = '$' + dph.toFixed(4) + '/hr';
+      if (pphEl) pphEl.textContent = pph.toFixed(2) + '%/hr';
+    }
+    
+    // Other providers cost/hr
+    if (summaryRes?.success && summaryRes.data) {
+      const totalCost = summaryRes.data.current?.totalCost || 0;
+      // Subtract Claude Max and Copilot costs to get "other"
+      let otherCost = totalCost;
+      if (claudeMaxRes?.success && claudeMaxRes.data?.allModels) {
+        const claudeCost = (claudeMaxRes.data.allModels.percentUsed / 100) * 50;
+        otherCost -= claudeCost;
+      }
+      if (copilotRes?.success && copilotRes.data) {
+        const copilotCost = (copilotRes.data.percentUsed / 100) * 39;
+        otherCost -= copilotCost;
+      }
+      
+      // Calculate hours based on period
+      let hoursElapsed = 24; // default to 24h
+      if (period === 'week') {
+        const now = new Date();
+        const dayOfWeek = now.getDay();
+        const daysFromMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+        const mondayStart = new Date(now);
+        mondayStart.setDate(now.getDate() - daysFromMonday);
+        mondayStart.setHours(0, 0, 0, 0);
+        hoursElapsed = (now - mondayStart) / (1000 * 60 * 60);
+      } else if (period === 'month') {
+        const now = new Date();
+        const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+        hoursElapsed = (now - monthStart) / (1000 * 60 * 60);
+      }
+      
+      const dph = hoursElapsed > 0 ? otherCost / hoursElapsed : 0;
+      const dphEl = document.getElementById('footer-other-dph');
+      if (dphEl) dphEl.textContent = '$' + dph.toFixed(4) + '/hr';
     }
   } catch (err) {
     console.error('Analytics load error:', err);
   }
+}
+
+function changePeriod(period) {
+  // Update active button
+  document.querySelectorAll('.period-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.period === period);
+  });
+  
+  // Update period label
+  const periodLabel = document.getElementById('hero-period-label');
+  if (periodLabel) {
+    const labels = {
+      '24h': '24 Hours',
+      'week': 'This Week',
+      'month': 'This Month'
+    };
+    periodLabel.textContent = labels[period] || 'This Week';
+  }
+  
+  // Reload analytics with new period
+  loadAnalytics(period);
 }
 
 function formatNumber(num) {
