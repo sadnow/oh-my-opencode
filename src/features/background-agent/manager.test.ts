@@ -1726,7 +1726,7 @@ describe("BackgroundManager.deadlockDetection", () => {
       stabilityResets: 2, // Already reset twice
       progress: {
         toolCalls: 1,
-        lastUpdate: new Date(),
+        lastUpdate: new Date(Date.now() - 35_000), // 35s ago to bypass grace period
       },
     }
 
@@ -1776,7 +1776,7 @@ describe("BackgroundManager.deadlockDetection", () => {
       stabilityResets: 0,
       progress: {
         toolCalls: 1,
-        lastUpdate: new Date(),
+        lastUpdate: new Date(Date.now() - 35_000), // 35s ago to bypass grace period
       },
     }
 
@@ -1820,7 +1820,7 @@ describe("BackgroundManager.deadlockDetection", () => {
       stabilityResets: 0,
       progress: {
         toolCalls: 1,
-        lastUpdate: new Date(),
+        lastUpdate: new Date(Date.now() - 35_000), // 35s ago - bypasses 30s grace period
       },
     }
 
@@ -1868,7 +1868,7 @@ describe("BackgroundManager.deadlockDetection", () => {
       concurrencyKey,
       progress: {
         toolCalls: 1,
-        lastUpdate: new Date(),
+        lastUpdate: new Date(Date.now() - 35_000), // 35s ago - bypasses 30s grace period
       },
     }
 
@@ -2020,7 +2020,7 @@ describe("BackgroundManager.deadlockDetection", () => {
       stabilityResets: 3, // Has 3 resets already
       progress: {
         toolCalls: 1,
-        lastUpdate: new Date(),
+        lastUpdate: new Date(Date.now() - 35_000), // 35s ago - bypasses 30s grace period
       },
     }
 
@@ -2065,7 +2065,7 @@ describe("BackgroundManager.deadlockDetection", () => {
       stabilityResets: 9, // At 9, will hit 10 and trigger deadlock
       progress: {
         toolCalls: 1,
-        lastUpdate: new Date(),
+        lastUpdate: new Date(Date.now() - 35_000), // 35s ago - bypasses 30s grace period
       },
     }
 
@@ -2208,7 +2208,7 @@ describe("BackgroundManager.checkAndInterruptStaleTasks", () => {
       startedAt: new Date(Date.now() - 120_000),
       progress: {
         toolCalls: 1,
-        lastUpdate: new Date(Date.now() - 90_000),
+        lastUpdate: new Date(Date.now() - 65_000), // 65s ago - exceeds 60s stale timeout
       },
     }
 
