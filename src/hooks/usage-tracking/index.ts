@@ -129,7 +129,7 @@ export function createUsageTrackingHook(
           timestamp: Date.now()
         })
 
-        // Wait for assistant to respond (poll after 2 seconds)
+        // Wait for assistant to respond (poll after 5 seconds to ensure response is complete)
         setTimeout(async () => {
           try {
             const pending = pendingSessions.get(sessionId)
@@ -142,14 +142,35 @@ export function createUsageTrackingHook(
 
             const messages = response.data || []
             
+            log("[usage-tracking] Polling session messages:", {
+              sessionId,
+              userMessageId: pending.userMessageId,
+              totalMessages: messages.length,
+            })
+            
             // Find the user message and the following assistant response
             const userMsgIndex = messages.findIndex((m: any) => m.info.id === pending.userMessageId)
-            if (userMsgIndex === -1) return
+            if (userMsgIndex === -1) {
+              log("[usage-tracking] User message not found in history")
+              return
+            }
+
+            log("[usage-tracking] Found user message at index:", userMsgIndex)
 
             // Look for assistant message after the user message
+            let foundAssistant = false
             for (let i = userMsgIndex + 1; i < messages.length; i++) {
               const msg = messages[i]
+              
+              log("[usage-tracking] Checking message at index:", {
+                index: i,
+                role: msg.info.role,
+                id: msg.info.id,
+                partsCount: msg.parts.length,
+              })
+              
               if (msg.info.role === "assistant") {
+                foundAssistant = true
                 const msgId = msg.info.id
                 
                 // Skip if already processed
@@ -164,6 +185,14 @@ export function createUsageTrackingHook(
                 // Extract model and provider from info
                 const modelInfo = (msg.info as any).model
                 let modelStr = "unknown"
+                
+                log("[usage-tracking] Model info from message:", {
+                  modelInfo,
+                  hasProviderID: !!modelInfo?.providerID,
+                  hasModelID: !!modelInfo?.modelID,
+                  inputAgent: input.agent,
+                })
+                
                 if (modelInfo?.providerID && modelInfo?.modelID) {
                   modelStr = `${modelInfo.providerID}/${modelInfo.modelID}`
                 } else if (input.agent) {
@@ -172,6 +201,14 @@ export function createUsageTrackingHook(
                 
                 const modelName = extractModelName(modelStr)
                 const provider = extractProvider(modelStr)
+
+                log("[usage-tracking] Extracted model info:", {
+                  modelStr,
+                  modelName,
+                  provider,
+                  inputTokens,
+                  outputTokens,
+                })
 
                 // Get pricing and calculate cost
                 const pricing = MODEL_PRICING[modelName] ?? DEFAULT_PRICING
@@ -200,13 +237,17 @@ export function createUsageTrackingHook(
                 break
               }
             }
+            
+            if (!foundAssistant) {
+              log("[usage-tracking] No assistant message found after user message. Messages may still be processing.")
+            }
 
             // Clean up pending session
             pendingSessions.delete(sessionId)
           } catch (error) {
             log("[usage-tracking] Error polling messages:", error)
           }
-        }, 2000) // Wait 2 seconds for assistant response
+        }, 5000) // Wait 5 seconds for assistant response
 
       } catch (error) {
         log("[usage-tracking] Error in hook:", error)
