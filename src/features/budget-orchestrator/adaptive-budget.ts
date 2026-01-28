@@ -450,6 +450,21 @@ export class AdaptiveBudgetManager {
     const headroom = this.getBudgetHeadroom(currentUsed, daysRemaining)
     const maxBurst = this.getMaxBurstSpend()
 
+    // EMERGENCY: If budget usage is critically high, force minimum tier regardless of headroom
+    const budgetPercentageUsed = currentUsed / this.config.totalBudget
+    if (budgetPercentageUsed >= 0.90) {
+      // At 90% or more budget usage, immediately drop to minimum tier
+      log("[adaptive-budget] EMERGENCY: Budget critically low, forcing minimum tier:", {
+        used: currentUsed.toFixed(2),
+        total: this.config.totalBudget.toFixed(2),
+        percentage: (budgetPercentageUsed * 100).toFixed(1) + "%",
+        forcedTier: this.config.minTier,
+      })
+      this.state.currentRecommendedTier = this.config.minTier
+      this.state.tierStabilityCounter = 0
+      return this.config.minTier
+    }
+
     // Tier costs (rough estimates per request)
     const tierCosts: Record<ModelTier, number> = {
       premium: 0.50,    // ~$0.50 per complex request
