@@ -16,7 +16,8 @@ import {
 import type { RuleFileCandidate } from "./types";
 
 function isGitHubInstructionsDir(dir: string): boolean {
-  return dir.includes(".github/instructions") || dir.endsWith(".github/instructions");
+  // Use path-separator-agnostic regex to match on both Windows and POSIX
+  return /(?:^|[\/\\])\.github[\/\\]instructions(?:$|[\/\\])/.test(dir);
 }
 
 function isValidRuleFile(fileName: string, dir: string): boolean {

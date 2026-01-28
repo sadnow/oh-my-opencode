@@ -7,7 +7,7 @@ let serverAvailable: boolean | null = null
 let serverCheckUrl: string | null = null
 
 export function isInsideTmux(): boolean {
-  return !!process.env.TMUX
+  return !!process.env.TMUX && process.env.TMUX !== ""
 }
 
 export async function isServerRunning(serverUrl: string): Promise<boolean> {
