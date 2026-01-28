@@ -92,12 +92,37 @@ function getMergedServers(): ServerWithSource[] {
     }
   }
 
+  // List of LSP servers typically installed via npm that need .cmd on Windows
+  const NPM_INSTALLED_SERVERS = new Set([
+    "typescript-language-server",
+    "vue-language-server", 
+    "vscode-eslint-language-server",
+    "bash-language-server",
+    "yaml-language-server",
+    "dockerfile-language-server-nodejs",
+    "docker-langserver",
+    "intelephense",
+    "astro-ls",
+    "svelteserver",
+  ])
+
   for (const [id, config] of Object.entries(BUILTIN_SERVERS)) {
     if (disabled.has(id) || seen.has(id)) continue
 
+    // Windows fix: npm global binaries need .cmd extension
+    // Only apply to known npm-installed packages to avoid breaking native binaries
+    const executable = config.command[0]
+    const needsCmdExtension = process.platform === "win32" && 
+                              executable && 
+                              NPM_INSTALLED_SERVERS.has(executable) &&
+                              !executable.endsWith(".cmd")
+    const command = needsCmdExtension
+      ? [executable + ".cmd", ...config.command.slice(1)]
+      : config.command
+
     servers.push({
       id,
-      command: config.command,
+      command,
       extensions: config.extensions,
       priority: -100,
       source: "opencode",
