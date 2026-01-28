@@ -67,6 +67,67 @@ Integrated cost management system (foundation for future cost-aware model select
 
 See `src/features/budget-orchestrator/` and `src/features/usage-tracker/` for details.
 
+### 2.1 Budget-Aware Model Downgrading
+
+**Automatic model downgrading when budget thresholds exceeded.**
+
+When you use `delegate_task(category="...")`, the system now checks your budget status BEFORE launching the subagent. If budget limits are exceeded, it automatically downgrades to a cheaper model within the same provider.
+
+**How it works:**
+1. `delegate_task` resolves the model from category configuration
+2. Queries `BudgetOrchestrator.getSmartTierChange(model)` for budget status
+3. If downgrade recommended (budget threshold exceeded), switches to cheaper model
+4. Shows toast notification: `"opus-4-5 → sonnet-4-5: Budget exceeded at 95%"`
+5. Task continues seamlessly with the downgraded model
+
+**Example scenario:**
+- Category configured: `ultrabrain: { model: "anthropic/claude-opus-4-5" }`
+- Budget status: Anthropic at 95% of monthly limit
+- Result: Task automatically runs with `claude-sonnet-4-5` instead
+- User sees: Toast notification explaining the downgrade
+
+**Configuration:**
+```jsonc
+{
+  "budget": {
+    "enabled": true,                      // Enable budget orchestration (default: false)
+    "auto_downgrade": true,               // Enable auto-downgrade (default: true)
+    "tier_downgrade_threshold": 0.5,      // Headroom multiplier (default: 0.5)
+    "min_tier": "budget"                  // Don't downgrade below this tier (default: "budget")
+  }
+}
+```
+
+**Downgrade tiers:**
+- **premium** → reasoning → high → medium → budget
+- **reasoning** → high → medium → budget  
+- **high** → medium → budget
+- **medium** → budget
+- **budget** → (no further downgrade)
+
+**When downgrade triggers:**
+- Budget percentage ≥ threshold (e.g., 90%)
+- Spending velocity predicts overspend (pace warning active)
+- Manual tier lock not set (respects `--lock-tier` CLI flag)
+
+**Features:**
+- ✅ Transparent to caller - tasks continue without code changes
+- ✅ User visibility via toast notifications
+- ✅ Respects category configuration for model selection
+- ✅ Per-provider budget tracking (anthropic, openai, google, etc.)
+- ✅ Graceful fallback if budget check fails
+- ✅ Logged for debugging: `[delegate_task] Budget downgrade triggered`
+
+**Related tools:**
+- **CLI**: `bunx oh-im-broke budget` - View budget status, manage tier locks
+- **Cost alerts**: Already active via `budget-notification` hook (see section 2.0)
+- **Usage dashboard**: WebUI at `/api/budget/dashboard` with real-time charts
+
+**Implementation:**
+- Integration point: `src/tools/delegate-task/tools.ts` (lines 585-641)
+- Budget API: `src/features/budget-orchestrator/index.ts`
+- Wiring: `src/index.ts` (line 353)
+
 ### 3. Upstream Sync History
 
 **Latest merge: v3.1.6 (2026-01-28)**

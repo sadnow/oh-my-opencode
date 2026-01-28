@@ -166,6 +166,7 @@ export interface DelegateTaskToolOptions {
   gitMasterConfig?: GitMasterConfig
   sisyphusJuniorModel?: string
   browserProvider?: BrowserAutomationProvider
+  budgetOrchestrator?: unknown // BudgetOrchestrator | null (avoid circular import)
   onSyncSessionCreated?: (event: SyncSessionCreatedEvent) => Promise<void>
 }
 
@@ -202,7 +203,7 @@ export function buildSystemContent(input: BuildSystemContentInput): string | und
 }
 
 export function createDelegateTask(options: DelegateTaskToolOptions): ToolDefinition {
-  const { manager, client, directory, userCategories, gitMasterConfig, sisyphusJuniorModel, browserProvider, onSyncSessionCreated } = options
+  const { manager, client, directory, userCategories, gitMasterConfig, sisyphusJuniorModel, browserProvider, budgetOrchestrator, onSyncSessionCreated } = options
 
   const allCategories = { ...DEFAULT_CATEGORIES, ...userCategories }
   const categoryNames = Object.keys(allCategories)
@@ -574,12 +575,70 @@ To continue this session: session_id="${args.session_id}"`
            }
          }
 
-         agentToUse = SISYPHUS_JUNIOR_AGENT
+          agentToUse = SISYPHUS_JUNIOR_AGENT
           if (!categoryModel && actualModel) {
             const parsedModel = parseModelString(actualModel)
             categoryModel = parsedModel ?? undefined
           }
           categoryPromptAppend = resolved.promptAppend || undefined
+
+          // BUDGET-AWARE DOWNGRADING: Check if model should be downgraded
+          if (budgetOrchestrator && categoryModel) {
+            try {
+              // Cast to BudgetOrchestrator type (avoiding circular import)
+              const orchestrator = budgetOrchestrator as {
+                getSmartTierChange: (model: { providerID: string; modelID: string }) => {
+                  original: { providerID: string; modelID: string }
+                  newModel: { providerID: string; modelID: string } | null
+                  direction: "upgrade" | "downgrade" | "none"
+                  reason: string
+                  tier?: string
+                }
+              }
+
+              const tierChange = orchestrator.getSmartTierChange(categoryModel)
+              
+              if (tierChange.newModel && tierChange.direction === "downgrade") {
+                const originalModel = `${categoryModel.providerID}/${categoryModel.modelID}`
+                const downgradedModel = `${tierChange.newModel.providerID}/${tierChange.newModel.modelID}`
+                
+                log("[delegate_task] Budget downgrade triggered", {
+                  category: args.category,
+                  original: originalModel,
+                  downgraded: downgradedModel,
+                  reason: tierChange.reason,
+                  tier: tierChange.tier,
+                })
+
+                // Apply downgrade
+                categoryModel = tierChange.newModel
+                actualModel = downgradedModel
+
+                // Show toast notification to user
+                try {
+                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                  const tuiClient = client as any
+                  if (tuiClient.tui?.showToast) {
+                    tuiClient.tui.showToast({
+                      body: {
+                        title: "Budget Downgrade",
+                        message: `${originalModel} → ${downgradedModel}: ${tierChange.reason}`,
+                        variant: "warning",
+                        duration: 7000,
+                      },
+                    }).catch(() => {
+                      log("[delegate_task] Failed to show downgrade toast")
+                    })
+                  }
+                } catch (toastError) {
+                  log("[delegate_task] Toast notification failed", { error: toastError })
+                }
+              }
+            } catch (budgetError) {
+              log("[delegate_task] Budget check failed", { error: budgetError })
+              // Don't fail the task if budget check fails - proceed with original model
+            }
+          }
 
           if (!categoryModel && !actualModel) {
             const categoryNames = Object.keys({ ...DEFAULT_CATEGORIES, ...userCategories })

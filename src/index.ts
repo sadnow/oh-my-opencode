@@ -351,6 +351,7 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
     gitMasterConfig: pluginConfig.git_master,
     sisyphusJuniorModel: pluginConfig.agents?.["sisyphus-junior"]?.model,
     browserProvider,
+    budgetOrchestrator,
     onSyncSessionCreated: async (event) => {
       log("[index] onSyncSessionCreated callback", {
         sessionID: event.sessionID,
