@@ -121,14 +121,24 @@ class LSPServerManager {
       isInitializing: true,
     })
 
-    await initPromise
-    const m = this.clients.get(key)
-    if (m) {
-      m.initPromise = undefined
-      m.isInitializing = false
+    try {
+      await initPromise
+      const m = this.clients.get(key)
+      if (m) {
+        m.initPromise = undefined
+        m.isInitializing = false
+      }
+      return client
+    } catch (err) {
+      // Remove failed client from map
+      this.clients.delete(key)
+      // Attempt cleanup
+      try {
+        client.stop()
+      } catch {}
+      // Re-throw so caller knows init failed
+      throw err
     }
-
-    return client
   }
 
   warmupClient(root: string, server: ResolvedServer): void {
@@ -149,13 +159,27 @@ class LSPServerManager {
       isInitializing: true,
     })
 
-    initPromise.then(() => {
-      const m = this.clients.get(key)
-      if (m) {
-        m.initPromise = undefined
-        m.isInitializing = false
-      }
-    })
+    initPromise
+      .then(() => {
+        const m = this.clients.get(key)
+        if (m) {
+          m.initPromise = undefined
+          m.isInitializing = false
+        }
+      })
+      .catch((err) => {
+        // Remove failed client from map to prevent reuse
+        const m = this.clients.get(key)
+        if (m) {
+          this.clients.delete(key)
+        }
+        // Attempt cleanup
+        try {
+          client.stop()
+        } catch {}
+        // Log warning but don't crash
+        console.warn(`[LSP] Warmup failed for ${server.id}:`, err instanceof Error ? err.message : String(err))
+      })
   }
 
   releaseClient(root: string, serverId: string): void {
@@ -223,31 +247,39 @@ export class LSPClient {
   ) {}
 
   async start(): Promise<void> {
-    this.proc = spawn(this.server.command, {
-      stdin: "pipe",
-      stdout: "pipe",
-      stderr: "pipe",
-      cwd: this.root,
-      env: {
-        ...process.env,
-        ...this.server.env,
-      },
-    })
+    try {
+      this.proc = spawn(this.server.command, {
+        stdin: "pipe",
+        stdout: "pipe",
+        stderr: "pipe",
+        cwd: this.root,
+        env: {
+          ...process.env,
+          ...this.server.env,
+        },
+      })
 
-    if (!this.proc) {
-      throw new Error(`Failed to spawn LSP server: ${this.server.command.join(" ")}`)
-    }
+      if (!this.proc) {
+        throw new Error(`Failed to spawn LSP server: ${this.server.command.join(" ")}`)
+      }
 
-    this.startReading()
-    this.startStderrReading()
+      this.startReading()
+      this.startStderrReading()
 
-    await new Promise((resolve) => setTimeout(resolve, 100))
+      await new Promise((resolve) => setTimeout(resolve, 100))
 
-    if (this.proc.exitCode !== null) {
-      const stderr = this.stderrBuffer.join("\n")
-      throw new Error(
-        `LSP server exited immediately with code ${this.proc.exitCode}` + (stderr ? `\nstderr: ${stderr}` : "")
-      )
+      if (this.proc.exitCode !== null) {
+        const stderr = this.stderrBuffer.join("\n")
+        throw new Error(
+          `LSP server exited immediately with code ${this.proc.exitCode}` + (stderr ? `\nstderr: ${stderr}` : "")
+        )
+      }
+    } catch (err) {
+      // Log the failure for debugging
+      const errorMsg = err instanceof Error ? err.message : String(err)
+      console.warn(`[LSP] Failed to start ${this.server.command[0]}:`, errorMsg)
+      // Re-throw so caller can handle
+      throw err
     }
   }
 
@@ -350,23 +382,26 @@ export class LSPClient {
 
       try {
         const msg = JSON.parse(content)
-
-        if ("method" in msg && !("id" in msg)) {
-          if (msg.method === "textDocument/publishDiagnostics" && msg.params?.uri) {
-            this.diagnosticsStore.set(msg.params.uri, msg.params.diagnostics ?? [])
-          }
-        } else if ("id" in msg && "method" in msg) {
-          this.handleServerRequest(msg.id, msg.method, msg.params)
-        } else if ("id" in msg && this.pending.has(msg.id)) {
+        if (msg.id !== undefined && this.pending.has(msg.id)) {
           const handler = this.pending.get(msg.id)!
           this.pending.delete(msg.id)
-          if ("error" in msg) {
-            handler.reject(new Error(msg.error.message))
+          if (msg.error) {
+            handler.reject(new Error(msg.error.message || JSON.stringify(msg.error)))
           } else {
             handler.resolve(msg.result)
           }
+        } else if (msg.method === "textDocument/publishDiagnostics") {
+          const uri = msg.params?.uri
+          if (uri) {
+            this.diagnosticsStore.set(uri, msg.params.diagnostics ?? [])
+          }
         }
-      } catch {
+      } catch (parseError) {
+        // Log JSON parse errors instead of silently swallowing them
+        const errorMsg = parseError instanceof Error ? parseError.message : String(parseError)
+        console.warn(`[LSP] JSON parse error: ${errorMsg}`)
+        console.warn(`[LSP] Content: ${content.slice(0, 200)}${content.length > 200 ? '...' : ''}`)
+        // Continue processing other messages
       }
     }
   }
