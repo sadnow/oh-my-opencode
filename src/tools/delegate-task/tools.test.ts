@@ -2138,4 +2138,408 @@ describe("sisyphus-task", () => {
       expect(promptBody.tools.delegate_task).toBe(false)
     }, { timeout: 20000 })
   })
+
+  describe("Budget-Aware Model Downgrading", () => {
+    test("skips budget check when budgetOrchestrator is null", async () => {
+      // #given - no budget orchestrator
+      const { createDelegateTask } = require("./tools")
+      
+      let launchedModel: string | undefined
+      const mockManager = {
+        launch: async (params: any) => {
+          launchedModel = params.model
+          return { id: "task-123" }
+        }
+      }
+      const mockClient = {
+        app: { agents: async () => ({ data: [] }) },
+        config: { get: async () => ({}) },
+        session: {
+          create: async () => ({ data: { id: "test-session" } }),
+          prompt: async () => ({ data: {} }),
+          messages: async () => ({ data: [] }),
+        },
+      }
+      
+      const tool = createDelegateTask({
+        manager: mockManager,
+        client: mockClient,
+        budgetOrchestrator: null, // No budget tracking
+      })
+      
+      const toolContext = {
+        sessionID: "parent-session",
+        messageID: "parent-message",
+        agent: "sisyphus",
+        abort: new AbortController().signal,
+      }
+      
+      // #when - delegate with category that has expensive model
+      await tool.execute(
+        {
+          description: "Test task",
+          prompt: "Do something",
+          category: "ultrabrain", // Uses gpt-5.2-codex
+          run_in_background: true,
+          load_skills: [],
+        },
+        toolContext
+      )
+      
+      // #then - should use original model (no downgrade)
+      expect(launchedModel).toMatchObject({
+        providerID: "openai",
+        modelID: "gpt-5.2-codex",
+        variant: "xhigh",
+      })
+    })
+
+    test("uses original model when budget check returns 'none'", async () => {
+      // #given - budget orchestrator that doesn't recommend downgrade
+      const { createDelegateTask } = require("./tools")
+      
+      let launchedModel: string | undefined
+      const mockManager = {
+        launch: async (params: any) => {
+          launchedModel = params.model
+          return { id: "task-123" }
+        }
+      }
+      const mockClient = {
+        app: { agents: async () => ({ data: [] }) },
+        config: { get: async () => ({}) },
+        session: {
+          create: async () => ({ data: { id: "test-session" } }),
+          prompt: async () => ({ data: {} }),
+          messages: async () => ({ data: [] }),
+        },
+      }
+      
+      const mockBudgetOrchestrator = {
+        getSmartTierChange: () => ({
+          original: { providerID: "openai", modelID: "gpt-5.2-codex" },
+          newModel: null,
+          direction: "none",
+          reason: "Budget within limits",
+          confidence: 1.0,
+        })
+      }
+      
+      const tool = createDelegateTask({
+        manager: mockManager,
+        client: mockClient,
+        budgetOrchestrator: mockBudgetOrchestrator,
+      })
+      
+      const toolContext = {
+        sessionID: "parent-session",
+        messageID: "parent-message",
+        agent: "sisyphus",
+        abort: new AbortController().signal,
+      }
+      
+      // #when - delegate with category
+      await tool.execute(
+        {
+          description: "Test task",
+          prompt: "Do something",
+          category: "ultrabrain",
+          run_in_background: true,
+          load_skills: [],
+        },
+        toolContext
+      )
+      
+      // #then - should use original model (no downgrade)
+      expect(launchedModel).toMatchObject({
+        providerID: "openai",
+        modelID: "gpt-5.2-codex",
+        variant: "xhigh",
+      })
+    })
+
+    test("downgrades model when budget orchestrator recommends it", async () => {
+      // #given - budget orchestrator that recommends downgrade
+      const { createDelegateTask } = require("./tools")
+      
+      let launchedModel: string | undefined
+      const mockManager = {
+        launch: async (params: any) => {
+          launchedModel = params.model
+          return { id: "task-123" }
+        }
+      }
+      
+      let toastShown = false
+      let toastMessage = ""
+      const mockClient = {
+        app: { agents: async () => ({ data: [] }) },
+        config: { get: async () => ({}) },
+        session: {
+          create: async () => ({ data: { id: "test-session" } }),
+          prompt: async () => ({ data: {} }),
+          messages: async () => ({ data: [] }),
+        },
+        tui: {
+          showToast: async (options: any) => {
+            toastShown = true
+            toastMessage = options.body.message
+          }
+        }
+      }
+      
+      const mockBudgetOrchestrator = {
+        getSmartTierChange: () => ({
+          original: { providerID: "anthropic", modelID: "claude-opus-4-5" },
+          newModel: { providerID: "anthropic", modelID: "claude-sonnet-4-5" },
+          direction: "downgrade",
+          reason: "Budget exceeded at 95%",
+          tier: "standard",
+          confidence: 0.9,
+        })
+      }
+      
+      const tool = createDelegateTask({
+        manager: mockManager,
+        client: mockClient,
+        budgetOrchestrator: mockBudgetOrchestrator,
+        userCategories: {
+          "expensive-category": {
+            model: "anthropic/claude-opus-4-5",
+            temperature: 0.1,
+          }
+        }
+      })
+      
+      const toolContext = {
+        sessionID: "parent-session",
+        messageID: "parent-message",
+        agent: "sisyphus",
+        abort: new AbortController().signal,
+      }
+      
+      // #when - delegate with expensive category
+      await tool.execute(
+        {
+          description: "Test task",
+          prompt: "Do something",
+          category: "expensive-category",
+          run_in_background: true,
+          load_skills: [],
+        },
+        toolContext
+      )
+      
+      // #then - should use downgraded model
+      expect(launchedModel).toMatchObject({
+        providerID: "anthropic",
+        modelID: "claude-sonnet-4-5",
+      })
+      // #then - should show toast notification
+      expect(toastShown).toBe(true)
+      expect(toastMessage).toContain("claude-opus-4-5")
+      expect(toastMessage).toContain("claude-sonnet-4-5")
+      expect(toastMessage).toContain("Budget exceeded at 95%")
+    })
+
+    test("continues with original model when budget check throws error", async () => {
+      // #given - budget orchestrator that throws error
+      const { createDelegateTask } = require("./tools")
+      
+      let launchedModel: string | undefined
+      const mockManager = {
+        launch: async (params: any) => {
+          launchedModel = params.model
+          return { id: "task-123" }
+        }
+      }
+      const mockClient = {
+        app: { agents: async () => ({ data: [] }) },
+        config: { get: async () => ({}) },
+        session: {
+          create: async () => ({ data: { id: "test-session" } }),
+          prompt: async () => ({ data: {} }),
+          messages: async () => ({ data: [] }),
+        },
+      }
+      
+      const mockBudgetOrchestrator = {
+        getSmartTierChange: () => {
+          throw new Error("Budget service unavailable")
+        }
+      }
+      
+      const tool = createDelegateTask({
+        manager: mockManager,
+        client: mockClient,
+        budgetOrchestrator: mockBudgetOrchestrator,
+      })
+      
+      const toolContext = {
+        sessionID: "parent-session",
+        messageID: "parent-message",
+        agent: "sisyphus",
+        abort: new AbortController().signal,
+      }
+      
+      // #when - delegate with category
+      await tool.execute(
+        {
+          description: "Test task",
+          prompt: "Do something",
+          category: "ultrabrain",
+          run_in_background: true,
+          load_skills: [],
+        },
+        toolContext
+      )
+      
+      // #then - should use original model (graceful fallback)
+      expect(launchedModel).toMatchObject({
+        providerID: "openai",
+        modelID: "gpt-5.2-codex",
+        variant: "xhigh",
+      })
+    })
+
+    test("continues when toast notification fails", async () => {
+      // #given - budget orchestrator with downgrade, but toast fails
+      const { createDelegateTask } = require("./tools")
+      
+      let launchedModel: string | undefined
+      const mockManager = {
+        launch: async (params: any) => {
+          launchedModel = params.model
+          return { id: "task-123" }
+        }
+      }
+      
+      const mockClient = {
+        app: { agents: async () => ({ data: [] }) },
+        config: { get: async () => ({}) },
+        session: {
+          create: async () => ({ data: { id: "test-session" } }),
+          prompt: async () => ({ data: {} }),
+          messages: async () => ({ data: [] }),
+        },
+        tui: {
+          showToast: async () => {
+            throw new Error("Toast service unavailable")
+          }
+        }
+      }
+      
+      const mockBudgetOrchestrator = {
+        getSmartTierChange: () => ({
+          original: { providerID: "anthropic", modelID: "claude-opus-4-5" },
+          newModel: { providerID: "anthropic", modelID: "claude-sonnet-4-5" },
+          direction: "downgrade",
+          reason: "Budget exceeded",
+          tier: "standard",
+          confidence: 0.9,
+        })
+      }
+      
+      const tool = createDelegateTask({
+        manager: mockManager,
+        client: mockClient,
+        budgetOrchestrator: mockBudgetOrchestrator,
+        userCategories: {
+          "expensive-category": {
+            model: "anthropic/claude-opus-4-5",
+            temperature: 0.1,
+          }
+        }
+      })
+      
+      const toolContext = {
+        sessionID: "parent-session",
+        messageID: "parent-message",
+        agent: "sisyphus",
+        abort: new AbortController().signal,
+      }
+      
+      // #when - delegate should complete despite toast failure
+      await tool.execute(
+        {
+          description: "Test task",
+          prompt: "Do something",
+          category: "expensive-category",
+          run_in_background: true,
+          load_skills: [],
+        },
+        toolContext
+      )
+      
+      // #then - should still use downgraded model (toast failure doesn't block)
+      expect(launchedModel).toMatchObject({
+        providerID: "anthropic",
+        modelID: "claude-sonnet-4-5",
+      })
+    })
+
+    test("skips downgrade for subagent_type (only applies to category)", async () => {
+      // #given - direct subagent call (not category)
+      const { createDelegateTask } = require("./tools")
+      
+      let launchedModel: string | undefined
+      const mockManager = {
+        launch: async (params: any) => {
+          launchedModel = params.model
+          return { id: "task-123" }
+        }
+      }
+      const mockClient = {
+        app: { agents: async () => ({ data: [] }) },
+        config: { get: async () => ({}) },
+        session: {
+          create: async () => ({ data: { id: "test-session" } }),
+          prompt: async () => ({ data: {} }),
+          messages: async () => ({ data: [] }),
+        },
+      }
+      
+      let budgetCheckCalled = false
+      const mockBudgetOrchestrator = {
+        getSmartTierChange: () => {
+          budgetCheckCalled = true
+          return {
+            original: { providerID: "openai", modelID: "gpt-5.2" },
+            newModel: { providerID: "openai", modelID: "gpt-3.5-turbo" },
+            direction: "downgrade",
+            reason: "Budget exceeded",
+            confidence: 0.9,
+          }
+        }
+      }
+      
+      const tool = createDelegateTask({
+        manager: mockManager,
+        client: mockClient,
+        budgetOrchestrator: mockBudgetOrchestrator,
+      })
+      
+      const toolContext = {
+        sessionID: "parent-session",
+        messageID: "parent-message",
+        agent: "sisyphus",
+        abort: new AbortController().signal,
+      }
+      
+      // #when - delegate with subagent_type (not category)
+      await tool.execute(
+        {
+          description: "Test task",
+          prompt: "Do something",
+          subagent_type: "oracle",
+          run_in_background: true,
+          load_skills: [],
+        },
+        toolContext
+      )
+      
+      // #then - budget check should not be called for subagent_type
+      expect(budgetCheckCalled).toBe(false)
+    })
+  })
 })
