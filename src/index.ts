@@ -123,9 +123,24 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
   const availableProviders: string[] = ["opencode"]; // opencode always available
   // Note: Real provider detection would require checking auth status
 
+  // Initialize Claude Max usage tracker
+  const claudeMaxTracker = getClaudeMaxUsageTracker();
+
+  // Initialize Copilot usage tracker
+  const copilotTracker = getCopilotUsageTracker();
+  copilotTracker.startLiveRefresh(); // Refresh usage from API every 60 seconds
+
   // Initialize budget orchestrator
   const budgetOrchestrator = pluginConfig.budget?.enabled
-    ? new BudgetOrchestrator(pluginConfig.budget, usageTracker, availableProviders)
+    ? new BudgetOrchestrator(
+        pluginConfig.budget,
+        usageTracker,
+        availableProviders,
+        {
+          claudeMaxTracker,
+          copilotTracker,
+        }
+      )
     : null;
 
   // Initialize hot config manager
@@ -135,13 +150,6 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
     watchFiles: false, // Can be enabled via config
     ctx,
   });
-
-  // Initialize Claude Max usage tracker
-  const claudeMaxTracker = getClaudeMaxUsageTracker();
-
-  // Initialize Copilot usage tracker
-  const copilotTracker = getCopilotUsageTracker();
-  copilotTracker.startLiveRefresh(); // Refresh usage from API every 60 seconds
 
   // Start WebUI server if enabled
   let webUIServer: ReturnType<typeof startWebUI> | null = null;

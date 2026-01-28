@@ -27,11 +27,22 @@ const usageTracker = new UsageTracker({
   persist: pluginConfig.usage_tracking?.persist ?? true,
 })
 
+// Initialize Claude Max tracker
+const claudeMaxTracker = getClaudeMaxUsageTracker()
+
+// Initialize Copilot tracker
+const copilotTracker = getCopilotUsageTracker()
+copilotTracker.startLiveRefresh()
+
 const budgetOrchestrator = pluginConfig.budget?.enabled
   ? new BudgetOrchestrator(
       pluginConfig.budget,
       usageTracker,
-      ["anthropic", "openai", "google", "opencode"]
+      ["anthropic", "openai", "google", "opencode"],
+      {
+        claudeMaxTracker,
+        copilotTracker,
+      }
     )
   : null
 
@@ -40,13 +51,6 @@ const hotConfigManager = initHotConfigManager({
   initialConfig: pluginConfig,
   watchFiles: true,
 })
-
-// Initialize Claude Max tracker
-const claudeMaxTracker = getClaudeMaxUsageTracker()
-
-// Initialize Copilot tracker with live refresh
-const copilotTracker = getCopilotUsageTracker()
-copilotTracker.startLiveRefresh() // Refresh usage from API every 60 seconds
 
 // Start server
 const port = process.env.WEBUI_PORT ? parseInt(process.env.WEBUI_PORT) : (pluginConfig.webui?.port ?? 3847)

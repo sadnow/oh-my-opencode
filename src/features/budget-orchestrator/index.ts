@@ -17,6 +17,8 @@ import type {
   AdaptiveBudgetSummary,
 } from "./types"
 import type { UsageTracker, ProviderUsageSummary } from "../usage-tracker"
+import type { ClaudeMaxUsageTracker } from "../claude-max-usage"
+import type { CopilotUsageTracker } from "../copilot-usage"
 import {
   calculateBudgetState,
   selectTier,
@@ -59,18 +61,30 @@ export class BudgetOrchestrator {
   private learningMode: LearningMode = "balanced"
   private quotaTargets: QuotaTargets = {}
 
+  // Subscription usage trackers (optional)
+  private claudeMaxTracker?: ClaudeMaxUsageTracker
+  private copilotTracker?: CopilotUsageTracker
+
   // Cache timeout in milliseconds (5 minutes)
   private readonly CACHE_TIMEOUT_MS = 5 * 60 * 1000
 
   constructor(
     config: BudgetConfig | undefined,
     usageTracker: UsageTracker | null,
-    availableProviders: string[] = []
+    availableProviders: string[] = [],
+    subscriptionTrackers?: {
+      claudeMaxTracker?: ClaudeMaxUsageTracker
+      copilotTracker?: CopilotUsageTracker
+    }
   ) {
     this.usageTracker = usageTracker
     this.budgetStateCache = new Map()
     this.availableProviders = availableProviders
     this.adaptiveManagers = new Map()
+
+    // Store subscription trackers if provided
+    this.claudeMaxTracker = subscriptionTrackers?.claudeMaxTracker
+    this.copilotTracker = subscriptionTrackers?.copilotTracker
 
     this.config = {
       enabled: config?.enabled ?? false,
@@ -640,75 +654,91 @@ export class BudgetOrchestrator {
   /**
    * Get tier constraint based on subscription quota usage.
    * Returns the most restrictive tier needed based on quota consumption.
+   * 
+   * Logic:
+   * - Usage >= 100%: economy (critical - over quota)
+   * - Usage >= target (default 90%): budget (warning - approaching limit)
+   * - Usage >= target * 0.8 (default 72%): standard (caution)
+   * - Usage < 72%: premium (healthy)
+   * 
+   * Returns the MOST restrictive tier across all active subscriptions.
    */
   private getSubscriptionConstrainedTier(): ModelTier {
+    let mostRestrictiveTier: ModelTier = "premium"
     const tierOrder: ModelTier[] = ["premium", "standard", "budget", "economy"]
-    let mostRestrictive: ModelTier = "premium"
+    
+    const getTierIndex = (tier: ModelTier): number => tierOrder.indexOf(tier)
+    
+    const compareTiers = (current: ModelTier, candidate: ModelTier): ModelTier => {
+      return getTierIndex(candidate) > getTierIndex(current) ? candidate : current
+    }
 
-    // Check quota targets if configured
-    const claudeMaxTarget = this.quotaTargets.claude_max ?? 90
-    const copilotTarget = this.quotaTargets.copilot ?? 90
-
-    // Get current usage from usage tracker (if available)
-    if (this.usageTracker) {
-      const usageSummary = this.usageTracker.getUsageSummary()
-      
-      // Check Claude Max usage (from "anthropic" provider with OAuth method)
-      const claudeMaxUsage = usageSummary.providers.find(
-        p => p.provider === "anthropic" && p.method === "claude-max"
-      )
-      
-      if (claudeMaxUsage && claudeMaxUsage.percentUsed !== undefined) {
-        const usage = claudeMaxUsage.percentUsed
-        let suggestedTier: ModelTier = "premium"
-        
-        if (usage >= 100) {
-          // Over quota - use most economical
-          suggestedTier = "economy"
-        } else if (usage >= claudeMaxTarget) {
-          // Near quota target - downgrade to budget
-          suggestedTier = "budget"
-        } else if (usage >= claudeMaxTarget * 0.8) {
-          // 80% of target - use standard
-          suggestedTier = "standard"
+    // Check Claude Max subscription quota
+    if (this.claudeMaxTracker) {
+      try {
+        const data = this.claudeMaxTracker.getData()
+        if (!data.error) {
+          const usage = data.allModels.percentUsed
+          const target = this.quotaTargets.claude_max_weekly_percent ?? 90
+          
+          let constraintTier: ModelTier = "premium"
+          
+          if (usage >= 100) {
+            constraintTier = "economy"
+            log(`[budget-orchestrator] Claude Max constraint: ${usage.toFixed(1)}% >= 100% → economy tier`)
+          } else if (usage >= target) {
+            constraintTier = "budget"
+            log(`[budget-orchestrator] Claude Max constraint: ${usage.toFixed(1)}% >= ${target}% → budget tier`)
+          } else if (usage >= target * 0.8) {
+            constraintTier = "standard"
+            log(`[budget-orchestrator] Claude Max constraint: ${usage.toFixed(1)}% >= ${(target * 0.8).toFixed(1)}% → standard tier`)
+          } else {
+            log(`[budget-orchestrator] Claude Max constraint: ${usage.toFixed(1)}% < ${(target * 0.8).toFixed(1)}% → premium tier`)
+          }
+          
+          mostRestrictiveTier = compareTiers(mostRestrictiveTier, constraintTier)
+        } else {
+          log(`[budget-orchestrator] Claude Max constraint: error fetching data - ${data.error}`)
         }
-        
-        const idx = tierOrder.indexOf(suggestedTier)
-        const currentIdx = tierOrder.indexOf(mostRestrictive)
-        if (idx > currentIdx) {
-          mostRestrictive = suggestedTier
-        }
-      }
-
-      // Check Copilot usage
-      const copilotUsage = usageSummary.providers.find(
-        p => p.provider === "github" || p.provider === "copilot"
-      )
-      
-      if (copilotUsage && copilotUsage.percentUsed !== undefined) {
-        const usage = copilotUsage.percentUsed
-        let suggestedTier: ModelTier = "premium"
-        
-        if (usage >= 100) {
-          // Over quota - use most economical
-          suggestedTier = "economy"
-        } else if (usage >= copilotTarget) {
-          // Near quota target - downgrade to budget
-          suggestedTier = "budget"
-        } else if (usage >= copilotTarget * 0.8) {
-          // 80% of target - use standard
-          suggestedTier = "standard"
-        }
-        
-        const idx = tierOrder.indexOf(suggestedTier)
-        const currentIdx = tierOrder.indexOf(mostRestrictive)
-        if (idx > currentIdx) {
-          mostRestrictive = suggestedTier
-        }
+      } catch (error) {
+        log(`[budget-orchestrator] Claude Max constraint: error - ${error}`)
       }
     }
 
-    return mostRestrictive
+    // Check Copilot subscription quota
+    if (this.copilotTracker) {
+      try {
+        const data = this.copilotTracker.getData()
+        if (!data.error) {
+          const usage = data.percentUsed
+          const target = this.quotaTargets.copilot_monthly_percent ?? 90
+          
+          let constraintTier: ModelTier = "premium"
+          
+          if (usage >= 100) {
+            constraintTier = "economy"
+            log(`[budget-orchestrator] Copilot constraint: ${usage.toFixed(1)}% >= 100% → economy tier`)
+          } else if (usage >= target) {
+            constraintTier = "budget"
+            log(`[budget-orchestrator] Copilot constraint: ${usage.toFixed(1)}% >= ${target}% → budget tier`)
+          } else if (usage >= target * 0.8) {
+            constraintTier = "standard"
+            log(`[budget-orchestrator] Copilot constraint: ${usage.toFixed(1)}% >= ${(target * 0.8).toFixed(1)}% → standard tier`)
+          } else {
+            log(`[budget-orchestrator] Copilot constraint: ${usage.toFixed(1)}% < ${(target * 0.8).toFixed(1)}% → premium tier`)
+          }
+          
+          mostRestrictiveTier = compareTiers(mostRestrictiveTier, constraintTier)
+        } else {
+          log(`[budget-orchestrator] Copilot constraint: error fetching data - ${data.error}`)
+        }
+      } catch (error) {
+        log(`[budget-orchestrator] Copilot constraint: error - ${error}`)
+      }
+    }
+
+    log(`[budget-orchestrator] Final subscription-constrained tier: ${mostRestrictiveTier}`)
+    return mostRestrictiveTier
   }
 
   /**

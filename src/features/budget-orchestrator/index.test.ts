@@ -28,7 +28,8 @@ describe("BudgetOrchestrator", () => {
         auto_upgrade: true,
       },
       usageTracker,
-      ["anthropic", "openai"]
+      ["anthropic", "openai"],
+      undefined // No subscription trackers in test
     )
   })
 

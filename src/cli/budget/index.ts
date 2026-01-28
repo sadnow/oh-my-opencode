@@ -59,7 +59,8 @@ export async function budget(options: BudgetCommandOptions): Promise<number> {
   const budgetOrchestrator = new BudgetOrchestrator(
     pluginConfig.budget,
     usageTracker,
-    ["anthropic", "openai", "google", "opencode"]
+    ["anthropic", "openai", "google", "opencode"],
+    undefined // CLI doesn't need subscription trackers
   )
 
   const overrideManager = getOverrideManager()
