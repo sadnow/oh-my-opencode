@@ -100,9 +100,9 @@ export async function askSubscriptions(): Promise<Partial<WizardAnswers> | null>
   if (p.isCancel(copilot)) return null
   answers.hasCopilot = copilot
 
-  // Gemini
+  // Gemini via Antigrav OAuth
   const gemini = await p.confirm({
-    message: "Will you integrate Google Gemini?",
+    message: "Do you have Antigrav OAuth access for Google Gemini?",
     initialValue: false,
   })
   if (p.isCancel(gemini)) return null
@@ -487,7 +487,7 @@ export function showSummary(answers: WizardAnswers): string {
     lines.push(`  ${color.green("+")} OpenAI (ChatGPT)`)
   }
   if (answers.hasGemini) {
-    lines.push(`  ${color.green("+")} Google (Gemini)`)
+    lines.push(`  ${color.green("+")} Google Gemini (Antigrav OAuth)`)
   }
   if (answers.hasCopilot) {
     const copilotTier = answers.copilotPlan === "enterprise" ? "Enterprise" :

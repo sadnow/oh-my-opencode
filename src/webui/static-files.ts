@@ -73,7 +73,7 @@ export const INDEX_HTML = `<!DOCTYPE html>
               </label>
               <label>
                 <input type="checkbox" name="hasGemini">
-                Google (Gemini)
+                Google Gemini (Antigrav OAuth)
               </label>
               <label>
                 <input type="checkbox" name="hasCopilot">
