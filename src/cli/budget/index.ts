@@ -43,7 +43,7 @@ export async function budget(options: BudgetCommandOptions): Promise<number> {
       console.log(JSON.stringify({ success: false, error: "Budget tracking is not enabled" }))
     } else {
       console.log(pc.yellow("Budget tracking is not enabled."))
-      console.log(pc.dim("Enable it in your oh-im-broke.json:"))
+      console.log(pc.dim("Enable it in your oh-my-opencode.json:"))
       console.log(pc.dim('  "budget": { "enabled": true, "provider_budgets": { "anthropic": 20 } }'))
     }
     return 1

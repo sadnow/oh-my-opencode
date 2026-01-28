@@ -8,7 +8,7 @@ import * as path from "path"
 import { getOpenCodeConfigDir } from "../../shared"
 import type { UsageStorage, UsageRecord, ProviderUsageSummary } from "./types"
 
-const STORAGE_FILENAME = "oh-im-broke-usage.json"
+const STORAGE_FILENAME = "oh-my-opencode-usage.json"
 const CURRENT_VERSION = 1
 
 /**

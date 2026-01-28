@@ -814,7 +814,7 @@ export class BudgetOrchestrator {
           homedir(),
           ".config",
           "opencode",
-        `oh-im-broke-adaptive-${provider}.json`
+          `oh-my-opencode-adaptive-${provider}.json`
         )
         try {
           const fs = require("fs")

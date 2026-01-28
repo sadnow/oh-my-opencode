@@ -169,7 +169,7 @@ export class HotConfigManager extends EventEmitter {
    */
   saveConfig(): void {
     const configDir = getOpenCodeConfigDir({ binary: "opencode" })
-    const configPath = path.join(configDir, "oh-im-broke.json")
+    const configPath = path.join(configDir, "oh-my-opencode.json")
 
     try {
       if (!fs.existsSync(configDir)) {
@@ -203,8 +203,8 @@ export class HotConfigManager extends EventEmitter {
    */
   private startFileWatching(): void {
     const configDir = getOpenCodeConfigDir({ binary: "opencode" })
-    const userConfigPath = path.join(configDir, "oh-im-broke.json")
-    const projectConfigPath = path.join(this.directory, ".opencode", "oh-im-broke.json")
+    const userConfigPath = path.join(configDir, "oh-my-opencode.json")
+    const projectConfigPath = path.join(this.directory, ".opencode", "oh-my-opencode.json")
 
     const watchFile = (filePath: string) => {
       if (!fs.existsSync(filePath)) return
