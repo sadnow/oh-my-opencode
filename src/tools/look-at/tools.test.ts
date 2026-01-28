@@ -97,6 +97,8 @@ describe("look-at tool", () => {
         messageID: "parent-message",
         agent: "sisyphus",
         abort: new AbortController().signal,
+        metadata: () => {},
+        ask: async () => {},
       }
 
       const result = await tool.execute(
@@ -135,6 +137,8 @@ describe("look-at tool", () => {
         messageID: "parent-message",
         agent: "sisyphus",
         abort: new AbortController().signal,
+        metadata: () => {},
+        ask: async () => {},
       }
 
       const result = await tool.execute(

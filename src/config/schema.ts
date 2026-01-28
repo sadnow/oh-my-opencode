@@ -291,6 +291,8 @@ export const RalphLoopConfigSchema = z.object({
   default_max_iterations: z.number().min(1).max(1000).default(100),
   /** Custom state file directory relative to project root (default: .opencode/) */
   state_dir: z.string().optional(),
+  /** Use verbose continuation prompts that re-inject full task (default: false - uses condensed prompts) */
+  verbose_continuations: z.boolean().default(false).optional(),
 })
 
 export const BackgroundTaskConfigSchema = z.object({
