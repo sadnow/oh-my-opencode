@@ -9,9 +9,26 @@ import {
 } from "./tmux-utils"
 
 describe("isInsideTmux", () => {
+  // Capture original TMUX value at module load time (before any tests modify it)
+  const ORIGINAL_TMUX = process.env.TMUX
+
+  beforeEach(() => {
+    // Force clean state: delete TMUX entirely before each test
+    // This ensures each test starts from a known state
+    delete process.env.TMUX
+  })
+
+  afterEach(() => {
+    // Restore to original value after each test
+    if (ORIGINAL_TMUX !== undefined) {
+      process.env.TMUX = ORIGINAL_TMUX
+    } else {
+      delete process.env.TMUX
+    }
+  })
+
   test("returns true when TMUX env is set", () => {
     // #given
-    const originalTmux = process.env.TMUX
     process.env.TMUX = "/tmp/tmux-1000/default"
 
     // #when
@@ -19,29 +36,20 @@ describe("isInsideTmux", () => {
 
     // #then
     expect(result).toBe(true)
-
-    // cleanup
-    process.env.TMUX = originalTmux
   })
 
   test("returns false when TMUX env is not set", () => {
-    // #given
-    const originalTmux = process.env.TMUX
-    delete process.env.TMUX
+    // #given - beforeEach already deleted TMUX, so it's not set
 
     // #when
     const result = isInsideTmux()
 
     // #then
     expect(result).toBe(false)
-
-    // cleanup
-    process.env.TMUX = originalTmux
   })
 
   test("returns false when TMUX env is empty string", () => {
     // #given
-    const originalTmux = process.env.TMUX
     process.env.TMUX = ""
 
     // #when
@@ -49,9 +57,6 @@ describe("isInsideTmux", () => {
 
     // #then
     expect(result).toBe(false)
-
-    // cleanup
-    process.env.TMUX = originalTmux
   })
 })
 
