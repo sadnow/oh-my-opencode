@@ -1355,19 +1355,24 @@ Use \`background_output(task_id="${task.id}")\` to retrieve this result when rea
             }
           }
 
+          // Stability detection: complete when message count unchanged for 3 polls
+          const currentMsgCount = messages.length
+
           if (!task.progress) {
             task.progress = { toolCalls: 0, lastUpdate: new Date() }
           }
           task.progress.toolCalls = toolCalls
           task.progress.lastTool = lastTool
-          task.progress.lastUpdate = new Date()
+          
+          // Only update lastUpdate if there's actual new activity (message count changed)
+          if (task.lastMsgCount !== currentMsgCount) {
+            task.progress.lastUpdate = new Date()
+          }
+          
           if (lastMessage) {
             task.progress.lastMessage = lastMessage
             task.progress.lastMessageAt = new Date()
           }
-
-          // Stability detection: complete when message count unchanged for 3 polls
-          const currentMsgCount = messages.length
           // startedAt already validated at top of loop
           const elapsedMs = Date.now() - startedAt.getTime()
 
