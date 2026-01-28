@@ -1,7 +1,8 @@
 > [!NOTE]
-> **This is a fork**: [sadnow/oh-my-opencode](https://github.com/sadnow/oh-my-opencode)
+> **This is oh-im-broke**: A budget-focused fork of [oh-my-opencode](https://github.com/code-yeongyu/oh-my-opencode)
 >
-> Adds deadlock detection for background agents. See [FORK.md](FORK.md).
+> The name is a playful take on "oh-my-opencode" that reflects our philosophy: **vibe code without breaking the bank.**  
+> Adds deadlock detection for background agents and prioritizes cost-efficiency. See [FORK.md](FORK.md) for details.
 
 > [!WARNING]
 > **Security warning: impersonation site**
@@ -144,7 +145,7 @@ Yes, technically possible. But I cannot recommend using it.
   - [Warnings](#warnings)
   - [Loved by professionals at](#loved-by-professionals-at)
 
-# Oh My OpenCode
+# oh-im-broke (Oh My OpenCode Fork)
 
 [Claude Code](https://www.claude.com/product/claude-code) is great.
 But if you're a hacker, you'll fall head over heels for [OpenCode](https://github.com/sst/opencode).
@@ -246,8 +247,8 @@ If you don't want all this, as mentioned, you can just pick and choose specific 
 Copy and paste this prompt to your LLM agent (Claude Code, AmpCode, Cursor, etc.):
 
 ```
-Install and configure oh-my-opencode by following the instructions here:
-https://raw.githubusercontent.com/code-yeongyu/oh-my-opencode/refs/heads/master/docs/guide/installation.md
+Install and configure oh-im-broke by following the instructions here:
+https://raw.githubusercontent.com/sadnow/oh-my-opencode/refs/heads/dev/docs/guide/installation.md
 ```
 
 Or read the [Installation Guide](docs/guide/installation.md) directly—but **we strongly recommend letting an agent handle it. Humans make mistakes.**
@@ -257,20 +258,20 @@ Or read the [Installation Guide](docs/guide/installation.md) directly—but **we
 Fetch the installation guide and follow it:
 
 ```bash
-curl -s https://raw.githubusercontent.com/code-yeongyu/oh-my-opencode/refs/heads/master/docs/guide/installation.md
+curl -s https://raw.githubusercontent.com/sadnow/oh-my-opencode/refs/heads/dev/docs/guide/installation.md
 ```
 
 ## Uninstallation
 
-To remove oh-my-opencode:
+To remove oh-im-broke:
 
 1. **Remove the plugin from your OpenCode config**
 
-   Edit `~/.config/opencode/opencode.json` (or `opencode.jsonc`) and remove `"oh-my-opencode"` from the `plugin` array:
+   Edit `~/.config/opencode/opencode.json` (or `opencode.jsonc`) and remove `"oh-im-broke"` from the `plugin` array:
 
    ```bash
    # Using jq
-   jq '.plugin = [.plugin[] | select(. != "oh-my-opencode")]' \
+   jq '.plugin = [.plugin[] | select(. != "oh-im-broke")]' \
        ~/.config/opencode/opencode.json > /tmp/oc.json && \
        mv /tmp/oc.json ~/.config/opencode/opencode.json
    ```
@@ -279,10 +280,10 @@ To remove oh-my-opencode:
 
    ```bash
    # Remove user config
-   rm -f ~/.config/opencode/oh-my-opencode.json
+   rm -f ~/.config/opencode/oh-im-broke.json
 
    # Remove project config (if exists)
-   rm -f .opencode/oh-my-opencode.json
+   rm -f .opencode/oh-im-broke.json
    ```
 
 3. **Verify removal**
