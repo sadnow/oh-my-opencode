@@ -36,6 +36,7 @@ import {
   createQuestionLabelTruncatorHook,
   createBudgetNotificationHook,
 } from "./hooks";
+import { createUsageTrackingHook } from "./hooks/usage-tracking";
 import {
   contextCollector,
   createContextInjectorMessagesTransformHook,
@@ -278,6 +279,10 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
     ? createPrometheusMdOnlyHook(ctx)
     : null;
 
+  const usageTracking = isHookEnabled("usage-tracking")
+    ? createUsageTrackingHook(ctx, usageTracker)
+    : null;
+
   const sisyphusJuniorNotepad = isHookEnabled("sisyphus-junior-notepad")
     ? createSisyphusJuniorNotepadHook(ctx)
     : null;
@@ -439,6 +444,7 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
       await claudeCodeHooks["chat.message"]?.(input, output);
       await autoSlashCommand?.["chat.message"]?.(input, output);
       await startWork?.["chat.message"]?.(input, output);
+      await usageTracking?.["chat.message"]?.(input, output);
 
       if (ralphLoop) {
         const parts = (
