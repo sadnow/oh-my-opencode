@@ -10,21 +10,75 @@ This fork prioritizes cost-efficiency while maintaining the power of multi-model
 
 ## Key Changes from Upstream
 
-### Deadlock Detection for Background Agents
+### 1. Deadlock Detection for Background Agents
 
-The primary addition in this fork is robust deadlock detection and recovery for background agent tasks:
+Robust deadlock detection prevents stuck sessions from wasting tokens and blocking concurrency slots:
 
-- **Stability-based completion**: Tasks are marked stable after 3 consecutive idle polls with no message count changes
-- **Deadlock detection**: If a task reaches stability but isn't actually idle (still "busy"), it's flagged as potentially deadlocked
-- **Automatic recovery**: After `maxStabilityResets` (default: 3) deadlock detections, the task is force-cancelled with detailed logging
-- **Absolute timeout**: 25-minute hard limit prevents infinite hangs
+- **Stability-based completion**: Tasks complete after 3 consecutive polls show stable message count + idle session status
+- **Deadlock detection**: When stability reached but session NOT idle, increment `stabilityResets` counter
+- **Force-cancel protection**: After `maxStabilityResets` (default: 10, configurable):
+  - Sets task status to `cancelled` with detailed error message
+  - Releases concurrency slot (prevents resource leaks)
+  - Aborts server-side session (stops token consumption)
+  - Notifies parent session
+- **Smart reset**: Counter resets when session becomes idle OR message count changes (activity detected)
+- **Stale timeout**: 3-minute inactivity limit as additional safety (configurable via `staleTimeoutMs`)
+- **Task TTL**: 30-minute absolute timeout prevents infinite hangs
+
+**Configuration:**
+```jsonc
+{
+  "background_task": {
+    "maxStabilityResets": 10,        // How many stability cycles before force-cancel (default: 10)
+    "staleTimeoutMs": 180000,         // Inactivity timeout in ms (default: 180000 = 3 min)
+    "defaultConcurrency": 3,          // Concurrent tasks per provider (default: 3)
+    "providerConcurrency": { ... },   // Per-provider overrides
+    "modelConcurrency": { ... }       // Per-model overrides
+  }
+}
+```
 
 See `src/features/background-agent/manager.ts` for implementation details.
 
-### Additional Fixes
+### 2. Budget Orchestration
 
-- **Async bug fix in notification context**: Fixed race condition where agent/model context wasn't available during parent session notifications (manager.ts:1091-1099)
-- **Sync fallback for error paths**: Error handling now uses synchronous filesystem operations to prevent race conditions
+Integrated cost management system (foundation for future cost-aware model selection):
+
+- **UsageTracker**: Tracks token usage across all providers
+- **BudgetOrchestrator**: Central cost management coordinator
+- **Subscription tracking**: 
+  - ClaudeMaxTracker: Monitors Claude Pro/Max usage
+  - CopilotTracker: Monitors GitHub Copilot usage with live refresh
+- **Ready for auto-downgrade**: Infrastructure prepared for automatic model downgrading when budget thresholds exceeded
+
+**Configuration:**
+```jsonc
+{
+  "budget": {
+    "enabled": true,                   // Enable budget orchestration (default: false)
+    // Future: budget limits, auto-downgrade rules, cost alerts
+  },
+  "usage_tracking": {
+    "enabled": true,                   // Track token usage (default: true)
+    "persist": true                    // Persist usage data (default: true)
+  }
+}
+```
+
+See `src/features/budget-orchestrator/` and `src/features/usage-tracker/` for details.
+
+### 3. Upstream Sync History
+
+**Latest merge: v3.1.6 (2026-01-28)**
+- Merged 102 commits from upstream oh-my-opencode
+- Restored all fork-specific features post-merge
+- Test improvements: +8 passing tests, -8 failing tests
+- Commits:
+  - `e6f089c`: Merge upstream/dev (v3.1.6)
+  - `682aa43`: Restore fork features (deadlock detection, budget orchestration, usage tracking)
+
+**Previous merges:**
+- Initial fork from oh-my-opencode v3.1.5
 
 ## Installation
 
