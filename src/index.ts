@@ -83,7 +83,7 @@ import { getClaudeMaxUsageTracker } from "./features/claude-max-usage";
 import { getCopilotUsageTracker } from "./features/copilot-usage";
 import { createUsageTrackingHook } from "./hooks/usage-tracking";
 import { type HookName } from "./config";
-import { log, detectExternalNotificationPlugin, getNotificationConflictWarning, resetMessageCursor, includesCaseInsensitive, hasConnectedProvidersCache, getOpenCodeVersion, isOpenCodeVersionAtLeast, OPENCODE_NATIVE_AGENTS_INJECTION_VERSION } from "./shared";
+import { log, detectExternalNotificationPlugin, getNotificationConflictWarning, resetMessageCursor, includesCaseInsensitive, hasConnectedProvidersCache, updateConnectedProvidersCache, readConnectedProvidersCache, getOpenCodeVersion, isOpenCodeVersionAtLeast, OPENCODE_NATIVE_AGENTS_INJECTION_VERSION } from "./shared";
 import { loadPluginConfig } from "./plugin-config";
 import { createModelCacheState, getModelLimit } from "./plugin-state";
 import { createConfigHandler } from "./plugin-handlers";
@@ -92,6 +92,13 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
   log("[OhMyOpenCodePlugin] ENTRY - plugin loading", { directory: ctx.directory })
   // Start background tmux check immediately
   startTmuxCheck();
+
+  // Initialize provider cache early to avoid "Provider Cache Missing" warnings
+  // This populates connected-providers.json and provider-models.json
+  updateConnectedProvidersCache(ctx.client).catch((err) => {
+    log("[OhMyOpenCodePlugin] Failed to initialize provider cache", { error: String(err) });
+    // Non-fatal: plugin continues without cache, model filtering may be limited
+  });
 
   const pluginConfig = loadPluginConfig(ctx.directory, ctx);
   const disabledHooks = new Set(pluginConfig.disabled_hooks ?? []);
@@ -257,8 +264,12 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
     : null;
 
   // Determine available providers (for budget orchestration)
-  const availableProviders: string[] = ["opencode"]; // opencode always available
-  // Note: Real provider detection would require checking auth status
+  // Start with opencode (always available), then add from cache if present
+  const cachedProviders = readConnectedProvidersCache();
+  const availableProviders: string[] = cachedProviders && cachedProviders.length > 0
+    ? cachedProviders
+    : ["opencode"]; // fallback if cache not ready yet
+  log("[OhMyOpenCodePlugin] Available providers for budget orchestration", { availableProviders });
 
   // Initialize Claude Max usage tracker
   const claudeMaxTracker = getClaudeMaxUsageTracker();
@@ -469,17 +480,6 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
       await autoSlashCommand?.["chat.message"]?.(input, output);
       await startWork?.["chat.message"]?.(input, output);
       await usageTracking?.["chat.message"]?.(input, output);
-
-      if (!hasConnectedProvidersCache()) {
-        ctx.client.tui.showToast({
-          body: {
-            title: "⚠️ Provider Cache Missing",
-            message: "Model filtering disabled. RESTART OpenCode to enable full functionality.",
-            variant: "warning" as const,
-            duration: 6000,
-          },
-        }).catch(() => {});
-      }
 
       if (ralphLoop) {
         const parts = (
