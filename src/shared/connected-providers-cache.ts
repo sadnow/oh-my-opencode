@@ -135,6 +135,30 @@ export function writeProviderModelsCache(data: { models: Record<string, string[]
 	}
 }
 
+// Timeout duration for API calls (in milliseconds)
+const API_TIMEOUT_MS = 5000
+
+/**
+ * Helper to add timeout to a promise.
+ * Prevents indefinite blocking if API calls don't respond.
+ */
+function withTimeout<T>(promise: Promise<T>, ms: number, operation: string): Promise<T> {
+	return new Promise((resolve, reject) => {
+		const timer = setTimeout(() => {
+			reject(new Error(`${operation} timed out after ${ms}ms`))
+		}, ms)
+		promise
+			.then((result) => {
+				clearTimeout(timer)
+				resolve(result)
+			})
+			.catch((err) => {
+				clearTimeout(timer)
+				reject(err)
+			})
+	})
+}
+
 /**
  * Update the connected providers cache by fetching from the client.
  * Also updates the provider-models cache with model lists per provider.
@@ -153,7 +177,7 @@ export async function updateConnectedProvidersCache(client: {
 	}
 
 	try {
-		const result = await client.provider.list()
+		const result = await withTimeout(client.provider.list(), API_TIMEOUT_MS, "client.provider.list()")
 		const connected = result.data?.connected ?? []
 		log("[connected-providers-cache] Fetched connected providers", { count: connected.length, providers: connected })
 
@@ -162,7 +186,7 @@ export async function updateConnectedProvidersCache(client: {
 		// Also update provider-models cache if model.list is available
 		if (client.model?.list) {
 			try {
-				const modelsResult = await client.model.list()
+				const modelsResult = await withTimeout(client.model.list(), API_TIMEOUT_MS, "client.model.list()")
 				const models = modelsResult.data ?? []
 
 				const modelsByProvider: Record<string, string[]> = {}

@@ -93,15 +93,9 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
   // Start background tmux check immediately
   startTmuxCheck();
 
-  // Initialize provider cache synchronously to ensure it's ready before hooks run
-  // This populates connected-providers.json and provider-models.json
-  try {
-    await updateConnectedProvidersCache(ctx.client);
-    log("[OhMyOpenCodePlugin] Provider cache initialized successfully");
-  } catch (err) {
-    log("[OhMyOpenCodePlugin] Failed to initialize provider cache", { error: String(err) });
-    // Non-fatal: plugin continues without cache, model filtering may be limited
-  }
+  // NOTE: Provider cache is updated in auto-update-checker hook after session.created event
+  // We cannot do it synchronously here because client.provider.list() blocks during plugin init
+  // (OpenCode server may not be ready to serve API requests while plugins are loading)
 
   const pluginConfig = loadPluginConfig(ctx.directory, ctx);
   const disabledHooks = new Set(pluginConfig.disabled_hooks ?? []);
