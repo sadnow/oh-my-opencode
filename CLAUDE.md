@@ -10,8 +10,27 @@ oh-my-opencode is a Claude Code plugin that adds:
 - Budget tracking and adaptive tier management
 - Real-time Claude Max and GitHub Copilot usage tracking
 - WebUI dashboard for configuration and monitoring
+- Agent-aware deadlock detection for background tasks
 
 **Fork**: https://github.com/sadnow/oh-my-opencode
+
+## Background Task Deadlock Detection
+
+**Context:** Background agents (explore, librarian) legitimately spend 2-5 minutes reading/analyzing large codebases.
+
+**Solution:** Agent-aware timeout thresholds
+- **Exploration agents** (explore, librarian): 50 stability resets (~12.5 min) by default
+- **Other agents**: 10 stability resets (~2.5 min) by default
+
+**Configuration:**
+```json
+{
+  "background_task": {
+    "maxStabilityResets": 10,              // Default for most agents
+    "explorationMaxStabilityResets": 50    // For explore/librarian agents
+  }
+}
+```
 
 ## Fork Constraints (CRITICAL)
 
