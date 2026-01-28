@@ -24,11 +24,13 @@ import {
 import { loadMcpConfigs } from "../features/claude-code-mcp-loader";
 import { loadAllPluginComponents } from "../features/claude-code-plugin-loader";
 import { createBuiltinMcps } from "../mcp";
-import type { OhMyOpenCodeConfig, OrchestrationPreset, AgentOverrides } from "../config";
-import { log } from "../shared";
+import type { OhMyOpenCodeConfig } from "../config";
+import { log, fetchAvailableModels, readConnectedProvidersCache } from "../shared";
 import { getOpenCodeConfigPaths } from "../shared/opencode-config-dir";
 import { migrateAgentConfig } from "../shared/permission-compat";
 import { AGENT_NAME_MAP } from "../shared/migration";
+import { resolveModelWithFallback } from "../shared/model-resolver";
+import { AGENT_MODEL_REQUIREMENTS } from "../shared/model-requirements";
 import { PROMETHEUS_SYSTEM_PROMPT, PROMETHEUS_PERMISSION } from "../agents/prometheus-prompt";
 import { DEFAULT_CATEGORIES } from "../tools/delegate-task/constants";
 import type { ModelCacheState } from "../plugin-state";
@@ -45,121 +47,6 @@ export function resolveCategoryConfig(
   userCategories?: Record<string, CategoryConfig>
 ): CategoryConfig | undefined {
   return userCategories?.[categoryName] ?? DEFAULT_CATEGORIES[categoryName];
-}
-
-/**
- * Preset-based agent model defaults.
- * Applied when orchestration_preset is set but no explicit agent model override is provided.
- * This ensures that selecting a preset (e.g., via WebUI) automatically configures
- * appropriate agent models without requiring a full wizard run.
- */
-const PRESET_AGENT_MODELS: Partial<Record<OrchestrationPreset, {
-  sisyphus?: string;
-  oracle?: string;
-  explore?: string;
-  librarian?: string;
-}>> = {
-  // Default: Maintainer's recommended - quality with smart cost optimization
-  "default": {
-    sisyphus: "anthropic/claude-opus-4-5",
-    oracle: "anthropic/claude-opus-4-5",
-    explore: "google/gemini-3-flash-preview",
-    librarian: "google/gemini-3-flash-preview",
-  },
-  // Balanced: Good mix of quality and cost (Anthropic-focused)
-  "balanced": {
-    sisyphus: "anthropic/claude-sonnet-4-5",
-    oracle: "anthropic/claude-opus-4-5",
-    explore: "anthropic/claude-haiku-4-5",
-    librarian: "anthropic/claude-haiku-4-5",
-  },
-  // Claude-heavy: Maximize Claude usage
-  "claude-heavy": {
-    sisyphus: "anthropic/claude-opus-4-5",
-    oracle: "anthropic/claude-opus-4-5",
-    explore: "anthropic/claude-sonnet-4-5",
-    librarian: "anthropic/claude-sonnet-4-5",
-  },
-  // Budget-conscious: Optimized cost-to-value with budget-tier models
-  "budget-conscious": {
-    sisyphus: "opencode/glm-4.7",
-    oracle: "opencode/kimi-k2-thinking",
-    explore: "google/gemini-2.5-flash",
-    librarian: "google/gemini-2.5-flash",
-  },
-  // Free-tier: OpenCode only, no API keys required
-  "free-tier": {
-    sisyphus: "opencode/glm-4.7",
-    oracle: "opencode/kimi-k2-thinking",
-    explore: "opencode/glm-4.6",
-    librarian: "opencode/glm-4.6",
-  },
-  // Speed-optimized: Fastest models for rapid iteration
-  "speed-optimized": {
-    sisyphus: "anthropic/claude-sonnet-4-5",
-    oracle: "anthropic/claude-sonnet-4-5",
-    explore: "google/gemini-3-flash-preview",
-    librarian: "google/gemini-3-flash-preview",
-  },
-  // Quality-first: Best models regardless of cost
-  "quality-first": {
-    sisyphus: "anthropic/claude-opus-4-5",
-    oracle: "anthropic/claude-opus-4-5",
-    explore: "anthropic/claude-sonnet-4-5",
-    librarian: "anthropic/claude-sonnet-4-5",
-  },
-  // Parallel-agent-optimized: Fast workers, quality orchestration
-  "parallel-agent-optimized": {
-    sisyphus: "anthropic/claude-sonnet-4-5",
-    oracle: "anthropic/claude-sonnet-4-5",
-    explore: "google/gemini-3-flash-preview",
-    librarian: "google/gemini-3-flash-preview",
-  },
-  // Hybrid-reasoning: Multi-stage - cheap exploration, premium synthesis
-  "hybrid-reasoning": {
-    sisyphus: "anthropic/claude-opus-4-5",
-    oracle: "anthropic/claude-opus-4-5",
-    explore: "google/gemini-3-flash-preview",
-    librarian: "google/gemini-3-flash-preview",
-  },
-};
-
-/**
- * Apply preset-based agent model defaults if:
- * 1. orchestration_preset is set to a preset that has default models
- * 2. No explicit agent model override is provided for that agent
- *
- * This fixes the issue where setting orchestration_preset doesn't automatically
- * configure agent models unless the full wizard flow is run.
- */
-function applyPresetAgentDefaults(
-  preset: OrchestrationPreset | undefined,
-  agents: AgentOverrides | undefined
-): AgentOverrides {
-  if (!preset || !(preset in PRESET_AGENT_MODELS)) {
-    return agents ?? {};
-  }
-
-  const presetModels = PRESET_AGENT_MODELS[preset];
-  if (!presetModels) {
-    return agents ?? {};
-  }
-
-  const result: AgentOverrides = { ...agents };
-
-  // Apply preset defaults for each agent, but only if no explicit model is set
-  for (const [agentName, defaultModel] of Object.entries(presetModels)) {
-    const existingAgent = result[agentName as keyof AgentOverrides];
-    if (!existingAgent?.model) {
-      result[agentName as keyof AgentOverrides] = {
-        ...existingAgent,
-        model: defaultModel,
-      };
-      log(`Applied ${preset} preset default model for ${agentName}: ${defaultModel}`);
-    }
-  }
-
-  return result;
 }
 
 export function createConfigHandler(deps: ConfigHandlerDeps) {
@@ -220,41 +107,6 @@ export function createConfigHandler(deps: ConfigHandlerDeps) {
       log(`Plugin load errors`, { errors: pluginComponents.errors });
     }
 
-    if (!(config.model as string | undefined)?.trim()) {
-      let fallbackModel: string | undefined
-
-      for (const agentConfig of Object.values(pluginConfig.agents ?? {})) {
-        const model = (agentConfig as { model?: string })?.model
-        if (model && typeof model === 'string' && model.trim()) {
-          fallbackModel = model.trim()
-          break
-        }
-      }
-
-      if (!fallbackModel) {
-        for (const categoryConfig of Object.values(pluginConfig.categories ?? {})) {
-          const model = (categoryConfig as { model?: string })?.model
-          if (model && typeof model === 'string' && model.trim()) {
-            fallbackModel = model.trim()
-            break
-          }
-        }
-      }
-
-      if (fallbackModel) {
-        config.model = fallbackModel
-        log(`No default model specified, using fallback from config: ${fallbackModel}`)
-      } else {
-        const paths = getOpenCodeConfigPaths({ binary: "opencode", version: null })
-        throw new Error(
-          'oh-my-opencode requires a default model.\n\n' +
-          `Add this to ${paths.configJsonc}:\n\n` +
-          '  "model": "anthropic/claude-sonnet-4-5"\n\n' +
-          '(Replace with your preferred provider/model)'
-        )
-      }
-    }
-
     // Migrate disabled_agents from old names to new names
     const migratedDisabledAgents = (pluginConfig.disabled_agents ?? []).map(agent => {
       return AGENT_NAME_MAP[agent.toLowerCase()] ?? AGENT_NAME_MAP[agent] ?? agent
@@ -280,17 +132,10 @@ export function createConfigHandler(deps: ConfigHandlerDeps) {
       ...discoveredUserSkills,
     ];
 
-    // Apply preset-based agent model defaults if orchestration_preset is set
-    // but no explicit agent model override is provided
-    const presetAgentDefaults = applyPresetAgentDefaults(
-      pluginConfig.orchestration_preset,
-      pluginConfig.agents
-    );
-
     const browserProvider = pluginConfig.browser_automation_engine?.provider ?? "playwright";
     const builtinAgents = await createBuiltinAgents(
       migratedDisabledAgents,
-      presetAgentDefaults,
+      pluginConfig.agents,
       ctx.directory,
       config.model as string | undefined,
       pluginConfig.categories,
@@ -378,13 +223,10 @@ export function createConfigHandler(deps: ConfigHandlerDeps) {
         );
         const prometheusOverride =
           pluginConfig.agents?.["prometheus"] as
-            | (Record<string, unknown> & { category?: string; model?: string })
+            | (Record<string, unknown> & { category?: string; model?: string; variant?: string })
             | undefined;
         const defaultModel = config.model as string | undefined;
 
-        // Resolve full category config (model, temperature, top_p, tools, etc.)
-        // Apply all category properties when category is specified, but explicit
-        // overrides (model, temperature, etc.) will take precedence during merge
         const categoryConfig = prometheusOverride?.category
           ? resolveCategoryConfig(
               prometheusOverride.category,
@@ -392,29 +234,31 @@ export function createConfigHandler(deps: ConfigHandlerDeps) {
             )
           : undefined;
 
-        // Model resolution: explicit override → category config → OpenCode default
-        // No hardcoded fallback - OpenCode config.model is the terminal fallback
-        const resolvedModel = prometheusOverride?.model ?? categoryConfig?.model ?? defaultModel;
+        const prometheusRequirement = AGENT_MODEL_REQUIREMENTS["prometheus"];
+        const connectedProviders = readConnectedProvidersCache();
+        const availableModels = ctx.client
+          ? await fetchAvailableModels(ctx.client, { connectedProviders: connectedProviders ?? undefined })
+          : new Set<string>();
 
-        // Resolve variant: explicit override → category config
-        const resolvedVariant = prometheusOverride?.variant ?? categoryConfig?.variant;
+        const modelResolution = resolveModelWithFallback({
+          userModel: prometheusOverride?.model ?? categoryConfig?.model,
+          fallbackChain: prometheusRequirement?.fallbackChain,
+          availableModels,
+          systemDefaultModel: defaultModel ?? "",
+        });
+        const resolvedModel = modelResolution?.model;
+        const resolvedVariant = modelResolution?.variant;
 
-        // Build the base prompt, appending user's prompt_append if provided
-        const basePrompt = prometheusOverride?.prompt_append
-          ? `${PROMETHEUS_SYSTEM_PROMPT}\n\n${prometheusOverride.prompt_append}`
-          : PROMETHEUS_SYSTEM_PROMPT;
-
+        const variantToUse = prometheusOverride?.variant ?? resolvedVariant;
         const prometheusBase = {
-          // Only include model if one was resolved - let OpenCode apply its own default if none
+          name: "prometheus",
           ...(resolvedModel ? { model: resolvedModel } : {}),
-          // Include variant if resolved
-          ...(resolvedVariant ? { variant: resolvedVariant } : {}),
-          mode: "primary" as const,
-          prompt: basePrompt,
+          ...(variantToUse ? { variant: variantToUse } : {}),
+          mode: "all" as const,
+          prompt: PROMETHEUS_SYSTEM_PROMPT,
           permission: PROMETHEUS_PERMISSION,
           description: `${configAgent?.plan?.description ?? "Plan agent"} (Prometheus - OhMyOpenCode)`,
           color: (configAgent?.plan?.color as string) ?? "#FF6347",
-          // Apply category properties (temperature, top_p, tools, etc.)
           ...(categoryConfig?.temperature !== undefined
             ? { temperature: categoryConfig.temperature }
             : {}),
@@ -462,8 +306,12 @@ export function createConfigHandler(deps: ConfigHandlerDeps) {
         ? migrateAgentConfig(configAgent.build as Record<string, unknown>)
         : {};
 
-      const planDemoteConfig = replacePlan
-        ? { mode: "subagent" as const }
+      const planDemoteConfig = replacePlan && agentConfig["prometheus"]
+        ? { 
+            ...agentConfig["prometheus"],
+            name: "plan", 
+            mode: "subagent" as const 
+          }
         : undefined;
 
       config.agent = {
@@ -537,8 +385,8 @@ export function createConfigHandler(deps: ConfigHandlerDeps) {
       : { servers: {} };
 
     config.mcp = {
-      ...(config.mcp as Record<string, unknown>),
       ...createBuiltinMcps(pluginConfig.disabled_mcps),
+      ...(config.mcp as Record<string, unknown>),
       ...mcpResult.servers,
       ...pluginComponents.mcpServers,
     };

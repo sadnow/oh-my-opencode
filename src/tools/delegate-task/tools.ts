@@ -2,10 +2,10 @@ import { tool, type PluginInput, type ToolDefinition } from "@opencode-ai/plugin
 import { existsSync, readdirSync } from "node:fs"
 import { join } from "node:path"
 import type { BackgroundManager } from "../../features/background-agent"
-import type { BudgetOrchestrator } from "../../features/budget-orchestrator"
 import type { DelegateTaskArgs } from "./types"
 import type { CategoryConfig, CategoriesConfig, GitMasterConfig, BrowserAutomationProvider } from "../../config/schema"
-import { DEFAULT_CATEGORIES, CATEGORY_PROMPT_APPENDS, CATEGORY_DESCRIPTIONS } from "./constants"
+import { DEFAULT_CATEGORIES, CATEGORY_PROMPT_APPENDS, CATEGORY_DESCRIPTIONS, PLAN_AGENT_SYSTEM_PREPEND, isPlanAgent } from "./constants"
+import { getTimingConfig } from "./timing"
 import { findNearestMessageWithFields, findFirstMessageWithAgent, MESSAGE_STORAGE } from "../../features/hook-message-injector"
 import { resolveMultipleSkillsAsync } from "../../features/opencode-skill-loader/skill-content"
 import { discoverSkills } from "../../features/opencode-skill-loader"
@@ -14,6 +14,7 @@ import type { ModelFallbackInfo } from "../../features/task-toast-manager/types"
 import { subagentSessions, getSessionAgent } from "../../features/claude-code-session-state"
 import { log, getAgentToolRestrictions, resolveModel, getOpenCodeConfigPaths, findByNameCaseInsensitive, equalsIgnoreCase } from "../../shared"
 import { fetchAvailableModels } from "../../shared/model-availability"
+import { readConnectedProvidersCache } from "../../shared/connected-providers-cache"
 import { resolveModelWithFallback } from "../../shared/model-resolver"
 import { CATEGORY_MODEL_REQUIREMENTS } from "../../shared/model-requirements"
 
@@ -115,9 +116,9 @@ export function resolveCategoryConfig(
   options: {
     userCategories?: CategoriesConfig
     inheritedModel?: string
-    systemDefaultModel: string
+    systemDefaultModel?: string
   }
-): { config: CategoryConfig; promptAppend: string; model: string } | null {
+): { config: CategoryConfig; promptAppend: string; model: string | undefined } | null {
   const { userCategories, inheritedModel, systemDefaultModel } = options
   const defaultConfig = DEFAULT_CATEGORIES[categoryName]
   const userConfig = userCategories?.[categoryName]
@@ -151,6 +152,12 @@ export function resolveCategoryConfig(
   return { config, promptAppend, model }
 }
 
+export interface SyncSessionCreatedEvent {
+  sessionID: string
+  parentID: string
+  title: string
+}
+
 export interface DelegateTaskToolOptions {
   manager: BackgroundManager
   client: OpencodeClient
@@ -159,84 +166,43 @@ export interface DelegateTaskToolOptions {
   gitMasterConfig?: GitMasterConfig
   sisyphusJuniorModel?: string
   browserProvider?: BrowserAutomationProvider
-  budgetOrchestrator?: BudgetOrchestrator | null
+  onSyncSessionCreated?: (event: SyncSessionCreatedEvent) => Promise<void>
 }
 
 export interface BuildSystemContentInput {
   skillContent?: string
   categoryPromptAppend?: string
+  agentName?: string
 }
 
 export function buildSystemContent(input: BuildSystemContentInput): string | undefined {
-  const { skillContent, categoryPromptAppend } = input
+  const { skillContent, categoryPromptAppend, agentName } = input
 
-  if (!skillContent && !categoryPromptAppend) {
+  const planAgentPrepend = isPlanAgent(agentName) ? PLAN_AGENT_SYSTEM_PREPEND : ""
+
+  if (!skillContent && !categoryPromptAppend && !planAgentPrepend) {
     return undefined
   }
 
-  if (skillContent && categoryPromptAppend) {
-    return `${skillContent}\n\n${categoryPromptAppend}`
+  const parts: string[] = []
+
+  if (planAgentPrepend) {
+    parts.push(planAgentPrepend)
   }
 
-  return skillContent || categoryPromptAppend
-}
-
-/**
- * SMART TIER CHANGE: Check if model should be upgraded OR downgraded.
- *
- * Uses adaptive budget intelligence to make smart decisions:
- * - Considers accumulated credits from idle time
- * - Can UPGRADE when budget headroom allows
- * - Can DOWNGRADE when overspending predicted
- */
-function checkSmartTierChange(
-  model: { providerID: string; modelID: string; variant?: string } | undefined,
-  taskDescription: string,
-  budgetOrchestrator: BudgetOrchestrator | null | undefined
-): { providerID: string; modelID: string; variant?: string } | undefined {
-  if (!model || !budgetOrchestrator?.isEnabled()) {
-    return model
+  if (skillContent) {
+    parts.push(skillContent)
   }
 
-  // Use smart tier change which handles both upgrades and downgrades
-  const result = budgetOrchestrator.getSmartTierChange(model)
-
-  if (result.newModel && result.direction !== "none") {
-    const emoji = result.direction === "upgrade" ? "⬆️" : "⬇️"
-    log(`[delegate_task] AUTO-${result.direction.toUpperCase()} ${emoji}:`, {
-      task: taskDescription,
-      from: `${model.providerID}/${model.modelID}`,
-      to: `${result.newModel.providerID}/${result.newModel.modelID}`,
-      reason: result.reason,
-      originalTier: result.originalTier,
-      targetTier: result.targetTier,
-      confidence: `${(result.confidence * 100).toFixed(0)}%`,
-    })
-
-    return {
-      providerID: result.newModel.providerID,
-      modelID: result.newModel.modelID,
-      variant: model.variant, // Preserve variant if any
-    }
+  if (categoryPromptAppend) {
+    parts.push(categoryPromptAppend)
   }
 
-  return model
-}
-
-/**
- * Legacy wrapper for backwards compatibility.
- * @deprecated Use checkSmartTierChange instead
- */
-function checkBudgetDowngrade(
-  model: { providerID: string; modelID: string; variant?: string } | undefined,
-  taskDescription: string,
-  budgetOrchestrator: BudgetOrchestrator | null | undefined
-): { providerID: string; modelID: string; variant?: string } | undefined {
-  return checkSmartTierChange(model, taskDescription, budgetOrchestrator)
+  return parts.join("\n\n") || undefined
 }
 
 export function createDelegateTask(options: DelegateTaskToolOptions): ToolDefinition {
-  const { manager, client, directory, userCategories, gitMasterConfig, sisyphusJuniorModel, browserProvider, budgetOrchestrator } = options
+  const { manager, client, directory, userCategories, gitMasterConfig, sisyphusJuniorModel, browserProvider, onSyncSessionCreated } = options
 
   const allCategories = { ...DEFAULT_CATEGORIES, ...userCategories }
   const categoryNames = Object.keys(allCategories)
@@ -420,19 +386,17 @@ Use \`background_output\` with task_id="${task.id}" to check progress.`
               : undefined
           }
 
-          // Check for budget-based model downgrade on sync continuation
-          const effectiveResumeModel = checkBudgetDowngrade(resumeModel, args.description, budgetOrchestrator)
-
           await client.session.prompt({
             path: { id: args.session_id },
             body: {
               ...(resumeAgent !== undefined ? { agent: resumeAgent } : {}),
-              ...(effectiveResumeModel !== undefined ? { model: effectiveResumeModel } : {}),
+              ...(resumeModel !== undefined ? { model: resumeModel } : {}),
               tools: {
                 ...(resumeAgent ? getAgentToolRestrictions(resumeAgent) : {}),
                 task: false,
                 delegate_task: false,
                 call_omo_agent: true,
+                question: false,
               },
               parts: [{ type: "text", text: args.prompt }],
             },
@@ -446,9 +410,10 @@ Use \`background_output\` with task_id="${task.id}" to check progress.`
         }
 
         // Wait for message stability after prompt completes
-        const POLL_INTERVAL_MS = 500
-        const MIN_STABILITY_TIME_MS = 5000
-        const STABILITY_POLLS_REQUIRED = 3
+        const timing = getTimingConfig()
+        const POLL_INTERVAL_MS = timing.POLL_INTERVAL_MS
+        const MIN_STABILITY_TIME_MS = timing.SESSION_CONTINUATION_STABILITY_MS
+        const STABILITY_POLLS_REQUIRED = timing.STABILITY_POLLS_REQUIRED
         const pollStart = Date.now()
         let lastMsgCount = 0
         let stablePolls = 0
@@ -540,7 +505,6 @@ To continue this session: session_id="${args.session_id}"`
        let agentToUse: string
        let categoryModel: { providerID: string; modelID: string; variant?: string } | undefined
        let categoryPromptAppend: string | undefined
-       let categoryTools: Record<string, boolean> | undefined
 
        const inheritedModel = parentModel
          ? `${parentModel.providerID}/${parentModel.modelID}`
@@ -549,18 +513,10 @@ To continue this session: session_id="${args.session_id}"`
        let modelInfo: ModelFallbackInfo | undefined
 
        if (args.category) {
-         // Guard: require system default model for category delegation
-         if (!systemDefaultModel) {
-           const paths = getOpenCodeConfigPaths({ binary: "opencode", version: null })
-           return (
-             'oh-my-opencode requires a default model.\n\n' +
-             `Add this to ${paths.configJsonc}:\n\n` +
-             '  "model": "anthropic/claude-sonnet-4-5"\n\n' +
-             '(Replace with your preferred provider/model)'
-           )
-         }
-
-         const availableModels = await fetchAvailableModels(client)
+          const connectedProviders = readConnectedProvidersCache()
+          const availableModels = await fetchAvailableModels(client, {
+            connectedProviders: connectedProviders ?? undefined
+          })
 
          const resolved = resolveCategoryConfig(args.category, {
            userCategories,
@@ -572,56 +528,73 @@ To continue this session: session_id="${args.session_id}"`
          }
 
          const requirement = CATEGORY_MODEL_REQUIREMENTS[args.category]
-         let actualModel: string
+         let actualModel: string | undefined
 
          if (!requirement) {
            actualModel = resolved.model
-           modelInfo = { model: actualModel, type: "system-default", source: "system-default" }
+           if (actualModel) {
+             modelInfo = { model: actualModel, type: "system-default", source: "system-default" }
+           }
           } else {
-          const { model: resolvedModel, source, variant: resolvedVariant } = resolveModelWithFallback({
-              userModel: userCategories?.[args.category]?.model ?? sisyphusJuniorModel,
+          const resolution = resolveModelWithFallback({
+              userModel: userCategories?.[args.category]?.model ?? resolved.model ?? sisyphusJuniorModel,
               fallbackChain: requirement.fallbackChain,
               availableModels,
               systemDefaultModel,
             })
 
-           actualModel = resolvedModel
+           if (resolution) {
+             const { model: resolvedModel, source, variant: resolvedVariant } = resolution
+             actualModel = resolvedModel
 
-           if (!parseModelString(actualModel)) {
-             return `Invalid model format "${actualModel}". Expected "provider/model" format (e.g., "anthropic/claude-sonnet-4-5").`
+             if (!parseModelString(actualModel)) {
+               return `Invalid model format "${actualModel}". Expected "provider/model" format (e.g., "anthropic/claude-sonnet-4-5").`
+             }
+
+             let type: "user-defined" | "inherited" | "category-default" | "system-default"
+             switch (source) {
+                case "override":
+                  type = "user-defined"
+                  break
+                case "provider-fallback":
+                  type = "category-default"
+                  break
+                case "system-default":
+                  type = "system-default"
+                  break
+             }
+
+             modelInfo = { model: actualModel, type, source }
+             
+             const parsedModel = parseModelString(actualModel)
+             const variantToUse = userCategories?.[args.category]?.variant ?? resolvedVariant ?? resolved.config.variant
+             categoryModel = parsedModel
+               ? (variantToUse ? { ...parsedModel, variant: variantToUse } : parsedModel)
+               : undefined
            }
-
-           let type: "user-defined" | "inherited" | "category-default" | "system-default"
-           switch (source) {
-              case "override":
-                type = "user-defined"
-                break
-              case "provider-fallback":
-                type = "category-default"
-                break
-              case "system-default":
-                type = "system-default"
-                break
-           }
-
-           modelInfo = { model: actualModel, type, source }
-           
-           const parsedModel = parseModelString(actualModel)
-           const variantToUse = userCategories?.[args.category]?.variant ?? resolvedVariant
-           categoryModel = parsedModel
-             ? (variantToUse ? { ...parsedModel, variant: variantToUse } : parsedModel)
-             : undefined
          }
 
          agentToUse = SISYPHUS_JUNIOR_AGENT
-          if (!categoryModel) {
+          if (!categoryModel && actualModel) {
             const parsedModel = parseModelString(actualModel)
             categoryModel = parsedModel ?? undefined
           }
           categoryPromptAppend = resolved.promptAppend || undefined
-          categoryTools = resolved.config.tools
 
-         const isUnstableAgent = resolved.config.is_unstable_agent === true || actualModel.toLowerCase().includes("gemini")
+          if (!categoryModel && !actualModel) {
+            const categoryNames = Object.keys({ ...DEFAULT_CATEGORIES, ...userCategories })
+            return `Model not configured for category "${args.category}".
+
+Configure in one of:
+1. OpenCode: Set "model" in opencode.json
+2. Oh-My-OpenCode: Set category model in oh-my-opencode.json
+3. Provider: Connect a provider with available models
+
+Current category: ${args.category}
+Available categories: ${categoryNames.join(", ")}`
+          }
+
+          const isUnstableAgent = resolved.config.is_unstable_agent === true || (actualModel?.toLowerCase().includes("gemini") ?? false)
         // Handle both boolean false and string "false" due to potential serialization
         const isRunInBackgroundExplicitlyFalse = args.run_in_background === false || args.run_in_background === "false" as unknown as boolean
 
@@ -636,7 +609,7 @@ To continue this session: session_id="${args.session_id}"`
         })
 
         if (isUnstableAgent && isRunInBackgroundExplicitlyFalse) {
-          const systemContent = buildSystemContent({ skillContent, categoryPromptAppend })
+          const systemContent = buildSystemContent({ skillContent, categoryPromptAppend, agentName: agentToUse })
 
           try {
             const task = await manager.launch({
@@ -650,7 +623,6 @@ To continue this session: session_id="${args.session_id}"`
               model: categoryModel,
               skills: args.load_skills.length > 0 ? args.load_skills : undefined,
               skillContent: systemContent,
-              tools: categoryTools,
             })
 
             // Wait for sessionID to be set (task transitions from pending to running)
@@ -692,10 +664,11 @@ To continue this session: session_id="${args.session_id}"`
             const startTime = new Date()
 
             // Poll for completion (same logic as sync mode)
-            const POLL_INTERVAL_MS = 500
-            const MAX_POLL_TIME_MS = 10 * 60 * 1000
-            const MIN_STABILITY_TIME_MS = 10000
-            const STABILITY_POLLS_REQUIRED = 3
+            const timingCfg = getTimingConfig()
+            const POLL_INTERVAL_MS = timingCfg.POLL_INTERVAL_MS
+            const MAX_POLL_TIME_MS = timingCfg.MAX_POLL_TIME_MS
+            const MIN_STABILITY_TIME_MS = timingCfg.MIN_STABILITY_TIME_MS
+            const STABILITY_POLLS_REQUIRED = timingCfg.STABILITY_POLLS_REQUIRED
             const pollStart = Date.now()
             let lastMsgCount = 0
             let stablePolls = 0
@@ -795,6 +768,12 @@ To continue this session: session_id="${sessionID}"`
 Sisyphus-Junior is spawned automatically when you specify a category. Pick the appropriate category for your task domain.`
         }
 
+        if (isPlanAgent(agentName) && isPlanAgent(parentAgent)) {
+          return `You are prometheus. You cannot delegate to prometheus via delegate_task.
+
+Create the work plan directly - that's your job as the planning agent.`
+        }
+
         agentToUse = agentName
 
         // Validate agent exists and is callable (not a primary agent)
@@ -829,7 +808,7 @@ Sisyphus-Junior is spawned automatically when you specify a category. Pick the a
         }
       }
 
-      const systemContent = buildSystemContent({ skillContent, categoryPromptAppend })
+      const systemContent = buildSystemContent({ skillContent, categoryPromptAppend, agentName: agentToUse })
 
       if (runInBackground) {
         try {
@@ -844,7 +823,6 @@ Sisyphus-Junior is spawned automatically when you specify a category. Pick the a
             model: categoryModel,
             skills: args.load_skills.length > 0 ? args.load_skills : undefined,
             skillContent: systemContent,
-            tools: categoryTools,
           })
 
           ctx.metadata?.({
@@ -895,7 +873,10 @@ To continue this session: session_id="${task.sessionID}"`
           body: {
             parentID: ctx.sessionID,
             title: `Task: ${args.description}`,
-          },
+            permission: [
+              { permission: "question", action: "deny" as const, pattern: "*" },
+            ],
+          } as any,
           query: {
             directory: parentDirectory,
           },
@@ -908,6 +889,19 @@ To continue this session: session_id="${task.sessionID}"`
         const sessionID = createResult.data.id
         syncSessionID = sessionID
         subagentSessions.add(sessionID)
+
+        if (onSyncSessionCreated) {
+          log("[delegate_task] Invoking onSyncSessionCreated callback", { sessionID, parentID: ctx.sessionID })
+          await onSyncSessionCreated({
+            sessionID,
+            parentID: ctx.sessionID,
+            title: args.description,
+          }).catch((err) => {
+            log("[delegate_task] onSyncSessionCreated callback failed", { error: String(err) })
+          })
+          await new Promise(r => setTimeout(r, 200))
+        }
+
         taskId = `sync_${sessionID.slice(0, 8)}`
         const startTime = new Date()
 
@@ -938,28 +932,22 @@ To continue this session: session_id="${task.sessionID}"`
           },
         })
 
-        // Check for budget-based model downgrade BEFORE starting the sync task
-        const effectiveModel = checkBudgetDowngrade(categoryModel, args.description, budgetOrchestrator)
-
         try {
-          // Merge tools: agent restrictions -> category tools -> hardcoded restrictions
-          // Order ensures security: hardcoded restrictions always win
-          const mergedTools = {
-            ...getAgentToolRestrictions(agentToUse), // Base: agent-level restrictions
-            ...(categoryTools ?? {}),                // Override: category-specific tools
-            task: false,                             // Final: hardcoded security restrictions
-            delegate_task: false,
-            call_omo_agent: true,
-          }
-
+          const allowDelegateTask = isPlanAgent(agentToUse)
           await client.session.prompt({
             path: { id: sessionID },
             body: {
               agent: agentToUse,
               system: systemContent,
-              tools: mergedTools,
+              tools: {
+                task: false,
+                delegate_task: allowDelegateTask,
+                call_omo_agent: true,
+                question: false,
+              },
               parts: [{ type: "text", text: args.prompt }],
-              ...(effectiveModel ? { model: effectiveModel } : {}),
+              ...(categoryModel ? { model: { providerID: categoryModel.providerID, modelID: categoryModel.modelID } } : {}),
+              ...(categoryModel?.variant ? { variant: categoryModel.variant } : {}),
             },
           })
         } catch (promptError) {
@@ -987,10 +975,11 @@ To continue this session: session_id="${task.sessionID}"`
 
         // Poll for session completion with stability detection
         // The session may show as "idle" before messages appear, so we also check message stability
-        const POLL_INTERVAL_MS = 500
-        const MAX_POLL_TIME_MS = 10 * 60 * 1000
-        const MIN_STABILITY_TIME_MS = 10000  // Minimum 10s before accepting completion
-        const STABILITY_POLLS_REQUIRED = 3
+        const syncTiming = getTimingConfig()
+        const POLL_INTERVAL_MS = syncTiming.POLL_INTERVAL_MS
+        const MAX_POLL_TIME_MS = syncTiming.MAX_POLL_TIME_MS
+        const MIN_STABILITY_TIME_MS = syncTiming.MIN_STABILITY_TIME_MS
+        const STABILITY_POLLS_REQUIRED = syncTiming.STABILITY_POLLS_REQUIRED
         const pollStart = Date.now()
         let lastMsgCount = 0
         let stablePolls = 0

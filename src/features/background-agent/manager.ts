@@ -9,16 +9,14 @@ import { log, getAgentToolRestrictions } from "../../shared"
 import { ConcurrencyManager } from "./concurrency"
 import type { BackgroundTaskConfig, TmuxConfig } from "../../config/schema"
 import { isInsideTmux } from "../../shared/tmux"
-import type { BudgetOrchestrator } from "../budget-orchestrator"
 
 import { subagentSessions } from "../claude-code-session-state"
 import { getTaskToastManager } from "../task-toast-manager"
 import { findNearestMessageWithFields, MESSAGE_STORAGE } from "../hook-message-injector"
-import { promises as fs, existsSync, readdirSync } from "node:fs"
+import { existsSync, readdirSync } from "node:fs"
 import { join } from "node:path"
 
 const TASK_TTL_MS = 30 * 60 * 1000
-const MAX_TASK_LIFETIME_MS = 25 * 60 * 1000  // 25 minutes - absolute maximum before force cancel
 const MIN_STABILITY_TIME_MS = 10 * 1000  // Must run at least 10s before stability detection kicks in
 const DEFAULT_STALE_TIMEOUT_MS = 180_000  // 3 minutes
 const MIN_RUNTIME_BEFORE_STALE_MS = 30_000  // 30 seconds
@@ -57,6 +55,14 @@ interface QueueItem {
   input: LaunchInput
 }
 
+export interface SubagentSessionCreatedEvent {
+  sessionID: string
+  parentID: string
+  title: string
+}
+
+export type OnSubagentSessionCreated = (event: SubagentSessionCreatedEvent) => Promise<void>
+
 export class BackgroundManager {
   private static cleanupManagers = new Set<BackgroundManager>()
   private static cleanupRegistered = false
@@ -72,7 +78,7 @@ export class BackgroundManager {
   private shutdownTriggered = false
   private config?: BackgroundTaskConfig
   private tmuxEnabled: boolean
-  private budgetOrchestrator: BudgetOrchestrator | null = null
+  private onSubagentSessionCreated?: OnSubagentSessionCreated
 
   private queuesByKey: Map<string, QueueItem[]> = new Map()
   private processingKeys: Set<string> = new Set()
@@ -80,8 +86,10 @@ export class BackgroundManager {
   constructor(
     ctx: PluginInput,
     config?: BackgroundTaskConfig,
-    tmuxConfig?: TmuxConfig,
-    budgetOrchestrator?: BudgetOrchestrator | null
+    options?: {
+      tmuxConfig?: TmuxConfig
+      onSubagentSessionCreated?: OnSubagentSessionCreated
+    }
   ) {
     this.tasks = new Map()
     this.notifications = new Map()
@@ -90,73 +98,9 @@ export class BackgroundManager {
     this.directory = ctx.directory
     this.concurrencyManager = new ConcurrencyManager(config)
     this.config = config
-    this.tmuxEnabled = tmuxConfig?.enabled ?? false
-    this.budgetOrchestrator = budgetOrchestrator ?? null
+    this.tmuxEnabled = options?.tmuxConfig?.enabled ?? false
+    this.onSubagentSessionCreated = options?.onSubagentSessionCreated
     this.registerProcessCleanup()
-  }
-
-  /**
-   * Set the budget orchestrator for auto-downgrade support.
-   * Can be called after construction to inject the dependency.
-   */
-  setBudgetOrchestrator(orchestrator: BudgetOrchestrator | null): void {
-    this.budgetOrchestrator = orchestrator
-  }
-
-  /**
-   * SMART TIER CHANGE: Check if model should be upgraded OR downgraded.
-   *
-   * Uses adaptive budget intelligence to make smart decisions:
-   * - Considers accumulated credits from idle time
-   * - Can UPGRADE when budget headroom allows (e.g., haven't run in 8 hours)
-   * - Can DOWNGRADE when overspending predicted
-   * - Learns from spending patterns over time
-   *
-   * This is called BEFORE sending a new request, allowing the current
-   * request to finish gracefully while the next one uses the optimized model.
-   */
-  private checkSmartTierChange(
-    model: { providerID: string; modelID: string; variant?: string } | undefined,
-    taskDescription: string
-  ): { providerID: string; modelID: string; variant?: string } | undefined {
-    if (!model || !this.budgetOrchestrator?.isEnabled()) {
-      return model
-    }
-
-    // Use smart tier change which handles both upgrades and downgrades
-    const result = this.budgetOrchestrator.getSmartTierChange(model)
-
-    if (result.newModel && result.direction !== "none") {
-      const emoji = result.direction === "upgrade" ? "⬆️" : "⬇️"
-      log(`[background-agent] AUTO-${result.direction.toUpperCase()} ${emoji}:`, {
-        task: taskDescription,
-        from: `${model.providerID}/${model.modelID}`,
-        to: `${result.newModel.providerID}/${result.newModel.modelID}`,
-        reason: result.reason,
-        originalTier: result.originalTier,
-        targetTier: result.targetTier,
-        confidence: `${(result.confidence * 100).toFixed(0)}%`,
-      })
-
-      return {
-        providerID: result.newModel.providerID,
-        modelID: result.newModel.modelID,
-        variant: model.variant, // Preserve variant if any
-      }
-    }
-
-    return model
-  }
-
-  /**
-   * Legacy method for backwards compatibility.
-   * @deprecated Use checkSmartTierChange instead
-   */
-  private checkBudgetDowngrade(
-    model: { providerID: string; modelID: string; variant?: string } | undefined,
-    taskDescription: string
-  ): { providerID: string; modelID: string; variant?: string } | undefined {
-    return this.checkSmartTierChange(model, taskDescription)
   }
 
   async launch(input: LaunchInput): Promise<BackgroundTask> {
@@ -280,7 +224,10 @@ export class BackgroundManager {
       body: {
         parentID: input.parentSessionID,
         title: `Background: ${input.description}`,
-      },
+        permission: [
+          { permission: "question", action: "deny" as const, pattern: "*" },
+        ],
+      } as any,
       query: {
         directory: parentDirectory,
       },
@@ -297,9 +244,27 @@ export class BackgroundManager {
     const sessionID = createResult.data.id
     subagentSessions.add(sessionID)
 
-    // Wait for TmuxSessionManager to spawn pane via event hook
-    if (this.tmuxEnabled && isInsideTmux()) {
-      await new Promise(r => setTimeout(r, 500))
+    log("[background-agent] tmux callback check", {
+      hasCallback: !!this.onSubagentSessionCreated,
+      tmuxEnabled: this.tmuxEnabled,
+      isInsideTmux: isInsideTmux(),
+      sessionID,
+      parentID: input.parentSessionID,
+    })
+
+    if (this.onSubagentSessionCreated && this.tmuxEnabled && isInsideTmux()) {
+      log("[background-agent] Invoking tmux callback NOW", { sessionID })
+      await this.onSubagentSessionCreated({
+        sessionID,
+        parentID: input.parentSessionID,
+        title: input.description,
+      }).catch((err) => {
+        log("[background-agent] Failed to spawn tmux pane:", err)
+      })
+      log("[background-agent] tmux callback completed, waiting 200ms")
+      await new Promise(r => setTimeout(r, 200))
+    } else {
+      log("[background-agent] SKIP tmux callback - conditions not met")
     }
 
     // Update task to running state
@@ -322,44 +287,37 @@ export class BackgroundManager {
       toastManager.updateTask(task.id, "running")
     }
 
-    // Check for budget-based model downgrade BEFORE starting the task
-    // This allows graceful degradation - current requests finish, new ones use cheaper models
-    const effectiveModel = this.checkBudgetDowngrade(input.model, input.description)
-
     log("[background-agent] Calling prompt (fire-and-forget) for launch with:", {
       sessionID,
       agent: input.agent,
-      model: effectiveModel,
-      originalModel: input.model,
-      wasDowngraded: effectiveModel !== input.model,
+      model: input.model,
       hasSkillContent: !!input.skillContent,
       promptLength: input.prompt.length,
     })
 
-    // Update task with effective model (so tracking knows what was actually used)
-    if (effectiveModel !== input.model) {
-      task.model = effectiveModel
-    }
-
     // Use prompt() instead of promptAsync() to properly initialize agent loop (fire-and-forget)
     // Include model if caller provided one (e.g., from Sisyphus category configs)
-    // Merge tools: agent restrictions -> category tools -> hardcoded restrictions
-    // Order ensures security: hardcoded restrictions always win
-    const mergedTools = {
-      ...getAgentToolRestrictions(input.agent), // Base: agent-level restrictions
-      ...(input.tools ?? {}),                   // Override: category-specific tools
-      task: false,                              // Final: hardcoded security restrictions
-      delegate_task: false,
-      call_omo_agent: true,
-    }
+    // IMPORTANT: variant must be a top-level field in the body, NOT nested inside model
+    // OpenCode's PromptInput schema expects: { model: { providerID, modelID }, variant: "max" }
+    const launchModel = input.model
+      ? { providerID: input.model.providerID, modelID: input.model.modelID }
+      : undefined
+    const launchVariant = input.model?.variant
 
     this.client.session.prompt({
       path: { id: sessionID },
       body: {
         agent: input.agent,
-        ...(effectiveModel ? { model: effectiveModel } : {}),
+        ...(launchModel ? { model: launchModel } : {}),
+        ...(launchVariant ? { variant: launchVariant } : {}),
         system: input.skillContent,
-        tools: mergedTools,
+        tools: {
+          ...getAgentToolRestrictions(input.agent),
+          task: false,
+          delegate_task: false,
+          call_omo_agent: true,
+          question: false,
+        },
         parts: [{ type: "text", text: input.prompt }],
       },
     }).catch((error) => {
@@ -586,35 +544,33 @@ export class BackgroundManager {
 
     log("[background-agent] Resuming task:", { taskId: existingTask.id, sessionID: existingTask.sessionID })
 
-    // Check for budget-based model downgrade BEFORE resuming the task
-    const effectiveModel = this.checkBudgetDowngrade(existingTask.model, existingTask.description)
-
     log("[background-agent] Resuming task - calling prompt (fire-and-forget) with:", {
       sessionID: existingTask.sessionID,
       agent: existingTask.agent,
-      model: effectiveModel,
-      originalModel: existingTask.model,
-      wasDowngraded: effectiveModel !== existingTask.model,
+      model: existingTask.model,
       promptLength: input.prompt.length,
     })
 
-    // Update task with effective model (so tracking knows what was actually used)
-    if (effectiveModel !== existingTask.model) {
-      existingTask.model = effectiveModel
-    }
-
     // Use prompt() instead of promptAsync() to properly initialize agent loop
     // Include model if task has one (preserved from original launch with category config)
+    // variant must be top-level in body, not nested inside model (OpenCode PromptInput schema)
+    const resumeModel = existingTask.model
+      ? { providerID: existingTask.model.providerID, modelID: existingTask.model.modelID }
+      : undefined
+    const resumeVariant = existingTask.model?.variant
+
     this.client.session.prompt({
       path: { id: existingTask.sessionID },
       body: {
         agent: existingTask.agent,
-        ...(effectiveModel ? { model: effectiveModel } : {}),
+        ...(resumeModel ? { model: resumeModel } : {}),
+        ...(resumeVariant ? { variant: resumeVariant } : {}),
         tools: {
           ...getAgentToolRestrictions(existingTask.agent),
           task: false,
           delegate_task: false,
           call_omo_agent: true,
+          question: false,
         },
         parts: [{ type: "text", text: input.prompt }],
       },
@@ -977,15 +933,6 @@ export class BackgroundManager {
       return false
     }
 
-    // Guard: Check if completion is already in progress (prevents race with todo-continuation-enforcer)
-    if (task.completionInProgress) {
-      log("[background-agent] Completion already in progress, skipping:", { taskId: task.id, source })
-      return false
-    }
-
-    // Set lock to prevent concurrent completion attempts
-    task.completionInProgress = true
-
     // Atomically mark as completed to prevent race conditions
     task.status = "completed"
     task.completedAt = new Date()
@@ -1089,8 +1036,7 @@ Use \`background_output(task_id="${task.id}")\` to retrieve this result when rea
         }
       }
     } catch {
-      // Fallback to file system search for message info (sync in error path)
-      const messageDir = getMessageDirSync(task.parentSessionID)
+      const messageDir = getMessageDir(task.parentSessionID)
       const currentMessage = messageDir ? findNearestMessageWithFields(messageDir) : null
       agent = currentMessage?.agent ?? task.parentAgent
       model = currentMessage?.model?.providerID && currentMessage?.model?.modelID
@@ -1262,48 +1208,13 @@ Use \`background_output(task_id="${task.id}")\` to retrieve this result when rea
 
     for (const task of this.tasks.values()) {
       if (task.status !== "running") continue
-
+      
       const sessionID = task.sessionID
       if (!sessionID) continue
 
-      const startedAt = task.startedAt
-      if (!startedAt) continue
-
-      // Absolute maximum runtime check - force cancel to prevent infinite loops
-      const runtime = Date.now() - startedAt.getTime()
-      if (runtime >= MAX_TASK_LIFETIME_MS) {
-        log("[background-agent] FORCE CANCEL - Max task lifetime exceeded:", {
-          taskId: task.id,
-          runtimeMinutes: Math.round(runtime / 60000),
-          maxMinutes: Math.round(MAX_TASK_LIFETIME_MS / 60000),
-        })
-
-        // Guard: Check if task is still running
-        if (task.status !== "running") continue
-
-        task.status = "cancelled"
-        task.error = `Force cancelled: exceeded maximum runtime (${Math.round(MAX_TASK_LIFETIME_MS / 60000)} minutes)`
-        task.completedAt = new Date()
-
-        if (task.concurrencyKey) {
-          this.concurrencyManager.release(task.concurrencyKey)
-          task.concurrencyKey = undefined
-        }
-
-        this.client.session.abort({ path: { id: sessionID } }).catch(() => {})
-        this.markForNotification(task)
-
-        try {
-          await this.notifyParentSession(task)
-        } catch (err) {
-          log("[background-agent] Error notifying parent for force-cancelled task:", { taskId: task.id, error: err })
-        }
-        continue
-      }
-
       try {
         const sessionStatus = allStatuses[sessionID]
-
+        
         // Don't skip if session not in status - fall through to message-based detection
         if (sessionStatus?.type === "idle") {
           // Edge guard: Validate session has actual output before completing
@@ -1356,25 +1267,22 @@ Use \`background_output(task_id="${task.id}")\` to retrieve this result when rea
             }
           }
 
-          // Stability detection: complete when message count unchanged for 3 polls
-          const currentMsgCount = messages.length
-
           if (!task.progress) {
             task.progress = { toolCalls: 0, lastUpdate: new Date() }
           }
           task.progress.toolCalls = toolCalls
           task.progress.lastTool = lastTool
-          
-          // Only update lastUpdate if there's actual new activity (message count changed)
-          if (task.lastMsgCount !== currentMsgCount) {
-            task.progress.lastUpdate = new Date()
-          }
-          
+          task.progress.lastUpdate = new Date()
           if (lastMessage) {
             task.progress.lastMessage = lastMessage
             task.progress.lastMessageAt = new Date()
           }
-          // startedAt already validated at top of loop
+
+          // Stability detection: complete when message count unchanged for 3 polls
+          const currentMsgCount = messages.length
+          const startedAt = task.startedAt
+          if (!startedAt) continue
+          
           const elapsedMs = Date.now() - startedAt.getTime()
 
           if (elapsedMs >= MIN_STABILITY_TIME_MS) {
@@ -1385,72 +1293,15 @@ Use \`background_output(task_id="${task.id}")\` to retrieve this result when rea
                 const recheckStatus = await this.client.session.status()
                 const recheckData = (recheckStatus.data ?? {}) as Record<string, { type: string }>
                 const currentStatus = recheckData[sessionID]
-
+                
                 if (currentStatus?.type !== "idle") {
-                  // Don't count as deadlock if there's recent activity
-                  if (task.progress?.lastUpdate) {
-                    const lastUpdateTime = typeof task.progress.lastUpdate === "string"
-                      ? new Date(task.progress.lastUpdate).getTime()
-                      : task.progress.lastUpdate.getTime()
-                    const timeSinceLastActivity = Date.now() - lastUpdateTime
-                    if (timeSinceLastActivity < 30_000) {
-                      // Agent showed recent activity (within 30s), not a deadlock
-                      task.stablePolls = 0
-                      continue
-                    }
-                  }
-
-                  task.stabilityResets = (task.stabilityResets ?? 0) + 1
-
-                  // Time-based escalation: after 5 resets, use reduced threshold for faster detection
-                  const baseMaxResets = this.config?.maxStabilityResets ?? 10
-                  const currentResets = task.stabilityResets
-                  const escalatedMaxResets = currentResets >= 5 ? Math.max(6, Math.floor(baseMaxResets * 0.6)) : baseMaxResets
-
-                  if (currentResets >= escalatedMaxResets) {
-                    log("[background-agent] DEADLOCK - Force cancelling after max stability resets:", {
-                      taskId: task.id,
-                      stabilityResets: currentResets,
-                      escalatedThreshold: escalatedMaxResets,
-                      sessionStatus: currentStatus?.type ?? "not_in_status"
-                    })
-
-                    // Guard: Check if task is still running (could have been completed by another path)
-                    if (task.status !== "running") continue
-
-                    // Use "cancelled" status for abnormal termination (matching stale timeout pattern)
-                    task.status = "cancelled"
-                    task.error = `Deadlock detected: force-terminated after ${currentResets} stability resets (session stuck in "${currentStatus?.type ?? "unknown"}")`
-                    task.completedAt = new Date()
-
-                    // Release concurrency BEFORE any async operations to prevent slot leaks
-                    if (task.concurrencyKey) {
-                      this.concurrencyManager.release(task.concurrencyKey)
-                      task.concurrencyKey = undefined
-                    }
-
-                    // Abort the server-side session to stop resource consumption
-                    this.client.session.abort({ path: { id: sessionID } }).catch(() => {})
-
-                    this.markForNotification(task)
-
-                    try {
-                      await this.notifyParentSession(task)
-                    } catch (err) {
-                      log("[background-agent] Error notifying parent for deadlocked task:", { taskId: task.id, error: err })
-                    }
-                    continue
-                  }
-
                   log("[background-agent] Stability reached but session not idle, resetting:", { 
-                    taskId: task.id,
-                    stabilityResets: task.stabilityResets,
+                    taskId: task.id, 
                     sessionStatus: currentStatus?.type ?? "not_in_status" 
                   })
                   task.stablePolls = 0
                   continue
                 }
-                task.stabilityResets = 0
 
                 // Edge guard: Validate session has actual output before completing
                 const hasValidOutput = await this.validateSessionHasOutput(sessionID)
@@ -1470,7 +1321,6 @@ Use \`background_output(task_id="${task.id}")\` to retrieve this result when rea
               }
             } else {
               task.stablePolls = 0
-              task.stabilityResets = 0
             }
           }
           task.lastMsgCount = currentMsgCount
@@ -1533,60 +1383,15 @@ function registerProcessSignal(
 }
 
 
-async function getMessageDir(sessionID: string): Promise<string | null> {
-  try {
-    await fs.access(MESSAGE_STORAGE)
-  } catch {
-    return null
-  }
+function getMessageDir(sessionID: string): string | null {
+  if (!existsSync(MESSAGE_STORAGE)) return null
 
   const directPath = join(MESSAGE_STORAGE, sessionID)
-  try {
-    await fs.access(directPath)
-    return directPath
-  } catch {
-    // Continue to search in subdirectories
-  }
+  if (existsSync(directPath)) return directPath
 
-  try {
-    const dirs = await fs.readdir(MESSAGE_STORAGE)
-    for (const dir of dirs) {
-      const sessionPath = join(MESSAGE_STORAGE, dir, sessionID)
-      try {
-        await fs.access(sessionPath)
-        return sessionPath
-      } catch {
-        // Continue searching
-      }
-    }
-  } catch {
-    // Ignore readdir errors
+  for (const dir of readdirSync(MESSAGE_STORAGE)) {
+    const sessionPath = join(MESSAGE_STORAGE, dir, sessionID)
+    if (existsSync(sessionPath)) return sessionPath
   }
-  
-  return null
-}
-
-function getMessageDirSync(sessionID: string): string | null {
-  if (!existsSync(MESSAGE_STORAGE)) {
-    return null
-  }
-
-  const directPath = join(MESSAGE_STORAGE, sessionID)
-  if (existsSync(directPath)) {
-    return directPath
-  }
-
-  try {
-    const dirs = readdirSync(MESSAGE_STORAGE)
-    for (const dir of dirs) {
-      const sessionPath = join(MESSAGE_STORAGE, dir, sessionID)
-      if (existsSync(sessionPath)) {
-        return sessionPath
-      }
-    }
-  } catch {
-    // Ignore readdir errors
-  }
-  
   return null
 }

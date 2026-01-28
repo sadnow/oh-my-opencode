@@ -1,6 +1,7 @@
-import { describe, expect, test, spyOn, beforeEach, afterEach } from "bun:test"
+import { describe, expect, test, spyOn, beforeEach, afterEach, mock } from "bun:test"
 import { resolveModel, resolveModelWithFallback, type ModelResolutionInput, type ExtendedModelResolutionInput, type ModelResolutionResult, type ModelSource } from "./model-resolver"
 import * as logger from "./logger"
+import * as connectedProvidersCache from "./connected-providers-cache"
 
 describe("resolveModel", () => {
   describe("priority chain", () => {
@@ -128,8 +129,8 @@ describe("resolveModelWithFallback", () => {
       const result = resolveModelWithFallback(input)
 
       // #then
-      expect(result.model).toBe("anthropic/claude-opus-4-5")
-      expect(result.source).toBe("override")
+      expect(result!.model).toBe("anthropic/claude-opus-4-5")
+      expect(result!.source).toBe("override")
       expect(logSpy).toHaveBeenCalledWith("Model resolved via override", { model: "anthropic/claude-opus-4-5" })
     })
 
@@ -148,8 +149,8 @@ describe("resolveModelWithFallback", () => {
       const result = resolveModelWithFallback(input)
 
       // #then
-      expect(result.model).toBe("custom/my-model")
-      expect(result.source).toBe("override")
+      expect(result!.model).toBe("custom/my-model")
+      expect(result!.source).toBe("override")
     })
 
     test("whitespace-only userModel is treated as not provided", () => {
@@ -167,7 +168,7 @@ describe("resolveModelWithFallback", () => {
       const result = resolveModelWithFallback(input)
 
       // #then
-      expect(result.source).not.toBe("override")
+      expect(result!.source).not.toBe("override")
     })
 
     test("empty string userModel is treated as not provided", () => {
@@ -185,7 +186,7 @@ describe("resolveModelWithFallback", () => {
       const result = resolveModelWithFallback(input)
 
       // #then
-      expect(result.source).not.toBe("override")
+      expect(result!.source).not.toBe("override")
     })
   })
 
@@ -204,8 +205,8 @@ describe("resolveModelWithFallback", () => {
       const result = resolveModelWithFallback(input)
 
       // #then
-      expect(result.model).toBe("github-copilot/claude-opus-4-5-preview")
-      expect(result.source).toBe("provider-fallback")
+      expect(result!.model).toBe("github-copilot/claude-opus-4-5-preview")
+      expect(result!.source).toBe("provider-fallback")
       expect(logSpy).toHaveBeenCalledWith("Model resolved via fallback chain (availability confirmed)", {
         provider: "github-copilot",
         model: "claude-opus-4-5",
@@ -228,8 +229,8 @@ describe("resolveModelWithFallback", () => {
       const result = resolveModelWithFallback(input)
 
       // #then
-      expect(result.model).toBe("openai/gpt-5.2")
-      expect(result.source).toBe("provider-fallback")
+      expect(result!.model).toBe("openai/gpt-5.2")
+      expect(result!.source).toBe("provider-fallback")
     })
 
     test("tries next provider when first provider has no match", () => {
@@ -246,8 +247,8 @@ describe("resolveModelWithFallback", () => {
       const result = resolveModelWithFallback(input)
 
       // #then
-      expect(result.model).toBe("opencode/gpt-5-nano")
-      expect(result.source).toBe("provider-fallback")
+      expect(result!.model).toBe("opencode/gpt-5-nano")
+      expect(result!.source).toBe("provider-fallback")
     })
 
     test("uses fuzzy matching within provider", () => {
@@ -264,8 +265,8 @@ describe("resolveModelWithFallback", () => {
       const result = resolveModelWithFallback(input)
 
       // #then
-      expect(result.model).toBe("anthropic/claude-opus-4-5")
-      expect(result.source).toBe("provider-fallback")
+      expect(result!.model).toBe("anthropic/claude-opus-4-5")
+      expect(result!.source).toBe("provider-fallback")
     })
 
     test("skips fallback chain when not provided", () => {
@@ -279,7 +280,7 @@ describe("resolveModelWithFallback", () => {
       const result = resolveModelWithFallback(input)
 
       // #then
-      expect(result.source).toBe("system-default")
+      expect(result!.source).toBe("system-default")
     })
 
     test("skips fallback chain when empty", () => {
@@ -294,7 +295,7 @@ describe("resolveModelWithFallback", () => {
       const result = resolveModelWithFallback(input)
 
       // #then
-      expect(result.source).toBe("system-default")
+      expect(result!.source).toBe("system-default")
     })
 
     test("case-insensitive fuzzy matching", () => {
@@ -311,8 +312,8 @@ describe("resolveModelWithFallback", () => {
       const result = resolveModelWithFallback(input)
 
       // #then
-      expect(result.model).toBe("anthropic/claude-opus-4-5")
-      expect(result.source).toBe("provider-fallback")
+      expect(result!.model).toBe("anthropic/claude-opus-4-5")
+      expect(result!.source).toBe("provider-fallback")
     })
   })
 
@@ -331,13 +332,78 @@ describe("resolveModelWithFallback", () => {
       const result = resolveModelWithFallback(input)
 
       // #then
-      expect(result.model).toBe("google/gemini-3-pro")
-      expect(result.source).toBe("system-default")
+      expect(result!.model).toBe("google/gemini-3-pro")
+      expect(result!.source).toBe("system-default")
       expect(logSpy).toHaveBeenCalledWith("No available model found in fallback chain, falling through to system default")
     })
 
-    test("uses first fallback entry when availableModels is empty (no cache scenario)", () => {
-      // #given - empty availableModels simulates CI environment without model cache
+    test("returns undefined when availableModels empty and no connected providers cache exists", () => {
+      // #given - both model cache and connected-providers cache are missing (first run)
+      const cacheSpy = spyOn(connectedProvidersCache, "readConnectedProvidersCache").mockReturnValue(null)
+      const input: ExtendedModelResolutionInput = {
+        fallbackChain: [
+          { providers: ["anthropic"], model: "claude-opus-4-5" },
+        ],
+        availableModels: new Set(),
+        systemDefaultModel: undefined, // no system default configured
+      }
+
+      // #when
+      const result = resolveModelWithFallback(input)
+
+      // #then - should return undefined to let OpenCode use Provider.defaultModel()
+      expect(result).toBeUndefined()
+      cacheSpy.mockRestore()
+    })
+
+    test("skips fallback chain when availableModels empty even if connected providers cache exists", () => {
+      // #given - model cache missing but connected-providers cache exists
+      // This scenario caused bugs: provider is connected but may not have the model available
+      // Fix: When we can't verify model availability, skip fallback chain entirely
+      const cacheSpy = spyOn(connectedProvidersCache, "readConnectedProvidersCache").mockReturnValue(["openai", "google"])
+      const input: ExtendedModelResolutionInput = {
+        fallbackChain: [
+          { providers: ["anthropic", "openai"], model: "claude-opus-4-5" },
+        ],
+        availableModels: new Set(),
+        systemDefaultModel: "google/gemini-3-pro",
+      }
+
+      // #when
+      const result = resolveModelWithFallback(input)
+
+      // #then - should fall through to system default (NOT use connected provider blindly)
+      expect(result!.model).toBe("google/gemini-3-pro")
+      expect(result!.source).toBe("system-default")
+      cacheSpy.mockRestore()
+    })
+
+    test("prevents selecting model from provider that may not have it (bug reproduction)", () => {
+      // #given - user removed anthropic oauth, has quotio, but explore agent fallback has opencode
+      // opencode may be "connected" but doesn't have claude-haiku-4-5
+      const cacheSpy = spyOn(connectedProvidersCache, "readConnectedProvidersCache").mockReturnValue(["quotio", "opencode"])
+      const input: ExtendedModelResolutionInput = {
+        fallbackChain: [
+          { providers: ["anthropic", "opencode"], model: "claude-haiku-4-5" },
+        ],
+        availableModels: new Set(), // no model cache available
+        systemDefaultModel: "quotio/claude-opus-4-5-20251101",
+      }
+
+      // #when
+      const result = resolveModelWithFallback(input)
+
+      // #then - should NOT return opencode/claude-haiku-4-5 (model may not exist)
+      // should fall through to system default which user has configured
+      expect(result!.model).toBe("quotio/claude-opus-4-5-20251101")
+      expect(result!.source).toBe("system-default")
+      expect(result!.model).not.toBe("opencode/claude-haiku-4-5")
+      cacheSpy.mockRestore()
+    })
+
+    test("falls through to system default when no cache and systemDefaultModel is provided", () => {
+      // #given - no cache but system default is configured
+      const cacheSpy = spyOn(connectedProvidersCache, "readConnectedProvidersCache").mockReturnValue(null)
       const input: ExtendedModelResolutionInput = {
         fallbackChain: [
           { providers: ["anthropic"], model: "claude-opus-4-5" },
@@ -349,9 +415,10 @@ describe("resolveModelWithFallback", () => {
       // #when
       const result = resolveModelWithFallback(input)
 
-      // #then - should use first fallback entry, not system default
-      expect(result.model).toBe("anthropic/claude-opus-4-5")
-      expect(result.source).toBe("provider-fallback")
+      // #then - should fall through to system default
+      expect(result!.model).toBe("google/gemini-3-pro")
+      expect(result!.source).toBe("system-default")
+      cacheSpy.mockRestore()
     })
 
     test("returns system default when fallbackChain is not provided", () => {
@@ -365,8 +432,8 @@ describe("resolveModelWithFallback", () => {
       const result = resolveModelWithFallback(input)
 
       // #then
-      expect(result.model).toBe("google/gemini-3-pro")
-      expect(result.source).toBe("system-default")
+      expect(result!.model).toBe("google/gemini-3-pro")
+      expect(result!.source).toBe("system-default")
     })
   })
 
@@ -386,8 +453,8 @@ describe("resolveModelWithFallback", () => {
       })
 
       // #then
-      expect(result.model).toBe("anthropic/claude-opus-4-5")
-      expect(result.source).toBe("provider-fallback")
+      expect(result!.model).toBe("anthropic/claude-opus-4-5")
+      expect(result!.source).toBe("provider-fallback")
     })
 
     test("tries all providers in first entry before moving to second entry", () => {
@@ -405,8 +472,8 @@ describe("resolveModelWithFallback", () => {
       })
 
       // #then
-      expect(result.model).toBe("google/gemini-3-pro")
-      expect(result.source).toBe("provider-fallback")
+      expect(result!.model).toBe("google/gemini-3-pro")
+      expect(result!.source).toBe("provider-fallback")
     })
 
     test("returns first matching entry even if later entries have better matches", () => {
@@ -427,8 +494,8 @@ describe("resolveModelWithFallback", () => {
       })
 
       // #then
-      expect(result.model).toBe("openai/gpt-5.2")
-      expect(result.source).toBe("provider-fallback")
+      expect(result!.model).toBe("openai/gpt-5.2")
+      expect(result!.source).toBe("provider-fallback")
     })
 
     test("falls through to system default when none match availability", () => {
@@ -447,8 +514,8 @@ describe("resolveModelWithFallback", () => {
       })
 
       // #then
-      expect(result.model).toBe("system/default")
-      expect(result.source).toBe("system-default")
+      expect(result!.model).toBe("system/default")
+      expect(result!.source).toBe("system-default")
     })
   })
 
@@ -462,11 +529,81 @@ describe("resolveModelWithFallback", () => {
       }
 
       // #when
-      const result: ModelResolutionResult = resolveModelWithFallback(input)
+      const result = resolveModelWithFallback(input)
 
       // #then
-      expect(typeof result.model).toBe("string")
-      expect(["override", "provider-fallback", "system-default"]).toContain(result.source)
+      expect(result).toBeDefined()
+      expect(typeof result!.model).toBe("string")
+      expect(["override", "provider-fallback", "system-default"]).toContain(result!.source)
+    })
+  })
+
+  describe("Optional systemDefaultModel", () => {
+    test("returns undefined when systemDefaultModel is undefined and no fallback found", () => {
+      // #given
+      const input: ExtendedModelResolutionInput = {
+        fallbackChain: [
+          { providers: ["anthropic"], model: "nonexistent-model" },
+        ],
+        availableModels: new Set(["openai/gpt-5.2"]),
+        systemDefaultModel: undefined,
+      }
+
+      // #when
+      const result = resolveModelWithFallback(input)
+
+      // #then
+      expect(result).toBeUndefined()
+    })
+
+    test("returns undefined when no fallbackChain and systemDefaultModel is undefined", () => {
+      // #given
+      const input: ExtendedModelResolutionInput = {
+        availableModels: new Set(["openai/gpt-5.2"]),
+        systemDefaultModel: undefined,
+      }
+
+      // #when
+      const result = resolveModelWithFallback(input)
+
+      // #then
+      expect(result).toBeUndefined()
+    })
+
+    test("still returns override when userModel provided even if systemDefaultModel undefined", () => {
+      // #given
+      const input: ExtendedModelResolutionInput = {
+        userModel: "anthropic/claude-opus-4-5",
+        availableModels: new Set(),
+        systemDefaultModel: undefined,
+      }
+
+      // #when
+      const result = resolveModelWithFallback(input)
+
+      // #then
+      expect(result).toBeDefined()
+      expect(result!.model).toBe("anthropic/claude-opus-4-5")
+      expect(result!.source).toBe("override")
+    })
+
+    test("still returns fallback match when systemDefaultModel undefined", () => {
+      // #given
+      const input: ExtendedModelResolutionInput = {
+        fallbackChain: [
+          { providers: ["anthropic"], model: "claude-opus-4-5" },
+        ],
+        availableModels: new Set(["anthropic/claude-opus-4-5"]),
+        systemDefaultModel: undefined,
+      }
+
+      // #when
+      const result = resolveModelWithFallback(input)
+
+      // #then
+      expect(result).toBeDefined()
+      expect(result!.model).toBe("anthropic/claude-opus-4-5")
+      expect(result!.source).toBe("provider-fallback")
     })
   })
 })

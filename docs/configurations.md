@@ -85,6 +85,66 @@ When both `oh-my-opencode.jsonc` and `oh-my-opencode.json` files exist, `.jsonc`
 
 **Recommended**: For Google Gemini authentication, install the [`opencode-antigravity-auth`](https://github.com/NoeFabris/opencode-antigravity-auth) plugin (`@latest`). It provides multi-account load balancing, variant-based thinking levels, dual quota system (Antigravity + Gemini CLI), and active maintenance. See [Installation > Google Gemini](docs/guide/installation.md#google-gemini-antigravity-oauth).
 
+## Ollama Provider
+
+**IMPORTANT**: When using Ollama as a provider, you **must** disable streaming to avoid JSON parsing errors.
+
+### Required Configuration
+
+```json
+{
+  "agents": {
+    "explore": {
+      "model": "ollama/qwen3-coder",
+      "stream": false
+    }
+  }
+}
+```
+
+### Why `stream: false` is Required
+
+Ollama returns NDJSON (newline-delimited JSON) when streaming is enabled, but Claude Code SDK expects a single JSON object. This causes `JSON Parse error: Unexpected EOF` when agents attempt tool calls.
+
+**Example of the problem**:
+```json
+// Ollama streaming response (NDJSON - multiple lines)
+{"message":{"tool_calls":[...]}, "done":false}
+{"message":{"content":""}, "done":true}
+
+// Claude Code SDK expects (single JSON object)
+{"message":{"tool_calls":[...], "content":""}, "done":true}
+```
+
+### Supported Models
+
+Common Ollama models that work with oh-my-opencode:
+
+| Model | Best For | Configuration |
+|-------|----------|---------------|
+| `ollama/qwen3-coder` | Code generation, build fixes | `{"model": "ollama/qwen3-coder", "stream": false}` |
+| `ollama/ministral-3:14b` | Exploration, codebase search | `{"model": "ollama/ministral-3:14b", "stream": false}` |
+| `ollama/lfm2.5-thinking` | Documentation, writing | `{"model": "ollama/lfm2.5-thinking", "stream": false}` |
+
+### Troubleshooting
+
+If you encounter `JSON Parse error: Unexpected EOF`:
+
+1. **Verify `stream: false` is set** in your agent configuration
+2. **Check Ollama is running**: `curl http://localhost:11434/api/tags`
+3. **Test with curl**:
+   ```bash
+   curl -s http://localhost:11434/api/chat \
+     -d '{"model": "qwen3-coder", "messages": [{"role": "user", "content": "Hello"}], "stream": false}'
+   ```
+4. **See detailed troubleshooting**: [docs/troubleshooting/ollama-streaming-issue.md](troubleshooting/ollama-streaming-issue.md)
+
+### Future SDK Fix
+
+The proper long-term fix requires Claude Code SDK to parse NDJSON responses correctly. Until then, use `stream: false` as a workaround.
+
+**Tracking**: https://github.com/code-yeongyu/oh-my-opencode/issues/1124
+
 ## Agents
 
 Override built-in agent settings:
@@ -219,6 +279,183 @@ agent-browser screenshot result.png
 agent-browser close
 ```
 
+## Tmux Integration
+
+Run background subagents in separate tmux panes for **visual multi-agent execution**. See your agents working in parallel, each in their own terminal pane.
+
+**Enable tmux integration** via `tmux` in `oh-my-opencode.json`:
+
+```json
+{
+  "tmux": {
+    "enabled": true,
+    "layout": "main-vertical",
+    "main_pane_size": 60,
+    "main_pane_min_width": 120,
+    "agent_pane_min_width": 40
+  }
+}
+```
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `enabled` | `false` | Enable tmux subagent pane spawning. Only works when running inside an existing tmux session. |
+| `layout` | `main-vertical` | Tmux layout for agent panes. See [Layout Options](#layout-options) below. |
+| `main_pane_size` | `60` | Main pane size as percentage (20-80). |
+| `main_pane_min_width` | `120` | Minimum width for main pane in columns. |
+| `agent_pane_min_width` | `40` | Minimum width for each agent pane in columns. |
+
+### Layout Options
+
+| Layout | Description |
+|--------|-------------|
+| `main-vertical` | Main pane left, agent panes stacked on right (default) |
+| `main-horizontal` | Main pane top, agent panes stacked bottom |
+| `tiled` | All panes in equal-sized grid |
+| `even-horizontal` | All panes in horizontal row |
+| `even-vertical` | All panes in vertical stack |
+
+### Requirements
+
+1. **Must run inside tmux**: The feature only activates when OpenCode is already running inside a tmux session
+2. **Tmux installed**: Requires tmux to be available in PATH
+3. **Server mode**: OpenCode must run with `--port` flag to enable subagent pane spawning
+
+### How It Works
+
+When `tmux.enabled` is `true` and you're inside a tmux session:
+- Background agents (via `delegate_task(run_in_background=true)`) spawn in new tmux panes
+- Each pane shows the subagent's real-time output
+- Panes are automatically closed when the subagent completes
+- Layout is automatically adjusted based on your configuration
+
+### Running OpenCode with Tmux Subagent Support
+
+To enable tmux subagent panes, OpenCode must run in **server mode** with the `--port` flag. This starts an HTTP server that subagent panes connect to via `opencode attach`.
+
+**Basic setup**:
+```bash
+# Start tmux session
+tmux new -s dev
+
+# Run OpenCode with server mode (port 4096)
+opencode --port 4096
+
+# Now background agents will appear in separate panes
+```
+
+**Recommended: Shell Function**
+
+For convenience, create a shell function that automatically handles tmux sessions and port allocation. Here's an example for Fish shell:
+
+```fish
+# ~/.config/fish/config.fish
+function oc
+    set base_name (basename (pwd))
+    set path_hash (echo (pwd) | md5 | cut -c1-4)
+    set session_name "$base_name-$path_hash"
+    
+    # Find available port starting from 4096
+    function __oc_find_port
+        set port 4096
+        while test $port -lt 5096
+            if not lsof -i :$port >/dev/null 2>&1
+                echo $port
+                return 0
+            end
+            set port (math $port + 1)
+        end
+        echo 4096
+    end
+    
+    set oc_port (__oc_find_port)
+    set -x OPENCODE_PORT $oc_port
+    
+    if set -q TMUX
+        # Already inside tmux - just run with port
+        opencode --port $oc_port $argv
+    else
+        # Create tmux session and run opencode
+        set oc_cmd "OPENCODE_PORT=$oc_port opencode --port $oc_port $argv; exec fish"
+        if tmux has-session -t "$session_name" 2>/dev/null
+            tmux new-window -t "$session_name" -c (pwd) "$oc_cmd"
+            tmux attach-session -t "$session_name"
+        else
+            tmux new-session -s "$session_name" -c (pwd) "$oc_cmd"
+        end
+    end
+    
+    functions -e __oc_find_port
+end
+```
+
+**Bash/Zsh equivalent**:
+
+```bash
+# ~/.bashrc or ~/.zshrc
+oc() {
+    local base_name=$(basename "$PWD")
+    local path_hash=$(echo "$PWD" | md5sum | cut -c1-4)
+    local session_name="${base_name}-${path_hash}"
+    
+    # Find available port
+    local port=4096
+    while [ $port -lt 5096 ]; do
+        if ! lsof -i :$port >/dev/null 2>&1; then
+            break
+        fi
+        port=$((port + 1))
+    done
+    
+    export OPENCODE_PORT=$port
+    
+    if [ -n "$TMUX" ]; then
+        opencode --port $port "$@"
+    else
+        local oc_cmd="OPENCODE_PORT=$port opencode --port $port $*; exec $SHELL"
+        if tmux has-session -t "$session_name" 2>/dev/null; then
+            tmux new-window -t "$session_name" -c "$PWD" "$oc_cmd"
+            tmux attach-session -t "$session_name"
+        else
+            tmux new-session -s "$session_name" -c "$PWD" "$oc_cmd"
+        fi
+    fi
+}
+```
+
+**How subagent panes work**:
+
+1. Main OpenCode starts HTTP server on specified port (e.g., `http://localhost:4096`)
+2. When a background agent spawns, Oh My OpenCode creates a new tmux pane
+3. The pane runs: `opencode attach http://localhost:4096 --session <session-id>`
+4. Each subagent pane shows real-time streaming output
+5. Panes are automatically closed when the subagent completes
+
+**Environment variables**:
+
+| Variable | Description |
+|----------|-------------|
+| `OPENCODE_PORT` | Default port for the HTTP server (used if `--port` not specified) |
+
+### Server Mode Reference
+
+OpenCode's server mode exposes an HTTP API for programmatic interaction:
+
+```bash
+# Standalone server (no TUI)
+opencode serve --port 4096
+
+# TUI with server (recommended for tmux integration)
+opencode --port 4096
+```
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--port` | `4096` | Port for HTTP server |
+| `--hostname` | `127.0.0.1` | Hostname to listen on |
+
+For more details, see the [OpenCode Server documentation](https://opencode.ai/docs/server/).
+
 ## Git Master
 
 Configure git-master skill behavior:
@@ -348,27 +585,96 @@ Configure concurrency limits for background agent tasks. This controls how many 
 
 Categories enable domain-specific task delegation via the `delegate_task` tool. Each category applies runtime presets (model, temperature, prompt additions) when calling the `Sisyphus-Junior` agent.
 
-**Default Categories:**
+### Built-in Categories
 
-| Category         | Model                         | Description                                                                  |
-| ---------------- | ----------------------------- | ---------------------------------------------------------------------------- |
-| `visual`         | `google/gemini-3-pro` | Frontend, UI/UX, design-focused tasks. High creativity (temp 0.7).           |
-| `business-logic` | `openai/gpt-5.2`              | Backend logic, architecture, strategic reasoning. Low creativity (temp 0.1). |
+All 7 categories come with optimal model defaults, but **you must configure them to use those defaults**:
 
-**Usage:**
+| Category             | Built-in Default Model             | Description                                                          |
+| -------------------- | ---------------------------------- | -------------------------------------------------------------------- |
+| `visual-engineering` | `google/gemini-3-pro-preview`      | Frontend, UI/UX, design, styling, animation                          |
+| `ultrabrain`         | `openai/gpt-5.2-codex` (xhigh)     | Deep logical reasoning, complex architecture decisions               |
+| `artistry`           | `google/gemini-3-pro-preview` (max)| Highly creative/artistic tasks, novel ideas                          |
+| `quick`              | `anthropic/claude-haiku-4-5`       | Trivial tasks - single file changes, typo fixes, simple modifications|
+| `unspecified-low`    | `anthropic/claude-sonnet-4-5`      | Tasks that don't fit other categories, low effort required           |
+| `unspecified-high`   | `anthropic/claude-opus-4-5` (max)  | Tasks that don't fit other categories, high effort required          |
+| `writing`            | `google/gemini-3-flash-preview`    | Documentation, prose, technical writing                              |
+
+### ⚠️ Critical: Model Resolution Priority
+
+**Categories DO NOT use their built-in defaults unless configured.** Model resolution follows this priority:
 
 ```
-// Via delegate_task tool
-delegate_task(category="visual", prompt="Create a responsive dashboard component")
-delegate_task(category="business-logic", prompt="Design the payment processing flow")
+1. User-configured model (in oh-my-opencode.json)
+2. Category's built-in default (if you add category to config)
+3. System default model (from opencode.json)
+```
 
-// Or target a specific agent directly
+**Example Problem:**
+
+```json
+// opencode.json
+{ "model": "anthropic/claude-sonnet-4-5" }
+
+// oh-my-opencode.json (empty categories section)
+{}
+
+// Result: ALL categories use claude-sonnet-4-5 (wasteful!)
+// - quick tasks use Sonnet instead of Haiku (expensive)
+// - ultrabrain uses Sonnet instead of GPT-5.2 (inferior reasoning)
+// - visual tasks use Sonnet instead of Gemini (suboptimal for UI)
+```
+
+### Recommended Configuration
+
+**To use optimal models for each category, add them to your config:**
+
+```json
+{
+  "categories": {
+    "visual-engineering": { 
+      "model": "google/gemini-3-pro-preview"
+    },
+    "ultrabrain": { 
+      "model": "openai/gpt-5.2-codex",
+      "variant": "xhigh"
+    },
+    "artistry": { 
+      "model": "google/gemini-3-pro-preview",
+      "variant": "max"
+    },
+    "quick": { 
+      "model": "anthropic/claude-haiku-4-5"  // Fast + cheap for trivial tasks
+    },
+    "unspecified-low": { 
+      "model": "anthropic/claude-sonnet-4-5"
+    },
+    "unspecified-high": { 
+      "model": "anthropic/claude-opus-4-5",
+      "variant": "max"
+    },
+    "writing": { 
+      "model": "google/gemini-3-flash-preview"
+    }
+  }
+}
+```
+
+**Only configure categories you have access to.** Unconfigured categories fall back to your system default model.
+
+### Usage
+
+```javascript
+// Via delegate_task tool
+delegate_task(category="visual-engineering", prompt="Create a responsive dashboard component")
+delegate_task(category="ultrabrain", prompt="Design the payment processing flow")
+
+// Or target a specific agent directly (bypasses categories)
 delegate_task(agent="oracle", prompt="Review this architecture")
 ```
 
-**Custom Categories:**
+### Custom Categories
 
-Add custom categories in `oh-my-opencode.json`:
+Add your own categories or override built-in ones:
 
 ```json
 {
@@ -378,15 +684,15 @@ Add custom categories in `oh-my-opencode.json`:
       "temperature": 0.2,
       "prompt_append": "Focus on data analysis, ML pipelines, and statistical methods."
     },
-    "visual": {
-      "model": "google/gemini-3-pro",
+    "visual-engineering": {
+      "model": "google/gemini-3-pro-preview",
       "prompt_append": "Use shadcn/ui components and Tailwind CSS."
     }
   }
 }
 ```
 
-Each category supports: `model`, `temperature`, `top_p`, `maxTokens`, `thinking`, `reasoningEffort`, `textVerbosity`, `tools`, `prompt_append`.
+Each category supports: `model`, `temperature`, `top_p`, `maxTokens`, `thinking`, `reasoningEffort`, `textVerbosity`, `tools`, `prompt_append`, `variant`.
 
 ## Model Resolution System
 
@@ -521,6 +827,8 @@ Disable specific built-in hooks via `disabled_hooks` in `~/.config/opencode/oh-m
 ```
 
 Available hooks: `todo-continuation-enforcer`, `context-window-monitor`, `session-recovery`, `session-notification`, `comment-checker`, `grep-output-truncator`, `tool-output-truncator`, `directory-agents-injector`, `directory-readme-injector`, `empty-task-response-detector`, `think-mode`, `anthropic-context-window-limit-recovery`, `rules-injector`, `background-notification`, `auto-update-checker`, `startup-toast`, `keyword-detector`, `agent-usage-reminder`, `non-interactive-env`, `interactive-bash-session`, `compaction-context-injector`, `thinking-block-validator`, `claude-code-hooks`, `ralph-loop`, `preemptive-compaction`
+
+**Note on `directory-agents-injector`**: This hook is **automatically disabled** when running on OpenCode 1.1.37+ because OpenCode now has native support for dynamically resolving AGENTS.md files from subdirectories (PR #10678). This prevents duplicate AGENTS.md injection. For older OpenCode versions, the hook remains active to provide the same functionality.
 
 **Note on `auto-update-checker` and `startup-toast`**: The `startup-toast` hook is a sub-feature of `auto-update-checker`. To disable only the startup toast notification while keeping update checking enabled, add `"startup-toast"` to `disabled_hooks`. To disable all update checking features (including the toast), add `"auto-update-checker"` to `disabled_hooks`.
 

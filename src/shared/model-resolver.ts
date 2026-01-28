@@ -1,11 +1,12 @@
 import { log } from "./logger"
 import { fuzzyMatchModel } from "./model-availability"
 import type { FallbackEntry } from "./model-requirements"
+import { readConnectedProvidersCache } from "./connected-providers-cache"
 
 export type ModelResolutionInput = {
 	userModel?: string
 	inheritedModel?: string
-	systemDefault: string
+	systemDefault?: string
 }
 
 export type ModelSource =
@@ -23,7 +24,7 @@ export type ExtendedModelResolutionInput = {
 	userModel?: string
 	fallbackChain?: FallbackEntry[]
 	availableModels: Set<string>
-	systemDefaultModel: string
+	systemDefaultModel?: string
 }
 
 function normalizeModel(model?: string): string | undefined {
@@ -31,7 +32,7 @@ function normalizeModel(model?: string): string | undefined {
 	return trimmed || undefined
 }
 
-export function resolveModel(input: ModelResolutionInput): string {
+export function resolveModel(input: ModelResolutionInput): string | undefined {
 	return (
 		normalizeModel(input.userModel) ??
 		normalizeModel(input.inheritedModel) ??
@@ -41,7 +42,7 @@ export function resolveModel(input: ModelResolutionInput): string {
 
 export function resolveModelWithFallback(
 	input: ExtendedModelResolutionInput,
-): ModelResolutionResult {
+): ModelResolutionResult | undefined {
 	const { userModel, fallbackChain, availableModels, systemDefaultModel } = input
 
 	// Step 1: Override
@@ -53,13 +54,11 @@ export function resolveModelWithFallback(
 
 	// Step 2: Provider fallback chain (with availability check)
 	if (fallbackChain && fallbackChain.length > 0) {
-		// If availableModels is empty (no cache), use first fallback entry directly without availability check
 		if (availableModels.size === 0) {
-			const firstEntry = fallbackChain[0]
-			const firstProvider = firstEntry.providers[0]
-			const model = `${firstProvider}/${firstEntry.model}`
-			log("Model resolved via fallback chain (no cache, using first entry)", { provider: firstProvider, model: firstEntry.model, variant: firstEntry.variant })
-			return { model, source: "provider-fallback", variant: firstEntry.variant }
+			// When model cache is empty, we cannot verify if a provider actually has the model.
+			// Skip fallback chain entirely and fall through to system default.
+			// This prevents selecting provider/model combinations that may not exist.
+			log("No model cache available, skipping fallback chain to use system default")
 		}
 
 		for (const entry of fallbackChain) {
@@ -72,11 +71,15 @@ export function resolveModelWithFallback(
 				}
 			}
 		}
-		// No match found in fallback chain - fall through to system default
 		log("No available model found in fallback chain, falling through to system default")
 	}
 
-	// Step 4: System default
+	// Step 3: System default (if provided)
+	if (systemDefaultModel === undefined) {
+		log("No model resolved - systemDefaultModel not configured")
+		return undefined
+	}
+
 	log("Model resolved via system default", { model: systemDefaultModel })
 	return { model: systemDefaultModel, source: "system-default" }
 }
