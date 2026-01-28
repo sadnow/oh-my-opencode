@@ -43,7 +43,8 @@ describe("WebUI Integration", () => {
         min_tier: "budget",
       },
       usageTracker,
-      ["anthropic", "openai"]
+      ["anthropic", "openai"],
+      undefined // No subscription trackers in test
     )
 
     const hotConfigManager = initHotConfigManager({
