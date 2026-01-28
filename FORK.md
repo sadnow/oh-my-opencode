@@ -128,6 +128,42 @@ When you use `delegate_task(category="...")`, the system now checks your budget 
 - Budget API: `src/features/budget-orchestrator/index.ts`
 - Wiring: `src/index.ts` (line 353)
 
+#### 2.1.1 Emergency Tier Downgrade (v3.1.7)
+
+**Critical budget protection at 90%+ usage.**
+
+The adaptive budget manager now includes an emergency override that forces minimum tier when budget usage exceeds 90%, regardless of other factors like accumulated credits or hourly allowance.
+
+**Why this is needed:**
+- Previous behavior: At 95% budget usage, adaptive manager could still recommend "standard" tier if headroom calculation showed 20+ affordable requests
+- Problem: This led to continued high-cost usage even when budget was critically low
+- Solution: Hard cutoff at 90% forces immediate downgrade to minimum tier
+
+**How it works:**
+1. Before normal tier selection, checks `currentUsed / totalBudget >= 0.90`
+2. If true, immediately returns `config.minTier` (typically "budget")
+3. Resets tier stability counter (prevents upgrade oscillation)
+4. Logs emergency event with budget details
+
+**Example:**
+```
+Budget: $100 (anthropic/weekly)
+Current usage: $95 (95%)
+Adaptive calculation: Headroom $3.50, can afford 23 requests at $0.15
+Previous behavior: → Recommends "standard" tier ❌
+New behavior: → Forces "budget" tier immediately ✅
+```
+
+**Test coverage:**
+- ✅ 46/46 comprehensive budget tests passing
+- ✅ Progressive consumption (10% → 99%)
+- ✅ Multiple providers (anthropic, openai, google)
+- ✅ Tier transitions (premium → standard → budget)
+- ✅ Boundary conditions (69.9%, 70%, 70.1%, 0%, 100%)
+- ✅ Realistic 30-day usage patterns
+
+**Commit:** `2c3e537` - fix(budget): add emergency tier downgrade at 90% budget usage
+
 ### 3. Upstream Sync History
 
 **Latest merge: v3.1.6 (2026-01-28)**
