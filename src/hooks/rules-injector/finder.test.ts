@@ -185,7 +185,7 @@ describe("findRuleFiles", () => {
 
       // #then should find claude rules
       const paths = candidates.map((c) => c.path);
-      expect(paths.some((p) => p.includes(".claude/rules/"))).toBe(true);
+      expect(paths.some((p) => p.replace(/\\/g, "/").includes(".claude/rules/"))).toBe(true);
     });
 
     it("should still discover .cursor/rules/ files", () => {
@@ -202,7 +202,7 @@ describe("findRuleFiles", () => {
 
       // #then should find cursor rules
       const paths = candidates.map((c) => c.path);
-      expect(paths.some((p) => p.includes(".cursor/rules/"))).toBe(true);
+      expect(paths.some((p) => p.replace(/\\/g, "/").includes(".cursor/rules/"))).toBe(true);
     });
 
     it("should discover .mdc files in rule directories", () => {
@@ -252,9 +252,9 @@ describe("findRuleFiles", () => {
       // #then should find all rules
       expect(candidates.length).toBeGreaterThanOrEqual(4);
       const paths = candidates.map((c) => c.path);
-      expect(paths.some((p) => p.includes(".claude/rules/"))).toBe(true);
-      expect(paths.some((p) => p.includes(".cursor/rules/"))).toBe(true);
-      expect(paths.some((p) => p.includes(".github/instructions/"))).toBe(
+      expect(paths.some((p) => p.replace(/\\/g, "/").includes(".claude/rules/"))).toBe(true);
+      expect(paths.some((p) => p.replace(/\\/g, "/").includes(".cursor/rules/"))).toBe(true);
+      expect(paths.some((p) => p.replace(/\\/g, "/").includes(".github/instructions/"))).toBe(
         true
       );
       expect(paths.some((p) => p.includes("copilot-instructions.md"))).toBe(
