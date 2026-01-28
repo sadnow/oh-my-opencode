@@ -587,6 +587,7 @@ export class BudgetOrchestrator {
   /**
    * Get the recommended tier based on all budget states.
    * Respects forced tier override if set.
+   * Also considers subscription quotas (Claude Max, Copilot).
    */
   getRecommendedTier(): ModelTier {
     // Check for forced tier override
@@ -606,7 +607,7 @@ export class BudgetOrchestrator {
       return "budget"
     }
 
-    // Find the most constrained tier
+    // Find the most constrained tier from API budgets
     let lowestTier: ModelTier = "premium"
     const tierOrder: ModelTier[] = ["premium", "standard", "budget", "economy"]
 
@@ -619,7 +620,95 @@ export class BudgetOrchestrator {
       }
     }
 
+    // Check subscription quotas (Claude Max, Copilot)
+    const subscriptionTier = this.getSubscriptionConstrainedTier()
+    const subscriptionTierIndex = tierOrder.indexOf(subscriptionTier)
+    const currentTierIndex = tierOrder.indexOf(lowestTier)
+    
+    if (subscriptionTierIndex > currentTierIndex) {
+      log("[budget-orchestrator] Subscription quota constraint:", {
+        budgetTier: lowestTier,
+        subscriptionTier,
+        using: subscriptionTier
+      })
+      lowestTier = subscriptionTier
+    }
+
     return lowestTier
+  }
+
+  /**
+   * Get tier constraint based on subscription quota usage.
+   * Returns the most restrictive tier needed based on quota consumption.
+   */
+  private getSubscriptionConstrainedTier(): ModelTier {
+    const tierOrder: ModelTier[] = ["premium", "standard", "budget", "economy"]
+    let mostRestrictive: ModelTier = "premium"
+
+    // Check quota targets if configured
+    const claudeMaxTarget = this.quotaTargets.claude_max ?? 90
+    const copilotTarget = this.quotaTargets.copilot ?? 90
+
+    // Get current usage from usage tracker (if available)
+    if (this.usageTracker) {
+      const usageSummary = this.usageTracker.getUsageSummary()
+      
+      // Check Claude Max usage (from "anthropic" provider with OAuth method)
+      const claudeMaxUsage = usageSummary.providers.find(
+        p => p.provider === "anthropic" && p.method === "claude-max"
+      )
+      
+      if (claudeMaxUsage && claudeMaxUsage.percentUsed !== undefined) {
+        const usage = claudeMaxUsage.percentUsed
+        let suggestedTier: ModelTier = "premium"
+        
+        if (usage >= 100) {
+          // Over quota - use most economical
+          suggestedTier = "economy"
+        } else if (usage >= claudeMaxTarget) {
+          // Near quota target - downgrade to budget
+          suggestedTier = "budget"
+        } else if (usage >= claudeMaxTarget * 0.8) {
+          // 80% of target - use standard
+          suggestedTier = "standard"
+        }
+        
+        const idx = tierOrder.indexOf(suggestedTier)
+        const currentIdx = tierOrder.indexOf(mostRestrictive)
+        if (idx > currentIdx) {
+          mostRestrictive = suggestedTier
+        }
+      }
+
+      // Check Copilot usage
+      const copilotUsage = usageSummary.providers.find(
+        p => p.provider === "github" || p.provider === "copilot"
+      )
+      
+      if (copilotUsage && copilotUsage.percentUsed !== undefined) {
+        const usage = copilotUsage.percentUsed
+        let suggestedTier: ModelTier = "premium"
+        
+        if (usage >= 100) {
+          // Over quota - use most economical
+          suggestedTier = "economy"
+        } else if (usage >= copilotTarget) {
+          // Near quota target - downgrade to budget
+          suggestedTier = "budget"
+        } else if (usage >= copilotTarget * 0.8) {
+          // 80% of target - use standard
+          suggestedTier = "standard"
+        }
+        
+        const idx = tierOrder.indexOf(suggestedTier)
+        const currentIdx = tierOrder.indexOf(mostRestrictive)
+        if (idx > currentIdx) {
+          mostRestrictive = suggestedTier
+        }
+      }
+    }
+
+    return mostRestrictive
   }
 
   /**
