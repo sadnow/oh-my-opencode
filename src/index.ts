@@ -77,6 +77,11 @@ import { BackgroundManager } from "./features/background-agent";
 import { SkillMcpManager } from "./features/skill-mcp-manager";
 import { initTaskToastManager } from "./features/task-toast-manager";
 import { TmuxSessionManager } from "./features/tmux-subagent";
+import { UsageTracker } from "./features/usage-tracker";
+import { BudgetOrchestrator } from "./features/budget-orchestrator";
+import { getClaudeMaxUsageTracker } from "./features/claude-max-usage";
+import { getCopilotUsageTracker } from "./features/copilot-usage";
+import { createUsageTrackingHook } from "./hooks/usage-tracking";
 import { type HookName } from "./config";
 import { log, detectExternalNotificationPlugin, getNotificationConflictWarning, resetMessageCursor, includesCaseInsensitive, hasConnectedProvidersCache, getOpenCodeVersion, isOpenCodeVersionAtLeast, OPENCODE_NATIVE_AGENTS_INJECTION_VERSION } from "./shared";
 import { loadPluginConfig } from "./plugin-config";
@@ -242,6 +247,44 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
 
   const taskResumeInfo = createTaskResumeInfoHook();
 
+  // Initialize usage tracker
+  const usageTrackingEnabled = pluginConfig.usage_tracking?.enabled ?? true;
+  const usageTracker = usageTrackingEnabled
+    ? new UsageTracker({
+        enabled: true,
+        persist: pluginConfig.usage_tracking?.persist ?? true,
+      })
+    : null;
+
+  // Determine available providers (for budget orchestration)
+  const availableProviders: string[] = ["opencode"]; // opencode always available
+  // Note: Real provider detection would require checking auth status
+
+  // Initialize Claude Max usage tracker
+  const claudeMaxTracker = getClaudeMaxUsageTracker();
+
+  // Initialize Copilot usage tracker
+  const copilotTracker = getCopilotUsageTracker();
+  copilotTracker.startLiveRefresh(); // Refresh usage from API every 60 seconds
+
+  // Initialize budget orchestrator
+  const budgetOrchestrator = pluginConfig.budget?.enabled
+    ? new BudgetOrchestrator(
+        pluginConfig.budget,
+        usageTracker,
+        availableProviders,
+        {
+          claudeMaxTracker,
+          copilotTracker,
+        }
+      )
+    : null;
+
+  // Create usage tracking hook (always enabled if usageTracker exists)
+  const usageTracking = usageTracker
+    ? createUsageTrackingHook(ctx, usageTracker)
+    : null;
+
   const tmuxSessionManager = new TmuxSessionManager(ctx, tmuxConfig);
 
   const backgroundManager = new BackgroundManager(ctx, pluginConfig.background_task, {
@@ -265,6 +308,11 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
       log("[index] onSubagentSessionCreated callback completed");
     },
   });
+
+  // Wire budget orchestrator to background manager
+  if (budgetOrchestrator) {
+    backgroundManager.setBudgetOrchestrator(budgetOrchestrator);
+  }
 
   const atlasHook = isHookEnabled("atlas")
     ? createAtlasHook(ctx, { directory: ctx.directory, backgroundManager })
@@ -419,6 +467,7 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
       await claudeCodeHooks["chat.message"]?.(input, output);
       await autoSlashCommand?.["chat.message"]?.(input, output);
       await startWork?.["chat.message"]?.(input, output);
+      await usageTracking?.["chat.message"]?.(input, output);
 
       if (!hasConnectedProvidersCache()) {
         ctx.client.tui.showToast({

@@ -9,6 +9,7 @@ import { log, getAgentToolRestrictions } from "../../shared"
 import { ConcurrencyManager } from "./concurrency"
 import type { BackgroundTaskConfig, TmuxConfig } from "../../config/schema"
 import { isInsideTmux } from "../../shared/tmux"
+import type { BudgetOrchestrator } from "../budget-orchestrator"
 
 import { subagentSessions } from "../claude-code-session-state"
 import { getTaskToastManager } from "../task-toast-manager"
@@ -79,6 +80,7 @@ export class BackgroundManager {
   private config?: BackgroundTaskConfig
   private tmuxEnabled: boolean
   private onSubagentSessionCreated?: OnSubagentSessionCreated
+  private budgetOrchestrator: BudgetOrchestrator | null = null
 
   private queuesByKey: Map<string, QueueItem[]> = new Map()
   private processingKeys: Set<string> = new Set()
@@ -101,6 +103,10 @@ export class BackgroundManager {
     this.tmuxEnabled = options?.tmuxConfig?.enabled ?? false
     this.onSubagentSessionCreated = options?.onSubagentSessionCreated
     this.registerProcessCleanup()
+  }
+
+  setBudgetOrchestrator(orchestrator: BudgetOrchestrator | null): void {
+    this.budgetOrchestrator = orchestrator
   }
 
   async launch(input: LaunchInput): Promise<BackgroundTask> {
@@ -277,6 +283,7 @@ export class BackgroundManager {
     }
     task.concurrencyKey = concurrencyKey
     task.concurrencyGroup = concurrencyKey
+    task.stabilityResets = 0  // Initialize deadlock detection counter
 
     this.startPolling()
 
@@ -520,6 +527,7 @@ export class BackgroundManager {
       toolCalls: existingTask.progress?.toolCalls ?? 0,
       lastUpdate: new Date(),
     }
+    existingTask.stabilityResets = 0  // Reset deadlock detection counter on resume
 
     this.startPolling()
     if (existingTask.sessionID) {
@@ -1272,7 +1280,10 @@ Use \`background_output(task_id="${task.id}")\` to retrieve this result when rea
           }
           task.progress.toolCalls = toolCalls
           task.progress.lastTool = lastTool
-          task.progress.lastUpdate = new Date()
+          // Only update lastUpdate when message count changes (for deadlock detection)
+          if (task.lastMsgCount !== messages.length) {
+            task.progress.lastUpdate = new Date()
+          }
           if (lastMessage) {
             task.progress.lastMessage = lastMessage
             task.progress.lastMessageAt = new Date()
@@ -1295,13 +1306,66 @@ Use \`background_output(task_id="${task.id}")\` to retrieve this result when rea
                 const currentStatus = recheckData[sessionID]
                 
                 if (currentStatus?.type !== "idle") {
+                  // Guard: ignore if there's recent activity
+                  if (task.progress?.lastUpdate) {
+                    const lastUpdateTime = typeof task.progress.lastUpdate === "string"
+                      ? new Date(task.progress.lastUpdate).getTime()
+                      : task.progress.lastUpdate.getTime()
+                    const timeSinceLastActivity = Date.now() - lastUpdateTime
+                    if (timeSinceLastActivity < 30_000) {
+                      task.stablePolls = 0
+                      continue
+                    }
+                  }
+
+                  // Deadlock detection: increment stability resets
+                  task.stabilityResets = (task.stabilityResets ?? 0) + 1
+
+                  const maxResets = this.config?.maxStabilityResets ?? 10
+                  if (task.stabilityResets >= maxResets) {
+                    log("[background-agent] DEADLOCK - Force cancelling after max stability resets:", {
+                      taskId: task.id,
+                      stabilityResets: task.stabilityResets,
+                      sessionStatus: currentStatus?.type ?? "not_in_status",
+                    })
+
+                    // Re-check status before force-cancel
+                    if (task.status !== "running") continue
+
+                    task.status = "cancelled"
+                    task.error = `Deadlock detected: force-terminated after ${task.stabilityResets} stability resets (session stuck in "${currentStatus?.type ?? "unknown"}")`
+                    task.completedAt = new Date()
+
+                    // Release concurrency slot
+                    if (task.concurrencyKey) {
+                      this.concurrencyManager.release(task.concurrencyKey)
+                      task.concurrencyKey = undefined
+                    }
+
+                    // Abort server-side session (fire-and-forget)
+                    this.client.session.abort({ path: { id: sessionID } }).catch(() => {})
+
+                    // Notify parent
+                    this.markForNotification(task)
+                    try {
+                      await this.notifyParentSession(task)
+                    } catch (err) {
+                      log("[background-agent] Error notifying parent for deadlocked task:", { taskId: task.id, error: err })
+                    }
+                    continue
+                  }
+
                   log("[background-agent] Stability reached but session not idle, resetting:", { 
-                    taskId: task.id, 
+                    taskId: task.id,
+                    stabilityResets: task.stabilityResets,
                     sessionStatus: currentStatus?.type ?? "not_in_status" 
                   })
                   task.stablePolls = 0
                   continue
                 }
+
+                // When session becomes idle, reset stability resets counter
+                task.stabilityResets = 0
 
                 // Edge guard: Validate session has actual output before completing
                 const hasValidOutput = await this.validateSessionHasOutput(sessionID)
@@ -1321,6 +1385,7 @@ Use \`background_output(task_id="${task.id}")\` to retrieve this result when rea
               }
             } else {
               task.stablePolls = 0
+              task.stabilityResets = 0  // Reset when message count changes
             }
           }
           task.lastMsgCount = currentMsgCount
