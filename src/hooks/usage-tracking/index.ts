@@ -79,8 +79,9 @@ interface MessagePart {
 /**
  * Create usage tracking hook.
  * 
- * This hook tracks every assistant message and estimates token usage.
- * It fires during chat.message, tracking both user and assistant messages.
+ * This hook tracks conversations by polling message history after user input.
+ * When a user sends a message, we wait briefly then fetch the conversation
+ * history to capture the assistant's response with token estimates.
  */
 export function createUsageTrackingHook(
   ctx: PluginInput,
@@ -94,8 +95,11 @@ export function createUsageTrackingHook(
   log("[usage-tracking] Hook registered - using MESSAGE-BASED ESTIMATION (±20-30% accuracy)")
   log("[usage-tracking] TODO: Fork OpenCode to expose actual token counts from API")
 
-  // Track last user message tokens per session (for input estimation)
-  const sessionInputTokens = new Map<string, number>()
+  // Track which messages we've already processed
+  const processedMessages = new Set<string>()
+  
+  // Track pending sessions waiting for assistant response
+  const pendingSessions = new Map<string, { userMessageId: string; timestamp: number }>()
 
   return {
     "chat.message": async (
@@ -106,69 +110,104 @@ export function createUsageTrackingHook(
         messageID?: string
       },
       output: {
-        message: Record<string, unknown> & { info?: MessageInfo }
+        message: Record<string, unknown>
         parts: MessagePart[]
       }
     ): Promise<void> => {
       try {
         const sessionId = input.sessionID
+        const messageId = input.messageID
         
-        // Extract role from message info or infer from parts
-        const messageInfo = output.message.info
-        const role = messageInfo?.role
-        
-        // Skip if we can't determine role
-        if (!role) {
+        if (!messageId) {
           return
         }
 
-        // Estimate tokens from message parts
-        const messageTokens = estimateTokensFromParts(output.parts)
+        // This fires for USER messages only
+        // Schedule a check for the assistant response after a delay
+        pendingSessions.set(sessionId, {
+          userMessageId: messageId,
+          timestamp: Date.now()
+        })
 
-        if (role === "user") {
-          // Store user input tokens for the next assistant response
-          sessionInputTokens.set(sessionId, messageTokens)
-          return
-        }
+        // Wait for assistant to respond (poll after 2 seconds)
+        setTimeout(async () => {
+          try {
+            const pending = pendingSessions.get(sessionId)
+            if (!pending) return
 
-        if (role === "assistant") {
-          // Get stored input tokens (default to message tokens if not found)
-          const inputTokens = sessionInputTokens.get(sessionId) ?? messageTokens
-          const outputTokens = messageTokens
+            // Fetch messages from the session
+            const response = await ctx.client.session.messages({
+              path: { id: sessionId }
+            })
 
-          // Clear stored input tokens
-          sessionInputTokens.delete(sessionId)
+            const messages = response.data || []
+            
+            // Find the user message and the following assistant response
+            const userMsgIndex = messages.findIndex((m: any) => m.info.id === pending.userMessageId)
+            if (userMsgIndex === -1) return
 
-          // Extract model and provider info
-          const modelStr = messageInfo?.model ?? messageInfo?.agent ?? input.agent ?? "unknown"
-          const modelName = extractModelName(modelStr)
-          const provider = extractProvider(modelStr)
+            // Look for assistant message after the user message
+            for (let i = userMsgIndex + 1; i < messages.length; i++) {
+              const msg = messages[i]
+              if (msg.info.role === "assistant") {
+                const msgId = msg.info.id
+                
+                // Skip if already processed
+                if (processedMessages.has(msgId)) continue
+                processedMessages.add(msgId)
 
-          // Get pricing
-          const pricing = MODEL_PRICING[modelName] ?? DEFAULT_PRICING
+                // Get user message for input token estimation
+                const userMsg = messages[userMsgIndex]
+                const inputTokens = estimateTokensFromParts(userMsg.parts)
+                const outputTokens = estimateTokensFromParts(msg.parts)
 
-          // Calculate cost
-          const cost = estimateCost(modelName, inputTokens, outputTokens, pricing)
+                // Extract model and provider from info
+                const modelInfo = (msg.info as any).model
+                let modelStr = "unknown"
+                if (modelInfo?.providerID && modelInfo?.modelID) {
+                  modelStr = `${modelInfo.providerID}/${modelInfo.modelID}`
+                } else if (input.agent) {
+                  modelStr = input.agent
+                }
+                
+                const modelName = extractModelName(modelStr)
+                const provider = extractProvider(modelStr)
 
-          // Record usage
-          usageTracker.recordUsage({
-            provider,
-            model: modelName,
-            inputTokens,
-            outputTokens,
-            taskType: "primary", // Main session tasks
-            sessionID: sessionId,
-          })
+                // Get pricing and calculate cost
+                const pricing = MODEL_PRICING[modelName] ?? DEFAULT_PRICING
+                const cost = estimateCost(modelName, inputTokens, outputTokens, pricing)
 
-          log("[usage-tracking] Recorded estimated usage:", {
-            provider,
-            model: modelName,
-            inputTokens,
-            outputTokens,
-            cost: `$${cost.toFixed(4)}`,
-            warning: "ESTIMATED - actual may vary ±20-30%",
-          })
-        }
+                // Record usage
+                usageTracker.recordUsage({
+                  provider,
+                  model: modelName,
+                  inputTokens,
+                  outputTokens,
+                  taskType: "primary",
+                  sessionID: sessionId,
+                })
+
+                log("[usage-tracking] Recorded estimated usage:", {
+                  provider,
+                  model: modelName,
+                  inputTokens,
+                  outputTokens,
+                  cost: `$${cost.toFixed(4)}`,
+                  warning: "ESTIMATED - actual may vary ±20-30%",
+                })
+
+                // Found and processed the assistant response
+                break
+              }
+            }
+
+            // Clean up pending session
+            pendingSessions.delete(sessionId)
+          } catch (error) {
+            log("[usage-tracking] Error polling messages:", error)
+          }
+        }, 2000) // Wait 2 seconds for assistant response
+
       } catch (error) {
         log("[usage-tracking] Error in hook:", error)
       }
