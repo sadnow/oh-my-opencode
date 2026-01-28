@@ -324,6 +324,13 @@ export class AdaptiveBudgetManager {
     const now = Date.now()
     const hoursSinceLastActivity = (now - this.state.lastActivityTimestamp) / (1000 * 60 * 60)
 
+    // BUGFIX: Don't accumulate credits if we have no velocity data yet
+    // Fresh state with no samples means no real activity has happened,
+    // so lastActivityTimestamp is unreliable
+    if (this.state.velocitySampleCount < this.config.minSamplesForPrediction) {
+      return 0
+    }
+
     if (hoursSinceLastActivity <= 0) return this.state.accumulatedCredits
 
     const hourlyAllowance = this.getHourlyAllowance()
