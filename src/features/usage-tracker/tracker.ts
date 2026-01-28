@@ -625,13 +625,37 @@ export class UsageTracker {
     }
 
     // Calculate relative costs for subscription providers
-    const result: Record<string, any> = {}
+    const result: Record<string, {
+      providerSource: string
+      totalCost: number
+      totalTokens: number
+      callCount: number
+      models: string[]
+      relativeCost?: {
+        percentOfQuota: number
+        dollarEquivalent: number
+        quotaLimit: number
+        resetPeriod: string
+      }
+    }> = {}
     let totalCost = 0
 
     for (const [source, data] of Object.entries(byProviderSource)) {
       totalCost += data.totalCost
       
-      const entry: any = {
+      const entry: {
+        providerSource: string
+        totalCost: number
+        totalTokens: number
+        callCount: number
+        models: string[]
+        relativeCost?: {
+          percentOfQuota: number
+          dollarEquivalent: number
+          quotaLimit: number
+          resetPeriod: string
+        }
+      } = {
         providerSource: data.providerSource,
         totalCost: data.totalCost,
         totalTokens: data.totalTokens,

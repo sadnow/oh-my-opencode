@@ -1,6 +1,6 @@
 /**
  * Config Generator
- * Generates oh-my-opencode configuration from wizard answers
+ * Generates oh-im-broke configuration from wizard answers
  */
 
 import * as fs from "fs"

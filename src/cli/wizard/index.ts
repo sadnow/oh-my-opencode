@@ -32,7 +32,7 @@ export interface WizardOptions {
 export async function runWizard(options: WizardOptions = {}): Promise<number> {
   p.intro(color.bgMagenta(color.white(" Orchestration Stack Wizard ")))
 
-  p.log.info(`oh-my-opencode v${VERSION}`)
+  p.log.info(`oh-im-broke v${VERSION}`)
   p.log.message(
     color.dim("Configure your AI model orchestration stack for optimal performance.")
   )

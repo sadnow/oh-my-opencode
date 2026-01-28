@@ -14,7 +14,7 @@ import type { BudgetOrchestrator } from "../budget-orchestrator"
 import { subagentSessions } from "../claude-code-session-state"
 import { getTaskToastManager } from "../task-toast-manager"
 import { findNearestMessageWithFields, MESSAGE_STORAGE } from "../hook-message-injector"
-import { existsSync, readdirSync } from "node:fs"
+import { promises as fs, existsSync, readdirSync } from "node:fs"
 import { join } from "node:path"
 
 const TASK_TTL_MS = 30 * 60 * 1000
@@ -1089,7 +1089,8 @@ Use \`background_output(task_id="${task.id}")\` to retrieve this result when rea
         }
       }
     } catch {
-      const messageDir = getMessageDir(task.parentSessionID)
+      // Fallback to file system search for message info (sync in error path)
+      const messageDir = getMessageDirSync(task.parentSessionID)
       const currentMessage = messageDir ? findNearestMessageWithFields(messageDir) : null
       agent = currentMessage?.agent ?? task.parentAgent
       model = currentMessage?.model?.providerID && currentMessage?.model?.modelID
@@ -1532,15 +1533,60 @@ function registerProcessSignal(
 }
 
 
-function getMessageDir(sessionID: string): string | null {
-  if (!existsSync(MESSAGE_STORAGE)) return null
+async function getMessageDir(sessionID: string): Promise<string | null> {
+  try {
+    await fs.access(MESSAGE_STORAGE)
+  } catch {
+    return null
+  }
 
   const directPath = join(MESSAGE_STORAGE, sessionID)
-  if (existsSync(directPath)) return directPath
-
-  for (const dir of readdirSync(MESSAGE_STORAGE)) {
-    const sessionPath = join(MESSAGE_STORAGE, dir, sessionID)
-    if (existsSync(sessionPath)) return sessionPath
+  try {
+    await fs.access(directPath)
+    return directPath
+  } catch {
+    // Continue to search in subdirectories
   }
+
+  try {
+    const dirs = await fs.readdir(MESSAGE_STORAGE)
+    for (const dir of dirs) {
+      const sessionPath = join(MESSAGE_STORAGE, dir, sessionID)
+      try {
+        await fs.access(sessionPath)
+        return sessionPath
+      } catch {
+        // Continue searching
+      }
+    }
+  } catch {
+    // Ignore readdir errors
+  }
+  
+  return null
+}
+
+function getMessageDirSync(sessionID: string): string | null {
+  if (!existsSync(MESSAGE_STORAGE)) {
+    return null
+  }
+
+  const directPath = join(MESSAGE_STORAGE, sessionID)
+  if (existsSync(directPath)) {
+    return directPath
+  }
+
+  try {
+    const dirs = readdirSync(MESSAGE_STORAGE)
+    for (const dir of dirs) {
+      const sessionPath = join(MESSAGE_STORAGE, dir, sessionID)
+      if (existsSync(sessionPath)) {
+        return sessionPath
+      }
+    }
+  } catch {
+    // Ignore readdir errors
+  }
+  
   return null
 }

@@ -241,7 +241,7 @@ export class GlobalOverrideManager {
       homedir(),
       ".config",
       "opencode",
-      "oh-my-opencode-global-override.json"
+      "oh-im-broke-global-override.json"
     )
     
     // Deep copy to avoid mutating DEFAULT_GLOBAL_OVERRIDE_STATE

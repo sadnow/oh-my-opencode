@@ -189,7 +189,7 @@ async function fetchFromGitHubAPI(): Promise<CopilotFetchResult> {
       headers: {
         "Authorization": `Bearer ${token}`,
         "Accept": "application/json",
-        "User-Agent": "oh-my-opencode",
+        "User-Agent": "oh-im-broke",
       },
     })
 

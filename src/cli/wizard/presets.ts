@@ -167,7 +167,7 @@ export interface PresetConfig {
 }
 
 /**
- * DEFAULT preset - oh-my-opencode maintainer's recommended defaults.
+ * DEFAULT preset - oh-im-broke maintainer's recommended defaults.
  *
  * Philosophy: Maximize quality with intelligent cost optimization.
  * - Premium reasoning for orchestration (Opus 4.5)
@@ -178,7 +178,7 @@ export interface PresetConfig {
  */
 export const DEFAULT_PRESET: PresetConfig = {
   name: "default",
-  description: "oh-my-opencode maintainer's recommended defaults - quality with smart cost optimization",
+  description: "oh-im-broke maintainer's recommended defaults - quality with smart cost optimization",
   requiredProviders: [],
   categories: {
     ultrabrain: {

@@ -8,7 +8,7 @@ export const INDEX_HTML = `<!DOCTYPE html>
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>oh-my-opencode Settings</title>
+  <title>oh-im-broke Settings</title>
   <link rel="stylesheet" href="/styles.css">
 </head>
 <body>
@@ -40,7 +40,7 @@ export const INDEX_HTML = `<!DOCTYPE html>
           <div class="hero-card">
             <div class="label">
               Total Cost
-              <span class="tooltip-trigger" data-tooltip="Estimated API cost based on token usage tracked by oh-my-opencode. Uses public pricing data. Real costs depend on your subscription plan (Claude Max, Copilot, etc.). Resets every Monday.">ⓘ</span>
+              <span class="tooltip-trigger" data-tooltip="              Estimated API cost based on token usage tracked by oh-im-broke. Uses public pricing data. Real costs depend on your subscription plan (Claude Max, Copilot, etc.). Resets every Monday.">ⓘ</span>
             </div>
             <div class="value" id="hero-total-cost">$0.00</div>
             <div class="sub-value" id="hero-period-label">This Week</div>
@@ -611,7 +611,7 @@ POST /api/preset/:name        - Apply preset</pre>
     </main>
 
     <footer>
-      <p>oh-my-opencode WebUI &bull; <a href="https://github.com/sadnow/oh-my-opencode" target="_blank">GitHub</a> &bull; Press <kbd>?</kbd> for shortcuts</p>
+      <p>oh-im-broke WebUI &bull; <a href="https://github.com/sadnow/oh-im-broke" target="_blank">GitHub</a> &bull; Press <kbd>?</kbd> for shortcuts</p>
     </footer>
   </div>
 
@@ -639,7 +639,7 @@ POST /api/preset/:name        - Apply preset</pre>
 </body>
 </html>`
 
-export const APP_JS = `// oh-my-opencode WebUI
+export const APP_JS = `// oh-im-broke WebUI
 const API_BASE = window.location.origin + '/api';
 
 // State
@@ -1390,7 +1390,7 @@ function changePeriod(period) {
 }
 `
 
-export const STYLES_CSS = `/* oh-my-opencode WebUI Styles */
+export const STYLES_CSS = `/* oh-im-broke WebUI Styles */
 :root {
   /* Enhanced Dark Mode Palette */
   --bg-primary: #0a0e1a;

@@ -61,7 +61,7 @@ export class BudgetOverrideManager {
       homedir(),
       ".config",
       "opencode",
-      "oh-my-opencode-budget-override.json"
+      "oh-im-broke-budget-override.json"
     )
 
     this.state = this.loadState() ?? { ...DEFAULT_OVERRIDE_STATE }

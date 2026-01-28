@@ -1,5 +1,5 @@
 /**
- * Test utilities for oh-my-opencode
+ * Test utilities for oh-im-broke
  *
  * Provides mock factories and helpers for unit testing.
  */
