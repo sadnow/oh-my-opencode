@@ -301,6 +301,8 @@ export const BackgroundTaskConfigSchema = z.object({
   staleTimeoutMs: z.number().min(60000).optional(),
   /** Maximum stability resets before force-cancelling deadlocked tasks (default: 10) */
   maxStabilityResets: z.number().int().positive().default(10).optional(),
+  /** Maximum stability resets for exploration agents (explore, librarian) that need more time for file reading/analysis (default: 50 = ~12.5 minutes) */
+  explorationMaxStabilityResets: z.number().int().positive().default(50).optional(),
 })
 
 export const NotificationConfigSchema = z.object({

@@ -1321,11 +1321,18 @@ Use \`background_output(task_id="${task.id}")\` to retrieve this result when rea
                   // Deadlock detection: increment stability resets
                   task.stabilityResets = (task.stabilityResets ?? 0) + 1
 
-                  const maxResets = this.config?.maxStabilityResets ?? 10
+                  // Exploration agents (explore, librarian) need more time for legitimate file reading/analysis
+                  const isExplorationAgent = ["explore", "librarian"].includes(task.agent)
+                  const maxResets = isExplorationAgent
+                    ? (this.config?.explorationMaxStabilityResets ?? 50)  // ~12.5 minutes for exploration
+                    : (this.config?.maxStabilityResets ?? 10)  // ~2.5 minutes for others
                   if (task.stabilityResets >= maxResets) {
                     log("[background-agent] DEADLOCK - Force cancelling after max stability resets:", {
                       taskId: task.id,
+                      agent: task.agent,
                       stabilityResets: task.stabilityResets,
+                      maxResets,
+                      isExplorationAgent,
                       sessionStatus: currentStatus?.type ?? "not_in_status",
                     })
 

@@ -2085,6 +2085,127 @@ describe("BackgroundManager.deadlockDetection", () => {
 
     manager.shutdown()
   })
+
+  test("should use higher threshold (50) for exploration agents (explore, librarian)", async () => {
+    const client = {
+      session: {
+        prompt: async () => ({}),
+        status: async () => ({ data: {} }),
+        messages: async () => ({ data: [] }),
+        abort: async () => ({}),
+      },
+    }
+    const manager = new BackgroundManager(
+      { client, directory: tmpdir() } as unknown as PluginInput,
+      { explorationMaxStabilityResets: 50 }  // Explicit config
+    )
+    stubNotifyParentSession(manager)
+
+    const exploreTask: BackgroundTask = {
+      id: "task-explore",
+      sessionID: "session-explore",
+      parentSessionID: "parent-session",
+      parentMessageID: "msg-1",
+      description: "Explore codebase",
+      prompt: "Find patterns",
+      agent: "explore",  // Exploration agent
+      status: "running",
+      startedAt: new Date(Date.now() - 60_000),
+      lastMsgCount: 1,
+      stablePolls: 2,
+      stabilityResets: 49,  // At 49, will increment to 50 and trigger deadlock
+      progress: {
+        toolCalls: 1,
+        lastUpdate: new Date(Date.now() - 35_000),
+      },
+    }
+
+    const statusResponses: Record<string, { type: string }> = {}
+    const messagesResponses: Record<string, Array<{ info: { role: string }; parts: Array<{ type: string; text: string }> }>> = {}
+    statusResponses["session-explore"] = { type: "busy" }
+    messagesResponses["session-explore"] = [
+      { info: { role: "assistant" }, parts: [{ type: "text", text: "x" }] },
+    ]
+
+    manager["client"].session.status = async () => ({
+      data: statusResponses,
+    })
+    manager["client"].session.messages = async (params: { path: { id: string } }) => ({
+      data: messagesResponses[params.path.id] || [],
+    })
+
+    getTaskMap(manager).set(exploreTask.id, exploreTask)
+
+    // #when - should increment to 50 and trigger deadlock (exploration threshold)
+    await manager["pollRunningTasks"]()
+
+    // #then - should trigger deadlock at 50 (exploration agent threshold)
+    expect(exploreTask.stabilityResets).toBe(50)
+    expect(exploreTask.status).toBe("cancelled")
+    expect(exploreTask.error).toContain("Deadlock detected")
+
+    manager.shutdown()
+  })
+
+  test("should use normal threshold (10) for non-exploration agents", async () => {
+    const client = {
+      session: {
+        prompt: async () => ({}),
+        status: async () => ({ data: {} }),
+        messages: async () => ({ data: [] }),
+        abort: async () => ({}),
+      },
+    }
+    const manager = new BackgroundManager(
+      { client, directory: tmpdir() } as unknown as PluginInput,
+      { explorationMaxStabilityResets: 50 }  // Config has exploration threshold, but agent is not exploration type
+    )
+    stubNotifyParentSession(manager)
+
+    const normalTask: BackgroundTask = {
+      id: "task-normal",
+      sessionID: "session-normal",
+      parentSessionID: "parent-session",
+      parentMessageID: "msg-1",
+      description: "Normal task",
+      prompt: "Do something",
+      agent: "oracle",  // Non-exploration agent
+      status: "running",
+      startedAt: new Date(Date.now() - 60_000),
+      lastMsgCount: 1,
+      stablePolls: 2,
+      stabilityResets: 9,  // At 9, should trigger deadlock at 10 (normal threshold)
+      progress: {
+        toolCalls: 1,
+        lastUpdate: new Date(Date.now() - 35_000),
+      },
+    }
+
+    const statusResponses: Record<string, { type: string }> = {}
+    const messagesResponses: Record<string, Array<{ info: { role: string }; parts: Array<{ type: string; text: string }> }>> = {}
+    statusResponses["session-normal"] = { type: "busy" }
+    messagesResponses["session-normal"] = [
+      { info: { role: "assistant" }, parts: [{ type: "text", text: "x" }] },
+    ]
+
+    manager["client"].session.status = async () => ({
+      data: statusResponses,
+    })
+    manager["client"].session.messages = async (params: { path: { id: string } }) => ({
+      data: messagesResponses[params.path.id] || [],
+    })
+
+    getTaskMap(manager).set(normalTask.id, normalTask)
+
+    // #when
+    await manager["pollRunningTasks"]()
+
+    // #then - should trigger deadlock at normal threshold (10)
+    expect(normalTask.status).toBe("cancelled")
+    expect(normalTask.error).toContain("Deadlock detected")
+
+    manager.shutdown()
+  })
 })
 
 describe("BackgroundManager.checkAndInterruptStaleTasks", () => {
