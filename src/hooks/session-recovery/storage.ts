@@ -10,20 +10,34 @@ export function generatePartId(): string {
 }
 
 export function getMessageDir(sessionID: string): string {
-  if (!existsSync(MESSAGE_STORAGE)) return ""
+  console.error(`[session-recovery] getMessageDir: sessionID=${sessionID}`)
+  console.error(`[session-recovery] getMessageDir: MESSAGE_STORAGE=${MESSAGE_STORAGE} (exists: ${existsSync(MESSAGE_STORAGE)})`)
+
+  if (!existsSync(MESSAGE_STORAGE)) {
+    console.error(`[session-recovery] getMessageDir: MESSAGE_STORAGE not found, returning empty`)
+    return ""
+  }
 
   const directPath = join(MESSAGE_STORAGE, sessionID)
+  console.error(`[session-recovery] getMessageDir: checking directPath=${directPath}`)
   if (existsSync(directPath)) {
+    console.error(`[session-recovery] getMessageDir: found directPath, returning ${directPath}`)
     return directPath
   }
 
-  for (const dir of readdirSync(MESSAGE_STORAGE)) {
+  console.error(`[session-recovery] getMessageDir: directPath not found, searching subdirectories in ${MESSAGE_STORAGE}`)
+  const dirs = readdirSync(MESSAGE_STORAGE)
+  console.error(`[session-recovery] getMessageDir: found ${dirs.length} directories to search`)
+
+  for (const dir of dirs) {
     const sessionPath = join(MESSAGE_STORAGE, dir, sessionID)
     if (existsSync(sessionPath)) {
+      console.error(`[session-recovery] getMessageDir: found sessionPath=${sessionPath}`)
       return sessionPath
     }
   }
 
+  console.error(`[session-recovery] getMessageDir: sessionID=${sessionID} not found in any path, returning empty`)
   return ""
 }
 
