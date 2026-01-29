@@ -1,8 +1,4 @@
-// DEBUG: Confirm module is actually loaded by OpenCode
-console.error("╔══════════════════════════════════════════════════════════╗");
-console.error("║  [oh-my-opencode] MODULE LOADED - dist/index.js         ║");
-console.error("║  Build timestamp: Jan 28 23:37                          ║");
-console.error("╚══════════════════════════════════════════════════════════╝");
+// Module loaded by OpenCode
 
 import type { Plugin } from "@opencode-ai/plugin";
 import {
@@ -96,16 +92,11 @@ import { createModelCacheState, getModelLimit } from "./plugin-state";
 import { createConfigHandler } from "./plugin-handlers";
 
 const OhMyOpenCodePlugin: Plugin = async (ctx) => {
-  console.error("╔══════════════════════════════════════════════════════════╗");
-  console.error("║  [OhMyOpenCodePlugin] ENTRY - Plugin initializing       ║");
-  console.error("║  Directory: " + ctx.directory.padEnd(39) + "║");
-  console.error("╚══════════════════════════════════════════════════════════╝");
-  
   log("[OhMyOpenCodePlugin] ENTRY - plugin loading", { directory: ctx.directory })
   
-  // Show restored session state counts
+  // Restore session state
   const { subagentSessions: subCount, agentMappings: mapCount } = getRestoredStateCounts();
-  console.error(`[session-state] Restored ${subCount} subagent sessions, ${mapCount} agent mappings`);
+  log("[session-state] Restored state", { subagentSessions: subCount, agentMappings: mapCount });
 
   // Start background tmux check immediately
   startTmuxCheck();
@@ -310,11 +301,7 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
     ? createUsageTrackingHook(ctx, usageTracker)
     : null;
   
-  if (usageTracking) {
-    console.error("[oh-my-opencode] ✅ Usage tracking hook CREATED and will be registered");
-  } else {
-    console.error("[oh-my-opencode] ❌ Usage tracking hook NOT created (tracker disabled)");
-  }
+  log("[oh-my-opencode] Usage tracking hook", { created: !!usageTracking });
 
   const tmuxSessionManager = new TmuxSessionManager(ctx, tmuxConfig);
 
