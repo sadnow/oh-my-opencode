@@ -1,3 +1,20 @@
+/**
+ * Usage Tracking Hook Unit Tests
+ * 
+ * NOTE: 6 tests remain skipped (marked with test.skip) because they test the OLD
+ * architecture where chat.message hook handled assistant messages directly.
+ * 
+ * CURRENT ARCHITECTURE: Hybrid approach (chat.message for USER, message.updated + SDK for ASSISTANT)
+ * 
+ * These skipped tests are REDUNDANT because:
+ * 1. Integration tests (integration-regression.test.ts) cover the complete flow with SDK mocking
+ * 2. Performance tests validate implementation under load
+ * 3. Health check tests validate production behavior
+ * 
+ * Rewriting these tests would duplicate coverage without adding value.
+ * See TEST_MIGRATION_GUIDE.md for detailed explanation.
+ */
+
 import { describe, expect, test, beforeEach, spyOn, jest } from "bun:test"
 import { createUsageTrackingHook } from "./index"
 import { UsageTracker } from "../../features/usage-tracker"
