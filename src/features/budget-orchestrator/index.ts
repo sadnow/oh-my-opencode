@@ -27,7 +27,7 @@ import {
   getRecommendedModels,
   getBudgetStatusMessage,
 } from "./algorithm"
-import { formatModelRef, parseModelRef, getModelTier, TIER_ORDER, findUpgradedModel } from "./tiers"
+import { formatModelRef, parseModelRef, getModelTier, TIER_ORDER, findUpgradedModel, findDowngradedModel } from "./tiers"
 import { AdaptiveBudgetManager, type AdaptiveBudgetConfig } from "./adaptive-budget"
 import { BudgetOverrideManager, getOverrideManager } from "./override"
 import { GlobalOverrideManager, getGlobalOverrideManager, type UseCase } from "./global-override"
@@ -397,9 +397,9 @@ export class BudgetOrchestrator {
           }
         }
       } else {
-        const result = getDowngradedModel(modelRef, { remaining: 0, trend: "over" } as BudgetState,
-          { ...this.config, minTier: forcedTier }, this.availableProviders)
-        if (result.downgraded) {
+        // For forced downgrade, bypass budget checks and directly find the model
+        const downgradedModel = findDowngradedModel(modelRef, forcedTier, this.availableProviders)
+        if (downgradedModel) {
           logger.logOverride("force", forcedTier, "user")
           logger.logDowngradeScheduled(
             modelRef.providerID,
@@ -410,9 +410,21 @@ export class BudgetOrchestrator {
           )
           return {
             original: modelRef,
-            newModel: result.downgraded,
+            newModel: downgradedModel,
             direction: "downgrade",
             reason: `Forced tier override: ${forcedTier}`,
+            originalTier,
+            targetTier: forcedTier,
+            confidence: 1.0,
+          }
+        } else {
+          // No suitable model found for forced downgrade
+          logger.logOverride("force", forcedTier, "user")
+          return {
+            original: modelRef,
+            newModel: null,
+            direction: "none",
+            reason: `Forced tier override to ${forcedTier} requested, but no suitable model found in available providers`,
             originalTier,
             targetTier: forcedTier,
             confidence: 1.0,
