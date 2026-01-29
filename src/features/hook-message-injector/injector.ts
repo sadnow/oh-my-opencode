@@ -10,10 +10,8 @@ export interface StoredMessage {
 }
 
 export function findNearestMessageWithFields(messageDir: string): StoredMessage | null {
-  console.error(`[hook-message-injector] findNearestMessageWithFields: messageDir=${messageDir}`)
   try {
     if (!existsSync(messageDir)) {
-      console.error(`[hook-message-injector] findNearestMessageWithFields: messageDir does not exist`)
       return null
     }
 
@@ -22,7 +20,6 @@ export function findNearestMessageWithFields(messageDir: string): StoredMessage 
       .sort()
       .reverse()
 
-    console.error(`[hook-message-injector] findNearestMessageWithFields: found ${files.length} json files to search`)
 
     // First pass: find message with ALL fields (ideal)
     for (const file of files) {
@@ -31,16 +28,13 @@ export function findNearestMessageWithFields(messageDir: string): StoredMessage 
         const content = readFileSync(filePath, "utf-8")
         const msg = JSON.parse(content) as StoredMessage
         if (msg.agent && msg.model?.providerID && msg.model?.modelID) {
-          console.error(`[hook-message-injector] findNearestMessageWithFields: found ideal message in ${file}`)
           return msg
         }
       } catch (err) {
-        console.error(`[hook-message-injector] findNearestMessageWithFields: error reading ${file}: ${err}`)
         continue
       }
     }
 
-    console.error(`[hook-message-injector] findNearestMessageWithFields: no ideal message found, starting second pass`)
 
     // Second pass: find message with ANY useful field (fallback)
     // This ensures agent info isn't lost when model info is missing
@@ -50,19 +44,15 @@ export function findNearestMessageWithFields(messageDir: string): StoredMessage 
         const content = readFileSync(filePath, "utf-8")
         const msg = JSON.parse(content) as StoredMessage
         if (msg.agent || (msg.model?.providerID && msg.model?.modelID)) {
-          console.error(`[hook-message-injector] findNearestMessageWithFields: found fallback message in ${file}`)
           return msg
         }
       } catch (err) {
-        console.error(`[hook-message-injector] findNearestMessageWithFields: error reading ${file}: ${err}`)
         continue
       }
     }
   } catch (err) {
-    console.error(`[hook-message-injector] findNearestMessageWithFields: unexpected error: ${err}`)
     return null
   }
-  console.error(`[hook-message-injector] findNearestMessageWithFields: no suitable message found in ${messageDir}`)
   return null
 }
 
