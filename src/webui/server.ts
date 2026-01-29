@@ -123,6 +123,9 @@ import {
 
 import { handleGetLearningModes } from "./routes/wizard"
 
+import { existsSync } from "node:fs"
+import { join } from "node:path"
+
 import type { ClaudeMaxUsageTracker } from "../features/claude-max-usage"
 import type { CopilotUsageTracker } from "../features/copilot-usage"
 
@@ -490,6 +493,28 @@ async function handleAPI(
  * Serve static files.
  */
 function serveStatic(pathname: string): Response {
+  // Try serving from dist/webui/ first (React build)
+  const distPath = join(process.cwd(), "dist", "webui")
+
+  if (existsSync(distPath)) {
+    const filePath = pathname === "/" ? join(distPath, "index.html") : join(distPath, pathname)
+
+    if (existsSync(filePath)) {
+      const file = Bun.file(filePath)
+      const contentType = pathname.endsWith(".js")
+        ? "application/javascript"
+        : pathname.endsWith(".css")
+          ? "text/css"
+          : pathname.endsWith(".html")
+            ? "text/html"
+            : "text/plain"
+
+      return new Response(file, {
+        headers: { "Content-Type": contentType },
+      })
+    }
+  }
+
   if (pathname === "/" || pathname === "/index.html") {
     return new Response(INDEX_HTML, {
       headers: { "Content-Type": "text/html" },
