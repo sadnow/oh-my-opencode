@@ -31,12 +31,19 @@ class FileLock {
 
   acquire(): boolean {
     const fs = require("fs")
+    const path = require("path")
     const lockData = {
       pid: process.pid,
       timestamp: Date.now(),
     }
 
     try {
+      // Ensure lock directory exists
+      const lockDir = path.dirname(this.lockPath)
+      if (!fs.existsSync(lockDir)) {
+        fs.mkdirSync(lockDir, { recursive: true })
+      }
+
       // Check for existing lock
       if (fs.existsSync(this.lockPath)) {
         const existingLock = JSON.parse(fs.readFileSync(this.lockPath, "utf-8"))
@@ -169,8 +176,8 @@ export class SessionStatePersistence {
    * Persist state to disk with atomic writes and file locking
    */
   async persistState(state: SessionState): Promise<void> {
-    // Try to acquire lock
-    const acquired = await this.fileLock.acquire()
+    // Try to acquire lock (synchronous operation)
+    const acquired = this.fileLock.acquire()
     if (!acquired) {
       log("[session-state-persistence] Could not acquire lock, skipping save")
       return
