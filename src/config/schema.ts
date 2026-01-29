@@ -435,6 +435,32 @@ export const BudgetNotificationConfigSchema = z.object({
   show_tier_changes: z.boolean().default(true),
 })
 
+export const PresetCategoryRationaleSchema = z.object({
+  /** Explanation of why this specific model was chosen */
+  whyThisModel: z.string().describe("Explanation of why this specific model was chosen"),
+  /** Array of alternatives considered and why they were rejected */
+  whyNotModels: z.array(z.string()).describe("Array of alternatives considered and why they were rejected"),
+  /** Cost trade-off of this choice */
+  costImplication: z.string().describe("Cost trade-off of this choice"),
+  /** Performance characteristics */
+  performanceNote: z.string().describe("Performance characteristics"),
+})
+export type PresetCategoryRationale = z.infer<typeof PresetCategoryRationaleSchema>
+
+export const PresetMetadataSchema = z.object({
+  /** Why this preset exists */
+  philosophy: z.string().describe("Why this preset exists"),
+  /** Ideal use cases */
+  whenToUse: z.string().describe("Ideal use cases"),
+  /** When to choose differently */
+  whenNotToUse: z.string().describe("When to choose differently"),
+  /** Rough USD cost estimate */
+  estimatedCostPerHour: z.number().describe("Rough USD cost estimate"),
+  /** Key trade-offs of this preset */
+  tradeoffs: z.array(z.string()).describe("Key trade-offs of this preset"),
+})
+export type PresetMetadata = z.infer<typeof PresetMetadataSchema>
+
 // Orchestration preset names
 export const OrchestrationPresetSchema = z.enum([
   "default",

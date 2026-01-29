@@ -6,7 +6,79 @@ import {
   BuiltinCategoryNameSchema,
   CategoryConfigSchema,
   OhMyOpenCodeConfigSchema,
+  PresetCategoryRationaleSchema,
+  PresetMetadataSchema,
 } from "./schema"
+
+describe("PresetCategoryRationaleSchema", () => {
+  test("should validate a valid rationale object", () => {
+    //#given
+    const rationale = {
+      whyThisModel: "High reasoning capabilities",
+      whyNotModels: ["model-b", "model-c"],
+      costImplication: "More expensive but worth it",
+      performanceNote: "Slower but more accurate",
+    }
+
+    //#when
+    const result = PresetCategoryRationaleSchema.safeParse(rationale)
+
+    //#then
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.data).toEqual(rationale)
+    }
+  })
+
+  test("should reject missing fields", () => {
+    //#given
+    const rationale = {
+      whyThisModel: "High reasoning capabilities",
+    }
+
+    //#when
+    const result = PresetCategoryRationaleSchema.safeParse(rationale)
+
+    //#then
+    expect(result.success).toBe(false)
+  })
+})
+
+describe("PresetMetadataSchema", () => {
+  test("should validate a valid metadata object", () => {
+    //#given
+    const metadata = {
+      philosophy: "Quality first",
+      whenToUse: "Complex tasks",
+      whenNotToUse: "Simple tasks",
+      estimatedCostPerHour: 5.5,
+      tradeoffs: ["Cost", "Speed"],
+    }
+
+    //#when
+    const result = PresetMetadataSchema.safeParse(metadata)
+
+    //#then
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.data).toEqual(metadata)
+    }
+  })
+
+  test("should reject invalid types", () => {
+    //#given
+    const metadata = {
+      philosophy: "Quality first",
+      estimatedCostPerHour: "expensive",
+    }
+
+    //#when
+    const result = PresetMetadataSchema.safeParse(metadata)
+
+    //#then
+    expect(result.success).toBe(false)
+  })
+})
 
 describe("disabled_mcps schema", () => {
   test("should accept built-in MCP names", () => {
