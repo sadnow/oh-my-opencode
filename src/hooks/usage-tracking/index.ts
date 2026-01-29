@@ -61,12 +61,6 @@ const MODEL_PRICING: Record<string, { inputPer1M: number; outputPer1M: number }>
 
 const DEFAULT_PRICING = { inputPer1M: 5.0, outputPer1M: 20.0 }
 
-interface MessageInfo {
-  role: "user" | "assistant"
-  agent?: string
-  model?: string
-}
-
 interface MessagePart {
   type: string
   text?: string
@@ -77,11 +71,35 @@ interface MessagePart {
 }
 
 /**
+ * Helper to retry an operation with exponential backoff.
+ */
+async function withRetry<T>(
+  operation: () => Promise<T>,
+  maxRetries: number = 3,
+  baseDelay: number = 1000
+): Promise<T> {
+  let lastError: any
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      return await operation()
+    } catch (error) {
+      lastError = error
+      if (attempt < maxRetries) {
+        const delay = baseDelay * Math.pow(2, attempt)
+        log(`[usage-tracking] Retry attempt ${attempt + 1}/${maxRetries} after ${delay}ms delay due to:`, error)
+        await new Promise(resolve => setTimeout(resolve, delay))
+      }
+    }
+  }
+  throw lastError
+}
+
+/**
  * Create usage tracking hook.
  * 
- * This hook tracks conversations by polling message history after user input.
- * When a user sends a message, we wait briefly then fetch the conversation
- * history to capture the assistant's response with token estimates.
+ * This hook tracks conversations by subscribing to message events.
+ * When a user sends a message, we immediately capture input tokens.
+ * We then listen for the assistant's response to capture output tokens.
  */
 export function createUsageTrackingHook(
   ctx: PluginInput,
@@ -92,14 +110,17 @@ export function createUsageTrackingHook(
     return null
   }
 
-  log("[usage-tracking] Hook registered - using MESSAGE-BASED ESTIMATION (±20-30% accuracy)")
-  log("[usage-tracking] TODO: Fork OpenCode to expose actual token counts from API")
+  log("[usage-tracking] Hook registered - using EVENT-DRIVEN ESTIMATION (±20-30% accuracy)")
 
-  // Track which messages we've already processed
-  const processedMessages = new Set<string>()
-  
   // Track pending sessions waiting for assistant response
-  const pendingSessions = new Map<string, { userMessageId: string; timestamp: number }>()
+  const pendingSessions = new Map<string, {
+    inputTokens: number;
+    model: { providerID: string; modelID: string };
+    timestamp: number;
+  }>()
+
+  // Track already-processed assistant messages to prevent duplicates
+  const processedMessages = new Set<string>()
 
   return {
     "chat.message": async (
@@ -118,176 +139,138 @@ export function createUsageTrackingHook(
         const sessionId = input.sessionID
         const messageId = input.messageID
         
-        log("[usage-tracking] chat.message event fired:", {
-          sessionId,
-          messageId,
-          hasInputModel: !!input.model,
-          inputModel: input.model,
-          agent: input.agent,
-        })
-        
-        if (!messageId) {
+        if (!messageId || !input.model) {
+          log("[usage-tracking] chat.message missing ID or model info", { sessionId, messageId, hasModel: !!input.model })
           return
         }
 
-        // This fires for USER messages only
-        // Schedule a check for the assistant response after a delay
+        // Immediate synchronous capture of input tokens
+        const inputTokens = estimateTokensFromParts(output.parts)
+        
+        log("[usage-tracking] Synchronous input capture:", {
+          sessionId,
+          messageId,
+          model: `${input.model.providerID}/${input.model.modelID}`,
+          inputTokens
+        })
+
         pendingSessions.set(sessionId, {
-          userMessageId: messageId,
+          inputTokens,
+          model: input.model,
           timestamp: Date.now()
         })
 
-        // Wait for assistant to respond (poll after 5 seconds to ensure response is complete)
-        setTimeout(async () => {
-          try {
-            const pending = pendingSessions.get(sessionId)
-            if (!pending) return
-
-            // Fetch messages from the session
-            const response = await ctx.client.session.messages({
-              path: { id: sessionId }
-            })
-
-            const messages = response.data || []
-            
-            log("[usage-tracking] Polling session messages:", {
-              sessionId,
-              userMessageId: pending.userMessageId,
-              totalMessages: messages.length,
-            })
-            
-            // Find the user message and the following assistant response
-            const userMsgIndex = messages.findIndex((m: any) => m.info.id === pending.userMessageId)
-            if (userMsgIndex === -1) {
-              log("[usage-tracking] User message not found in history")
-              return
-            }
-
-            log("[usage-tracking] Found user message at index:", userMsgIndex)
-
-            // Look for assistant message after the user message
-            let foundAssistant = false
-            for (let i = userMsgIndex + 1; i < messages.length; i++) {
-              const msg = messages[i]
-              
-              log("[usage-tracking] Checking message at index:", {
-                index: i,
-                role: msg.info.role,
-                id: msg.info.id,
-                partsCount: msg.parts.length,
-              })
-              
-              if (msg.info.role === "assistant") {
-                foundAssistant = true
-                const msgId = msg.info.id
-                
-                // Skip if already processed
-                if (processedMessages.has(msgId)) continue
-                processedMessages.add(msgId)
-
-                // Get user message for input token estimation
-                const userMsg = messages[userMsgIndex]
-                const inputTokens = estimateTokensFromParts(userMsg.parts)
-                const outputTokens = estimateTokensFromParts(msg.parts)
-
-                log("[usage-tracking] Token estimation:", {
-                  userMsgParts: userMsg.parts.length,
-                  assistantMsgParts: msg.parts.length,
-                  inputTokens,
-                  outputTokens,
-                })
-
-                // Skip if no output (assistant message is empty or being built)
-                if (outputTokens === 0) {
-                  log("[usage-tracking] Skipping - assistant message has no content yet")
-                  continue
-                }
-
-                // Extract model and provider from info
-                const modelInfo = (msg.info as any).model
-                let modelStr = "unknown"
-                let providerSource: string | undefined
-                
-                // First try to get from input.model (available in chat.message)
-                if (input.model?.providerID && input.model?.modelID) {
-                  modelStr = `${input.model.providerID}/${input.model.modelID}`
-                  providerSource = input.model.providerID
-                  log("[usage-tracking] Using input.model:", modelStr)
-                }
-                // Then try from message info
-                else if (modelInfo?.providerID && modelInfo?.modelID) {
-                  modelStr = `${modelInfo.providerID}/${modelInfo.modelID}`
-                  providerSource = modelInfo.providerID
-                  log("[usage-tracking] Using msg.info.model:", modelStr)
-                }
-                // Fallback to agent name
-                else if (input.agent) {
-                  modelStr = input.agent
-                  log("[usage-tracking] Falling back to input.agent:", modelStr)
-                }
-                
-                log("[usage-tracking] Model info from message:", {
-                  inputModel: input.model,
-                  msgInfoModel: modelInfo,
-                  hasProviderID: !!modelInfo?.providerID,
-                  hasModelID: !!modelInfo?.modelID,
-                  finalModelStr: modelStr,
-                  providerSource,
-                })
-                
-                const modelName = extractModelName(modelStr)
-                const provider = providerSource ?? extractProvider(modelStr)
-
-                log("[usage-tracking] Extracted model info:", {
-                  modelStr,
-                  modelName,
-                  provider,
-                  inputTokens,
-                  outputTokens,
-                })
-
-                // Get pricing and calculate cost
-                const pricing = MODEL_PRICING[modelName] ?? DEFAULT_PRICING
-                const cost = estimateCost(modelName, inputTokens, outputTokens, pricing)
-
-                // Record usage
-                usageTracker.recordUsage({
-                  provider,
-                  model: modelName,
-                  inputTokens,
-                  outputTokens,
-                  taskType: "primary",
-                  sessionID: sessionId,
-                  providerSource,
-                })
-
-                log("[usage-tracking] Recorded estimated usage:", {
-                  provider,
-                  model: modelName,
-                  inputTokens,
-                  outputTokens,
-                  cost: `$${cost.toFixed(4)}`,
-                  warning: "ESTIMATED - actual may vary ±20-30%",
-                })
-
-                // Found and processed the assistant response
-                break
-              }
-            }
-            
-            if (!foundAssistant) {
-              log("[usage-tracking] No assistant message found after user message. Messages may still be processing.")
-            }
-
-            // Clean up pending session
-            pendingSessions.delete(sessionId)
-          } catch (error) {
-            log("[usage-tracking] Error polling messages:", error)
+        // Cleanup old pending sessions (older than 1 hour) to prevent memory leaks
+        const oneHourAgo = Date.now() - 3600000
+        for (const [sid, data] of pendingSessions.entries()) {
+          if (data.timestamp < oneHourAgo) {
+            pendingSessions.delete(sid)
           }
-        }, 5000) // Wait 5 seconds for assistant response
+        }
 
       } catch (error) {
-        log("[usage-tracking] Error in hook:", error)
+        log("[usage-tracking] Error in chat.message hook:", error)
+      }
+    },
+
+    event: async (input: { event: { type: string; properties?: unknown } }) => {
+      try {
+        const { event } = input
+
+        // Only process message.updated events
+        if (event.type !== "message.updated") {
+          return
+        }
+
+        const props = event.properties as Record<string, unknown> | undefined
+        const info = props?.info as Record<string, unknown> | undefined
+
+        if (!info) {
+          log("[usage-tracking] message.updated event missing info")
+          return
+        }
+
+        const sessionID = info?.sessionID as string | undefined
+        const role = info?.role as string | undefined
+        const messageID = info?.messageID as string | undefined
+        const model = info?.model as { providerID: string; modelID: string } | undefined
+
+        // Only process assistant messages
+        if (role !== "assistant") {
+          return
+        }
+
+        // Skip if already processed
+        if (messageID && processedMessages.has(messageID)) {
+          log("[usage-tracking] Skipping already processed message:", messageID)
+          return
+        }
+
+        // Look up pending session data
+        const pendingData = sessionID ? pendingSessions.get(sessionID) : undefined
+
+        if (!pendingData) {
+          log("[usage-tracking] No pending session for assistant message:", { sessionID, messageID })
+          return
+        }
+
+        // Get message parts for token estimation
+        const parts = info?.parts as MessagePart[] | undefined
+        if (!parts || parts.length === 0) {
+          log("[usage-tracking] Assistant message has no parts, skipping:", messageID)
+          return
+        }
+
+        // Estimate output tokens
+        const outputTokens = estimateTokensFromParts(parts)
+
+        // Skip if zero tokens (still streaming or empty)
+        if (outputTokens === 0) {
+          log("[usage-tracking] Assistant message has zero tokens, skipping:", messageID)
+          return
+        }
+
+        // Calculate cost
+        const modelName = extractModelName(model?.modelID || "")
+        const pricing = MODEL_PRICING[modelName] || DEFAULT_PRICING
+        const cost = estimateCost(modelName, pendingData.inputTokens, outputTokens, pricing)
+
+        log("[usage-tracking] Captured assistant message:", {
+          sessionID,
+          messageID,
+          model: `${model?.providerID}/${model?.modelID}`,
+          outputTokens,
+          cost
+        })
+
+        // Record usage
+        await usageTracker.recordUsage({
+          sessionID: sessionID!,
+          inputTokens: pendingData.inputTokens,
+          outputTokens,
+          model: model?.modelID || "",
+          provider: model?.providerID || "",
+          taskType: "primary"
+        })
+
+        log("[usage-tracking] Recorded usage:", {
+          sessionID,
+          inputTokens: pendingData.inputTokens,
+          outputTokens,
+          cost,
+          model: model?.modelID
+        })
+
+        // Mark as processed
+        if (messageID) {
+          processedMessages.add(messageID)
+        }
+
+        // Clean up pending session
+        pendingSessions.delete(sessionID!)
+
+      } catch (error) {
+        log("[usage-tracking] Error in event handler:", error)
       }
     },
   }
