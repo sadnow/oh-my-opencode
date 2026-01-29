@@ -55,26 +55,29 @@ describe("WebUI Integration", () => {
     })
 
     const port = 3848 // Use different port for testing
-    baseURL = `http://localhost:${port}`
+    baseURL = `http://127.0.0.1:${port}`
 
     try {
       server = startWebUI({
         port,
-        bind: "localhost",
+        bind: "0.0.0.0",
         configManager: hotConfigManager,
         usageTracker,
         budgetOrchestrator,
       })
 
       // Wait for server to start
-      await new Promise(resolve => setTimeout(resolve, 1000))
+      await new Promise(resolve => setTimeout(resolve, 2000))
 
       // Verify server is actually responding
-      const healthCheck = await fetch(`${baseURL}/health`).catch(() => null)
+      const healthCheck = await fetch(`${baseURL}/api/config`).catch((err) => {
+        console.warn("Fetch error:", err)
+        return null
+      })
       serverAvailable = healthCheck?.ok === true
 
       if (!serverAvailable) {
-        console.warn("⚠️  WebUI tests will be skipped: server failed to start")
+        console.warn(`⚠️  WebUI tests will be skipped: server failed to start at ${baseURL}. Status: ${healthCheck?.status}`)
       }
     } catch (err) {
       console.warn("⚠️  WebUI tests will be skipped: server startup error:", err)
@@ -229,6 +232,89 @@ describe("WebUI Integration", () => {
       const data = await response.json() as ApiResponse
       expect(data).toHaveProperty("success")
       expect(data.data).toHaveProperty("config")
+    })
+
+    it("should return available presets", async () => {
+      const response = await fetch(`${baseURL}/api/presets`)
+      expect(response.status).toBe(200)
+      const data = await response.json() as any[]
+      expect(Array.isArray(data)).toBe(true)
+      expect(data.length).toBeGreaterThan(0)
+    })
+
+    it("should return learning modes", async () => {
+      const response = await fetch(`${baseURL}/api/learning-modes`)
+      expect(response.status).toBe(200)
+      const data = await response.json() as any[]
+      expect(Array.isArray(data)).toBe(true)
+    })
+  })
+
+  describe.skipIf(!serverAvailable)("Export API", () => {
+    it("should export usage as JSON", async () => {
+      const response = await fetch(`${baseURL}/api/export/usage?format=json`)
+      expect(response.status).toBe(200)
+      const data = await response.json() as ApiResponse
+      expect(data.success).toBe(true)
+      expect(Array.isArray(data.data as any)).toBe(true)
+    })
+
+    it("should export usage as CSV", async () => {
+      const response = await fetch(`${baseURL}/api/export/usage?format=csv`)
+      expect(response.status).toBe(200)
+      expect(response.headers.get("content-type")).toBe("text/csv")
+      const text = await response.text()
+      expect(text).toContain("timestamp")
+    })
+
+    it("should export config as JSON", async () => {
+      const response = await fetch(`${baseURL}/api/export/config`)
+      expect(response.status).toBe(200)
+      expect(response.headers.get("content-type")).toBe("application/json")
+      const data = await response.json()
+      expect(data).toHaveProperty("plugin")
+    })
+
+    it("should export presets as CSV", async () => {
+      const response = await fetch(`${baseURL}/api/export/presets?format=csv`)
+      expect(response.status).toBe(200)
+      expect(response.headers.get("content-type")).toBe("text/csv")
+      const text = await response.text()
+      expect(text).toContain("name,description")
+    })
+
+    it("should export routing logs as JSON", async () => {
+      const response = await fetch(`${baseURL}/api/export/routing-logs?format=json`)
+      expect(response.status).toBe(200)
+      const data = await response.json()
+      expect(Array.isArray(data)).toBe(true)
+    })
+  })
+
+  describe.skipIf(!serverAvailable)("Routing Logs API", () => {
+    it("should return routing logs", async () => {
+      const response = await fetch(`${baseURL}/api/routing-logs`)
+      expect(response.status).toBe(200)
+      const data = await response.json() as ApiResponse
+      expect(data.success).toBe(true)
+      expect(data.data).toHaveProperty("logs")
+    })
+
+    it("should return routing log stats", async () => {
+      const response = await fetch(`${baseURL}/api/routing-logs/stats`)
+      expect(response.status).toBe(200)
+      const data = await response.json() as ApiResponse
+      expect(data.success).toBe(true)
+    })
+  })
+
+  describe.skipIf(!serverAvailable)("Health Check API", () => {
+    it("should return health status", async () => {
+      const response = await fetch(`${baseURL}/api/health-check`)
+      expect(response.status).toBe(200)
+      const data = await response.json() as ApiResponse
+      expect(data.success).toBe(true)
+      expect(data.data).toHaveProperty("status")
     })
   })
 
