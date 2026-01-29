@@ -1,4 +1,4 @@
-import { describe, test, expect, beforeEach, afterEach } from "bun:test"
+import { describe, test, expect, beforeEach, afterEach, spyOn } from "bun:test"
 import {
   setSessionAgent,
   getSessionAgent,
@@ -7,7 +7,10 @@ import {
   setMainSession,
   getMainSessionID,
   _resetForTesting,
+  subagentSessions,
 } from "./state"
+import * as fs from "fs"
+import * as path from "path"
 
 describe("claude-code-session-state", () => {
   beforeEach(() => {
@@ -159,6 +162,143 @@ describe("claude-code-session-state", () => {
 
       // #then - should be updated
       expect(getSessionAgent(sessionID)).toBe(newAgent)
+    })
+  })
+
+  describe("persistence integration", () => {
+    const statePath = path.join(process.cwd(), ".opencode", "oh-my-opencode-session-state.json")
+    const backupPath = `${statePath}.backup`
+
+    // Helper to wait for debounced save (100ms + buffer)
+    const waitForSave = () => new Promise(resolve => setTimeout(resolve, 150))
+
+    // Helper to read persisted state
+    const readPersistedState = () => {
+      if (!fs.existsSync(statePath)) return null
+      return JSON.parse(fs.readFileSync(statePath, "utf-8"))
+    }
+
+    afterEach(() => {
+      // Clean up persisted files after persistence tests
+      if (fs.existsSync(statePath)) fs.unlinkSync(statePath)
+      if (fs.existsSync(backupPath)) fs.unlinkSync(backupPath)
+    })
+
+    test("setSessionAgent should trigger persisted save after debounce", async () => {
+      // #given - clean state
+      _resetForTesting()
+      const sessionID = "persist-test-1"
+      const agent = "sisyphus"
+
+      // #when - set agent (triggers scheduleSave)
+      setSessionAgent(sessionID, agent)
+
+      // #then - wait for debounced save
+      await waitForSave()
+
+      // State should be persisted to disk
+      const persistedState = readPersistedState()
+      expect(persistedState).not.toBeNull()
+      expect(persistedState?.sessionAgentMap[sessionID]).toBe(agent)
+    })
+
+    test("updateSessionAgent should trigger persisted save", async () => {
+      // #given - existing agent
+      _resetForTesting()
+      const sessionID = "persist-test-2"
+      setSessionAgent(sessionID, "oracle")
+      await waitForSave()
+
+      // #when - update agent
+      updateSessionAgent(sessionID, "librarian")
+      await waitForSave()
+
+      // #then - updated value persisted
+      const persistedState = readPersistedState()
+      expect(persistedState?.sessionAgentMap[sessionID]).toBe("librarian")
+    })
+
+    test("clearSessionAgent should trigger persisted save", async () => {
+      // #given - agent exists
+      _resetForTesting()
+      const sessionID = "persist-test-3"
+      setSessionAgent(sessionID, "explore")
+      await waitForSave()
+      expect(readPersistedState()?.sessionAgentMap[sessionID]).toBe("explore")
+
+      // #when - clear agent
+      clearSessionAgent(sessionID)
+      await waitForSave()
+
+      // #then - agent removed from persisted state
+      const persistedState = readPersistedState()
+      expect(persistedState?.sessionAgentMap[sessionID]).toBeUndefined()
+    })
+
+    test("subagentSessions.add should trigger persisted save", async () => {
+      // #given - clean state
+      _resetForTesting()
+      const sessionID = "persist-subagent-1"
+
+      // #when - add subagent session
+      subagentSessions.add(sessionID)
+      await waitForSave()
+
+      // #then - persisted to disk
+      const persistedState = readPersistedState()
+      expect(persistedState?.subagentSessions).toContain(sessionID)
+    })
+
+    test("subagentSessions.delete should trigger persisted save", async () => {
+      // #given - subagent session exists
+      _resetForTesting()
+      const sessionID = "persist-subagent-2"
+      subagentSessions.add(sessionID)
+      await waitForSave()
+      expect(readPersistedState()?.subagentSessions).toContain(sessionID)
+
+      // #when - delete subagent session
+      subagentSessions.delete(sessionID)
+      await waitForSave()
+
+      // #then - removed from persisted state
+      const persistedState = readPersistedState()
+      expect(persistedState?.subagentSessions).not.toContain(sessionID)
+    })
+
+    test("multiple state mutations should batch into single save", async () => {
+      // #given - clean state
+      _resetForTesting()
+
+      // #when - multiple rapid mutations (debounce should batch)
+      setSessionAgent("batch-1", "sisyphus")
+      setSessionAgent("batch-2", "oracle")
+      subagentSessions.add("batch-sub-1")
+      
+      // #then - wait for single batched save
+      await waitForSave()
+
+      const persistedState = readPersistedState()
+      expect(persistedState?.sessionAgentMap["batch-1"]).toBe("sisyphus")
+      expect(persistedState?.sessionAgentMap["batch-2"]).toBe("oracle")
+      expect(persistedState?.subagentSessions).toContain("batch-sub-1")
+    })
+
+    test("_resetForTesting should clear pending saves", async () => {
+      // #given - mutation scheduled
+      _resetForTesting()
+      setSessionAgent("reset-test", "sisyphus")
+
+      // #when - reset before save completes
+      _resetForTesting()
+
+      // #then - save should not occur
+      await waitForSave()
+      // State file may not exist or may not contain reset-test
+      const persistedState = readPersistedState()
+      if (persistedState) {
+        expect(persistedState.sessionAgentMap["reset-test"]).toBeUndefined()
+      }
     })
   })
 })
