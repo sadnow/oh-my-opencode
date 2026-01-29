@@ -112,6 +112,17 @@ export function extractModelName(modelStr: string): string {
 export function extractProvider(modelStr: string): string {
   const lower = modelStr.toLowerCase()
   
+  // 1. Handle explicit provider prefixes (e.g., "github-copilot/claude-sonnet-4.5")
+  if (lower.includes('/')) {
+    const prefix = lower.split('/')[0]
+    if (prefix === 'github-copilot') return 'github-copilot'
+    if (prefix === 'anthropic') return 'anthropic'
+    if (prefix === 'openai') return 'openai'
+    if (prefix === 'google') return 'google'
+    // Fall through for other prefixes to check keywords below
+  }
+
+  // 2. Keyword-based detection for common models and providers
   if (lower.includes('claude') || lower.includes('anthropic')) return 'anthropic'
   if (lower.includes('gpt') || lower.includes('openai')) return 'openai'
   if (lower.includes('gemini') || lower.includes('google')) return 'google'
