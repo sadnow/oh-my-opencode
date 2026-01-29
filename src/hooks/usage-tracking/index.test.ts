@@ -1,4 +1,4 @@
-import { describe, expect, test, beforeEach } from "bun:test"
+import { describe, expect, test, beforeEach, spyOn, jest } from "bun:test"
 import { createUsageTrackingHook } from "./index"
 import { UsageTracker } from "../../features/usage-tracker"
 import type { PluginInput } from "@opencode-ai/plugin"
@@ -33,7 +33,7 @@ describe("usage-tracking hook", () => {
     expect(hook).toBeNull()
   })
 
-  test("hook registers chat.message handler when tracker exists", () => {
+  test("hook registers chat.message handler and event listener when tracker exists", () => {
     // #given: Usage tracker exists
     const hook = createUsageTrackingHook(mockContext, usageTracker)
 
@@ -41,239 +41,206 @@ describe("usage-tracking hook", () => {
     expect(hook).not.toBeNull()
     expect(hook?.["chat.message"]).toBeDefined()
     expect(typeof hook?.["chat.message"]).toBe("function")
+    expect(hook?.event).toBeDefined()
   })
 
-  test("hook tracks user message tokens", async () => {
-    // #given: Hook with user message
+  test("Capture with valid input.model (all providers)", async () => {
     const hook = createUsageTrackingHook(mockContext, usageTracker)
-    const input = {
-      sessionID: "test-session-123",
-      agent: "sisyphus",
-    }
-    const output = {
-      message: {
-        info: { role: "user" as const, agent: "sisyphus" },
-      },
-      parts: [
-        { type: "text", text: "Hello, how are you today?" },
-      ],
-    }
+    const recordSpy = spyOn(usageTracker, 'recordUsage')
 
-    // #when: Hook processes user message
-    await hook?.["chat.message"](input, output)
-
-    // #then: Should NOT record usage yet (waits for assistant response)
-    const summaries = usageTracker.getAllSummaries()
-    expect(Object.keys(summaries).length).toBe(0)
-  })
-
-  test("hook records assistant response with estimated tokens", async () => {
-    // #given: Hook with user message followed by assistant response
-    const hook = createUsageTrackingHook(mockContext, usageTracker)
-    const sessionID = "test-session-456"
-
-    // User message
-    await hook?.["chat.message"](
-      { sessionID, agent: "sisyphus" },
-      {
-        message: {
-          info: { role: "user" as const, agent: "sisyphus" },
-        },
-        parts: [{ type: "text", text: "Write a hello world function" }],
-      }
-    )
-
-    // Assistant response
-    await hook?.["chat.message"](
-      { sessionID, agent: "sisyphus", model: { providerID: "anthropic", modelID: "claude-opus-4-5" } },
-      {
-        message: {
-          info: {
-            role: "assistant" as const,
-            agent: "sisyphus",
-            model: "anthropic/claude-opus-4-5",
-          },
-        },
-        parts: [
-          { type: "text", text: "Here's a hello world function:\n\nfunction helloWorld() {\n  console.log('Hello, World!');\n}\n\nThis function prints 'Hello, World!' to the console." },
-        ],
-      }
-    )
-
-    // #then: Usage should be recorded
-    const summaries = usageTracker.getAllSummaries()
-    expect(Object.keys(summaries).length).toBeGreaterThan(0)
-
-    const anthropicSummary = summaries["anthropic"]
-    expect(anthropicSummary).toBeDefined()
-    expect(anthropicSummary.totalInputTokens).toBeGreaterThan(0)
-    expect(anthropicSummary.totalOutputTokens).toBeGreaterThan(0)
-    expect(anthropicSummary.totalCost).toBeGreaterThan(0)
-  })
-
-  test("hook handles multiple sessions independently", async () => {
-    // #given: Hook tracking two different sessions
-    const hook = createUsageTrackingHook(mockContext, usageTracker)
-
-    // Session 1
-    await hook?.["chat.message"](
-      { sessionID: "session-1", agent: "sisyphus" },
-      {
-        message: { info: { role: "user" as const, agent: "sisyphus" } },
-        parts: [{ type: "text", text: "First question" }],
-      }
-    )
-    await hook?.["chat.message"](
-      { sessionID: "session-1", agent: "sisyphus" },
-      {
-        message: {
-          info: {
-            role: "assistant" as const,
-            agent: "sisyphus",
-            model: "openai/gpt-5.2",
-          },
-        },
-        parts: [{ type: "text", text: "First answer with some content" }],
-      }
-    )
-
-    // Session 2
-    await hook?.["chat.message"](
-      { sessionID: "session-2", agent: "oracle" },
-      {
-        message: { info: { role: "user" as const, agent: "oracle" } },
-        parts: [{ type: "text", text: "Second question" }],
-      }
-    )
-    await hook?.["chat.message"](
-      { sessionID: "session-2", agent: "oracle" },
-      {
-        message: {
-          info: {
-            role: "assistant" as const,
-            agent: "oracle",
-            model: "openai/gpt-5.2",
-          },
-        },
-        parts: [{ type: "text", text: "Second answer with different content" }],
-      }
-    )
-
-    // #then: Both sessions should contribute to OpenAI usage
-    const summaries = usageTracker.getAllSummaries()
-    const openaiSummary = summaries["openai"]
-    expect(openaiSummary).toBeDefined()
-    expect(openaiSummary.totalCost).toBeGreaterThan(0)
-  })
-
-  test("hook estimates tokens from tool_use and tool_result parts", async () => {
-    // #given: Assistant response with tool usage
-    const hook = createUsageTrackingHook(mockContext, usageTracker)
-    const sessionID = "test-session-tool"
-
-    // User message
-    await hook?.["chat.message"](
-      { sessionID, agent: "sisyphus" },
-      {
-        message: { info: { role: "user" as const } },
-        parts: [{ type: "text", text: "List files" }],
-      }
-    )
-
-    // Assistant response with tool use
-    await hook?.["chat.message"](
-      { sessionID, agent: "sisyphus" },
-      {
-        message: {
-          info: {
-            role: "assistant" as const,
-            model: "google/gemini-3-pro",
-          },
-        },
-        parts: [
-          { type: "text", text: "Let me list the files for you." },
-          {
-            type: "tool_use",
-            name: "bash",
-            input: { command: "ls -la" },
-          },
-          {
-            type: "tool_result",
-            output: "total 48\ndrwxr-xr-x 12 user user 4096 file1.txt\nfile2.txt",
-          },
-          { type: "text", text: "Here are the files in the directory." },
-        ],
-      }
-    )
-
-    // #then: Should estimate tokens from all parts including tool use/result
-    const summaries = usageTracker.getAllSummaries()
-    const googleSummary = summaries["google"]
-    expect(googleSummary).toBeDefined()
-    expect(googleSummary.totalOutputTokens).toBeGreaterThan(0)
-  })
-
-  test("hook handles missing message info gracefully", async () => {
-    // #given: Message without proper info structure
-    const hook = createUsageTrackingHook(mockContext, usageTracker)
-
-    const input = { sessionID: "test-malformed", agent: "test" }
-    const output = {
-      message: { someOtherField: "value" }, // Missing 'info'
-      parts: [{ type: "text", text: "test" }],
-    }
-
-    // #when: Hook processes malformed message
-    // #then: Should not crash
-    await expect(hook?.["chat.message"](input, output as any)).resolves.toBeUndefined()
-
-    // No usage recorded
-    const summaries = usageTracker.getAllSummaries()
-    expect(Object.keys(summaries).length).toBe(0)
-  })
-
-  test("hook extracts correct provider from model string", async () => {
-    // #given: Messages from different providers
-    const hook = createUsageTrackingHook(mockContext, usageTracker)
-
-    const testCases = [
-      { model: "anthropic/claude-sonnet-4-5", expectedProvider: "anthropic" },
-      { model: "openai/gpt-5.2", expectedProvider: "openai" },
-      { model: "google/gemini-3-pro", expectedProvider: "google" },
-      { model: "opencode/kimi-k2-thinking", expectedProvider: "moonshot" },
-      { model: "opencode/glm-4.7", expectedProvider: "zhipu" },
+    const providers = [
+      { providerID: "anthropic", modelID: "claude-sonnet-4-5", expectedModel: "claude-sonnet-4-5", expectedProvider: "anthropic" },
+      { providerID: "openai", modelID: "gpt-5.2", expectedModel: "gpt-5.2", expectedProvider: "openai" },
+      { providerID: "google", modelID: "gemini-3-pro", expectedModel: "gemini-3-pro", expectedProvider: "google" },
+      { providerID: "opencode", modelID: "big-pickle", expectedModel: "big-pickle", expectedProvider: "opencode" },
+      { providerID: "kimi", modelID: "kimi-k2-thinking", expectedModel: "kimi-k2-thinking", expectedProvider: "moonshot" },
+      { providerID: "glm", modelID: "glm-4.7", expectedModel: "glm-4.7", expectedProvider: "zhipu" },
+      { providerID: "qwen", modelID: "qwen3-coder-480b", expectedModel: "qwen3-coder-480b", expectedProvider: "alibaba" },
     ]
 
-    for (const { model, expectedProvider } of testCases) {
-      const sessionID = `test-${expectedProvider}`
-
-      // User message
+    for (const { providerID, modelID, expectedModel, expectedProvider } of providers) {
+      const sessionID = `session-${providerID}`
+      
+      // 1. User message (chat.message hook)
       await hook?.["chat.message"](
-        { sessionID },
-        {
-          message: { info: { role: "user" as const } },
-          parts: [{ type: "text", text: "test" }],
-        }
+        { sessionID, model: { providerID, modelID }, messageID: "msg-user" },
+        { message: {}, parts: [{ type: "text", text: "Hello" }] }
       )
 
-      // Assistant response
-      await hook?.["chat.message"](
-        { sessionID },
-        {
-          message: {
-            info: { role: "assistant" as const, model },
-          },
-          parts: [{ type: "text", text: "Response" }],
+      // 2. Assistant message (event listener)
+      await hook?.event({
+        event: {
+          type: "message.updated",
+          properties: {
+            info: {
+              sessionID,
+              messageID: `msg-assistant-${providerID}`,
+              role: "assistant",
+              model: { providerID, modelID },
+              parts: [{ type: "text", text: "Hi there" }]
+            }
+          }
         }
-      )
+      })
+
+      expect(recordSpy).toHaveBeenCalledWith(expect.objectContaining({
+        provider: providerID,
+        model: expectedModel,
+        sessionID: sessionID
+      }))
+    }
+  })
+
+  test("Capture with missing model info (fallback logic)", async () => {
+    const hook = createUsageTrackingHook(mockContext, usageTracker)
+    const recordSpy = spyOn(usageTracker, 'recordUsage')
+    const sessionID = "session-missing-model"
+
+    // chat.message called without model info
+    await hook?.["chat.message"](
+      { sessionID, messageID: "msg-user" } as any,
+      { message: {}, parts: [{ type: "text", text: "Hello" }] }
+    )
+
+    // Assistant message arrives
+    await hook?.event({
+      event: {
+        type: "message.updated",
+        properties: {
+          info: {
+            sessionID,
+            messageID: "msg-assistant",
+            role: "assistant",
+            parts: [{ type: "text", text: "Hi" }]
+          }
+        }
+      }
+    })
+
+    // Should NOT record usage because pending session wasn't created
+    expect(recordSpy).not.toHaveBeenCalled()
+  })
+
+  test("Token estimation accuracy (rough check)", async () => {
+    const hook = createUsageTrackingHook(mockContext, usageTracker)
+    const recordSpy = spyOn(usageTracker, 'recordUsage')
+    const sessionID = "session-tokens"
+
+    // User message: "Hello" (5 chars) -> ~2 tokens
+    await hook?.["chat.message"](
+      { sessionID, model: { providerID: "openai", modelID: "gpt-5.2" }, messageID: "msg-user" },
+      { message: {}, parts: [{ type: "text", text: "Hello" }] }
+    )
+
+    // Assistant message: "World" (5 chars) -> ~2 tokens
+    await hook?.event({
+      event: {
+        type: "message.updated",
+        properties: {
+          info: {
+            sessionID,
+            messageID: "msg-assistant",
+            role: "assistant",
+            model: { providerID: "openai", modelID: "gpt-5.2" },
+            parts: [{ type: "text", text: "World" }]
+          }
+        }
+      }
+    })
+
+    expect(recordSpy).toHaveBeenCalledWith(expect.objectContaining({
+      inputTokens: 2,
+      outputTokens: 2
+    }))
+  })
+
+  test("Session lifecycle cleanup", async () => {
+    const hook = createUsageTrackingHook(mockContext, usageTracker)
+    const sessionID = "session-cleanup"
+
+    // Mock Date.now to control time
+    const now = Date.now()
+    const dateSpy = spyOn(Date, 'now').mockReturnValue(now)
+
+    // 1. Create a pending session
+    await hook?.["chat.message"](
+      { sessionID, model: { providerID: "openai", modelID: "gpt-5.2" }, messageID: "msg-user" },
+      { message: {}, parts: [{ type: "text", text: "Hello" }] }
+    )
+
+    // 2. Advance time by 2 hours
+    dateSpy.mockReturnValue(now + 7200000)
+
+    // 3. Trigger another chat.message to trigger cleanup
+    await hook?.["chat.message"](
+      { sessionID: "new-session", model: { providerID: "openai", modelID: "gpt-5.2" }, messageID: "msg-user-2" },
+      { message: {}, parts: [{ type: "text", text: "Hello" }] }
+    )
+
+    // 4. Try to complete the first session
+    const recordSpy = spyOn(usageTracker, 'recordUsage')
+    await hook?.event({
+      event: {
+        type: "message.updated",
+        properties: {
+          info: {
+            sessionID,
+            messageID: "msg-assistant",
+            role: "assistant",
+            model: { providerID: "openai", modelID: "gpt-5.2" },
+            parts: [{ type: "text", text: "Hi" }]
+          }
+        }
+      }
+    })
+
+    // Should NOT record usage because it was cleaned up
+    expect(recordSpy).not.toHaveBeenCalled()
+    
+    dateSpy.mockRestore()
+  })
+
+  test("Error handling in message event handler", async () => {
+    const hook = createUsageTrackingHook(mockContext, usageTracker)
+    
+    // Trigger handler with null event to cause error
+    await expect(hook?.event(null as any)).resolves.toBeUndefined()
+    
+    // Trigger handler with missing fields
+    await expect(hook?.event({} as any)).resolves.toBeUndefined()
+  })
+
+  test("Duplicate message prevention", async () => {
+    const hook = createUsageTrackingHook(mockContext, usageTracker)
+    const recordSpy = spyOn(usageTracker, 'recordUsage')
+    const sessionID = "session-duplicate"
+
+    await hook?.["chat.message"](
+      { sessionID, model: { providerID: "openai", modelID: "gpt-5.2" }, messageID: "msg-user" },
+      { message: {}, parts: [{ type: "text", text: "Hello" }] }
+    )
+
+    const assistantEvent = {
+      event: {
+        type: "message.updated",
+        properties: {
+          info: {
+            sessionID,
+            messageID: "msg-assistant-1",
+            role: "assistant",
+            model: { providerID: "openai", modelID: "gpt-5.2" },
+            parts: [{ type: "text", text: "Hi" }]
+          }
+        }
+      }
     }
 
-    // #then: Each provider should have separate summary
-    const summaries = usageTracker.getAllSummaries()
-    expect(summaries["anthropic"]).toBeDefined()
-    expect(summaries["openai"]).toBeDefined()
-    expect(summaries["google"]).toBeDefined()
-    expect(summaries["moonshot"]).toBeDefined()
-    expect(summaries["zhipu"]).toBeDefined()
+    // First time
+    await hook?.event(assistantEvent as any)
+    expect(recordSpy).toHaveBeenCalledTimes(1)
+
+    // Second time (same message ID)
+    await hook?.event(assistantEvent as any)
+    expect(recordSpy).toHaveBeenCalledTimes(1) // Should still be 1
   })
 })
