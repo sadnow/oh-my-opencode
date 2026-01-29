@@ -523,6 +523,53 @@ The `skill_mcp` tool invokes these operations with full schema discovery.
 
 ---
 
+## WebUI: Budget Management & Cost Tracking
+
+The WebUI provides comprehensive budget management and cost tracking features.
+
+### Core Features
+
+| Feature | Description |
+|---------|-------------|
+| **Preset Comparison** | Side-by-side comparison of model presets with cost estimates. Compare performance, speed, and pricing to make informed decisions. |
+| **Progressive Disclosure** | Toggle between beginner and power-user modes. Beginner mode shows simplified interface; power-user mode reveals advanced controls and detailed metrics. |
+| **Export Functionality** | Export data in CSV or JSON format for usage statistics, configurations, presets, and routing logs. Useful for reporting and analysis. |
+| **Budget Dashboard** | Comprehensive view of provider breakdown, health indicators, and cost tracking. Monitor spending across all providers in real-time. |
+| **Routing Logs Viewer** | Real-time viewer for routing decisions. See which models are selected and why, with full audit trail. |
+| **Preset Wizard** | Guided preset selection for optimal model configuration. Answer questions to get recommended presets for your use case. |
+| **Per-Task Cost Attribution** | Track costs by task and agent. Understand which operations consume the most budget. |
+| **Audit Trail** | Complete history of routing decisions and cost allocation. Essential for debugging and optimization. |
+
+### Configuration
+
+Configure WebUI behavior in `oh-my-opencode.json`:
+
+```json
+{
+  "webui": {
+    "default_mode": "beginner"
+  },
+  "budget": {
+    "routing_log_persist": true
+  }
+}
+```
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `webui.default_mode` | `beginner` | Default UI mode: `beginner` (simplified) or `power-user` (full features) |
+| `budget.routing_log_persist` | `true` | Persist routing logs for audit trail and export |
+
+### Use Cases
+
+- **Cost Optimization**: Identify expensive operations and switch to cheaper models
+- **Budget Planning**: Forecast costs based on usage patterns and preset selection
+- **Audit & Compliance**: Track all routing decisions for compliance requirements
+- **Performance Analysis**: Compare model performance and make data-driven decisions
+- **Team Collaboration**: Export data for team reviews and budget discussions
+
+---
+
 ## Context Injection
 
 ### Directory AGENTS.md

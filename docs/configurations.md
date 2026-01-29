@@ -895,6 +895,39 @@ Opt-in experimental features that may change or be removed in future versions. U
 
 **Warning**: These features are experimental and may cause unexpected behavior. Enable only if you understand the implications.
 
+## WebUI
+
+Configure the WebUI interface for budget management and cost tracking.
+
+```json
+{
+  "webui": {
+    "default_mode": "beginner"
+  },
+  "budget": {
+    "routing_log_persist": true
+  }
+}
+```
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `webui.default_mode` | `beginner` | Default UI mode: `beginner` (simplified interface) or `power-user` (full features) |
+| `budget.routing_log_persist` | `true` | Persist routing logs for audit trail and export |
+
+### WebUI Features
+
+The WebUI provides:
+
+- **Preset Comparison**: Side-by-side comparison of model presets with cost estimates
+- **Progressive Disclosure**: Beginner mode hides advanced options, power-user mode shows full controls
+- **Export**: CSV/JSON export for usage data, configurations, presets, and routing logs
+- **Budget Dashboard**: Provider breakdown, health indicators, and cost tracking
+- **Routing Logs Viewer**: Real-time routing decision viewer with audit trail
+- **Preset Wizard**: Guided preset selection for optimal model configuration
+- **Per-Task Cost Attribution**: Track costs by task and agent
+- **Audit Trail**: Complete history of routing decisions and cost allocation
+
 ## Environment Variables
 
 | Variable              | Description                                                                                                                                     |
