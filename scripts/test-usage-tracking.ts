@@ -185,8 +185,8 @@ async function testProviderSummaries(): Promise<boolean> {
     const firstSummary = summaries[firstProvider];
     const hasExpectedFields =
       firstSummary &&
-      "inputTokens" in firstSummary &&
-      "outputTokens" in firstSummary &&
+      "totalInputTokens" in firstSummary &&
+      "totalOutputTokens" in firstSummary &&
       "totalCost" in firstSummary;
 
     results.push({
