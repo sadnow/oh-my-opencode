@@ -1,6 +1,8 @@
 import { useState } from 'react'
 import { PresetComparison } from '../components/PresetComparison'
 import { ExportButton } from '../components/ExportButton'
+import { RoutingLogsViewer } from '../components/RoutingLogsViewer'
+import { BudgetDashboard } from '../components/BudgetDashboard'
 
 type TabType = 'presets' | 'routing' | 'budget' | 'export'
 
@@ -50,26 +52,12 @@ function App() {
           <div>
             <h2>Routing Logs</h2>
             <p style={{ color: '#666' }}>Model selection decisions and tier changes</p>
-            <div style={{ padding: '20px', background: '#f9f9f9', borderRadius: '4px' }}>
-              <p>Coming soon: Real-time routing logs viewer</p>
-              <p style={{ fontSize: '14px', color: '#888' }}>
-                Will display data from /api/routing-logs
-              </p>
-            </div>
+            <RoutingLogsViewer />
           </div>
         )}
         
         {activeTab === 'budget' && (
-          <div>
-            <h2>Budget Dashboard</h2>
-            <p style={{ color: '#666' }}>Usage tracking and cost analysis</p>
-            <div style={{ padding: '20px', background: '#f9f9f9', borderRadius: '4px' }}>
-              <p>Coming soon: Budget orchestration dashboard</p>
-              <p style={{ fontSize: '14px', color: '#888' }}>
-                Will display data from /api/budget/dashboard
-              </p>
-            </div>
-          </div>
+          <BudgetDashboard />
         )}
         
         {activeTab === 'export' && (
