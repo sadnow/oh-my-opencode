@@ -110,6 +110,7 @@ export function createUsageTrackingHook(
     return null
   }
 
+  console.error("[usage-tracking] 🔵 Hook factory called - returning hook object with chat.message and event");
   log("[usage-tracking] Hook registered - using EVENT-DRIVEN ESTIMATION (±20-30% accuracy)")
 
   // Track pending sessions waiting for assistant response
@@ -135,29 +136,51 @@ export function createUsageTrackingHook(
         parts: MessagePart[]
       }
     ): Promise<void> => {
+      console.error(`[usage-tracking] 🟢 chat.message HOOK CALLED for session ${input.sessionID}`);
       try {
+        // DIAGNOSTIC: Log ALL input/output structure
+        log("[usage-tracking] chat.message CALLED - Full structure:", {
+          input_keys: Object.keys(input),
+          sessionID: input.sessionID,
+          agent: input.agent,
+          messageID: input.messageID,
+          has_model: !!input.model,
+          model_keys: input.model ? Object.keys(input.model) : [],
+          model_providerID: input.model?.providerID,
+          model_modelID: input.model?.modelID,
+          output_keys: Object.keys(output),
+          message_keys: Object.keys(output.message || {}),
+          parts_length: output.parts?.length || 0,
+          parts_sample: output.parts?.[0] ? { type: output.parts[0].type, has_text: 'text' in output.parts[0] } : null
+        })
+
         const sessionId = input.sessionID
         const messageId = input.messageID
         
-        if (!messageId || !input.model) {
-          log("[usage-tracking] chat.message missing ID or model info", { sessionId, messageId, hasModel: !!input.model })
-          return
-        }
+        // CHANGED: Don't return early - store with placeholder if needed
+        const modelInfo = input.model || { providerID: "unknown-provider", modelID: "unknown-model" }
+        const effectiveMessageId = messageId || `generated-${sessionId}-${Date.now()}`
 
         // Immediate synchronous capture of input tokens
         const inputTokens = estimateTokensFromParts(output.parts)
         
-        log("[usage-tracking] Synchronous input capture:", {
+        log("[usage-tracking] Storing pending session (even if missing model/ID):", {
           sessionId,
-          messageId,
-          model: `${input.model.providerID}/${input.model.modelID}`,
-          inputTokens
+          messageId: effectiveMessageId,
+          model: `${modelInfo.providerID}/${modelInfo.modelID}`,
+          inputTokens,
+          pendingSessionsSize: pendingSessions.size
         })
 
         pendingSessions.set(sessionId, {
           inputTokens,
-          model: input.model,
+          model: modelInfo,
           timestamp: Date.now()
+        })
+
+        log("[usage-tracking] pendingSessions after set:", {
+          size: pendingSessions.size,
+          keys: Array.from(pendingSessions.keys())
         })
 
         // Cleanup old pending sessions (older than 1 hour) to prevent memory leaks
@@ -177,8 +200,29 @@ export function createUsageTrackingHook(
       try {
         const { event } = input
 
-        // Only process message.updated events
-        if (event.type !== "message.updated") {
+        // INSTRUMENTATION: Log FULL event structure at entry
+        console.error(`[usage-tracking] 🔍 EVENT ENTRY: ${event.type}`);
+        console.error(`[usage-tracking] 🔍 event.properties keys: ${event.properties ? Object.keys(event.properties as object).join(", ") : "none"}`);
+        if (event.properties && typeof event.properties === "object") {
+          const props = event.properties as Record<string, any>;
+          if (props.info) {
+            console.error(`[usage-tracking] 🔍 properties.info keys: ${Object.keys(props.info).join(", ")}`);
+            console.error(`[usage-tracking] 🔍 info values: sessionID=${props.info.sessionID}, messageID=${props.info.messageID}, role=${props.info.role}, has_model=${!!props.info.model}, has_parts=${!!props.info.parts}`);
+          }
+        }
+
+        // Console.error for ALL events so we can see if hook is being called
+        if (event.type.startsWith("message.")) {
+          console.error(`[usage-tracking] 🟡 event HOOK CALLED: ${event.type}`);
+        }
+
+        // Skip streaming updates - only process final message.updated
+        if (event.type === "message.part.updated") {
+          return
+        }
+
+        // Process BOTH message.updated AND message.created
+        if (event.type !== "message.updated" && event.type !== "message.created") {
           return
         }
 
@@ -186,7 +230,10 @@ export function createUsageTrackingHook(
         const info = props?.info as Record<string, unknown> | undefined
 
         if (!info) {
-          log("[usage-tracking] message.updated event missing info")
+          log("[usage-tracking] message event missing info", { 
+            event_type: event.type,
+            props_keys: props ? Object.keys(props) : []
+          })
           return
         }
 
@@ -194,8 +241,35 @@ export function createUsageTrackingHook(
         const role = info?.role as string | undefined
         const messageID = info?.messageID as string | undefined
         const model = info?.model as { providerID: string; modelID: string } | undefined
+        const parts = info?.parts as MessagePart[] | undefined
 
-        // Only process assistant messages
+        console.error(`[usage-tracking] 📝 Processing ${event.type} - role: ${role}, session: ${sessionID?.substring(0, 12)}`);
+
+        // ✅ NEW: Capture USER messages here (since chat.message doesn't fire)
+        if (role === "user" && sessionID) {
+          const inputTokens = estimateTokensFromParts(parts || [])
+          
+          if (inputTokens > 0) {
+            const modelInfo = model || { providerID: "unknown-provider", modelID: "unknown-model" }
+            
+            pendingSessions.set(sessionID, {
+              inputTokens,
+              model: modelInfo,
+              timestamp: Date.now()
+            })
+            
+            console.error(`[usage-tracking] ✅ USER input captured: ${inputTokens} tokens, session: ${sessionID.substring(0, 12)}`);
+            log("[usage-tracking] Stored user input in pending sessions:", {
+              sessionID,
+              inputTokens,
+              model: `${modelInfo.providerID}/${modelInfo.modelID}`,
+              pendingSessions_size: pendingSessions.size
+            })
+          }
+          return
+        }
+
+        // ✅ Handle ASSISTANT messages
         if (role !== "assistant") {
           return
         }
@@ -210,12 +284,19 @@ export function createUsageTrackingHook(
         const pendingData = sessionID ? pendingSessions.get(sessionID) : undefined
 
         if (!pendingData) {
-          log("[usage-tracking] No pending session for assistant message:", { sessionID, messageID })
+          console.error(`[usage-tracking] ❌ No pending session for assistant message. Session: ${sessionID?.substring(0, 12)}`);
+          log("[usage-tracking] No pending session for assistant message:", { 
+            sessionID, 
+            messageID,
+            available_sessions: Array.from(pendingSessions.keys()),
+            pendingSessions_size: pendingSessions.size
+          })
           return
         }
 
+        console.error(`[usage-tracking] ✅ Found pending data for session ${sessionID?.substring(0, 12)}`);
+
         // Get message parts for token estimation
-        const parts = info?.parts as MessagePart[] | undefined
         if (!parts || parts.length === 0) {
           log("[usage-tracking] Assistant message has no parts, skipping:", messageID)
           return
@@ -231,34 +312,30 @@ export function createUsageTrackingHook(
         }
 
         // Calculate cost
-        const modelName = extractModelName(model?.modelID || "")
+        const modelName = extractModelName(model?.modelID || pendingData.model.modelID)
         const pricing = MODEL_PRICING[modelName] || DEFAULT_PRICING
         const cost = estimateCost(modelName, pendingData.inputTokens, outputTokens, pricing)
 
-        log("[usage-tracking] Captured assistant message:", {
-          sessionID,
-          messageID,
-          model: `${model?.providerID}/${model?.modelID}`,
-          outputTokens,
-          cost
-        })
+        console.error(`[usage-tracking] 💰 Recording usage: ${pendingData.inputTokens} in + ${outputTokens} out = $${cost.toFixed(4)}`);
 
         // Record usage
         await usageTracker.recordUsage({
           sessionID: sessionID!,
           inputTokens: pendingData.inputTokens,
           outputTokens,
-          model: model?.modelID || "",
-          provider: model?.providerID || "",
+          model: model?.modelID || pendingData.model.modelID,
+          provider: model?.providerID || pendingData.model.providerID,
           taskType: "primary"
         })
 
-        log("[usage-tracking] Recorded usage:", {
+        console.error(`[usage-tracking] ✅ Successfully recorded usage to file!`);
+        
+        log("[usage-tracking] ✅ Successfully recorded usage!", {
           sessionID,
           inputTokens: pendingData.inputTokens,
           outputTokens,
           cost,
-          model: model?.modelID
+          model: model?.modelID || pendingData.model.modelID
         })
 
         // Mark as processed
@@ -271,6 +348,7 @@ export function createUsageTrackingHook(
 
       } catch (error) {
         log("[usage-tracking] Error in event handler:", error)
+        console.error("[usage-tracking] ❌ ERROR:", error);
       }
     },
   }
