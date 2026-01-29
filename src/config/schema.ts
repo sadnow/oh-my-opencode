@@ -349,6 +349,7 @@ export const TmuxConfigSchema = z.object({
 
 // WebUI configuration
 export const WebUIBindSchema = z.enum(["localhost", "0.0.0.0"])
+export const WebUIModeSchema = z.enum(["beginner", "power-user"])
 
 export const WebUIConfigSchema = z.object({
   /** Enable the WebUI server (default: false) */
@@ -357,7 +358,10 @@ export const WebUIConfigSchema = z.object({
   port: z.number().min(1024).max(65535).default(3847),
   /** Bind address - "localhost" for local only, "0.0.0.0" for all interfaces (default: "localhost") */
   bind: WebUIBindSchema.default("localhost"),
+  /** Default UI mode for the WebUI (beginner or power-user) */
+  default_mode: WebUIModeSchema.optional().describe("Default UI mode for the WebUI (beginner or power-user)"),
 })
+
 
 // Usage tracking configuration
 export const UsageTrackingConfigSchema = z.object({
@@ -562,7 +566,9 @@ export type SisyphusSwarmConfig = z.infer<typeof SisyphusSwarmConfigSchema>
 export type SisyphusConfig = z.infer<typeof SisyphusConfigSchema>
 export type WebUIConfig = z.infer<typeof WebUIConfigSchema>
 export type WebUIBind = z.infer<typeof WebUIBindSchema>
+export type WebUIMode = z.infer<typeof WebUIModeSchema>
 export type UsageTrackingConfig = z.infer<typeof UsageTrackingConfigSchema>
+
 export type BudgetConfig = z.infer<typeof BudgetConfigSchema>
 export type BudgetNotificationConfig = z.infer<typeof BudgetNotificationConfigSchema>
 export type ModelTier = z.infer<typeof ModelTierSchema>
