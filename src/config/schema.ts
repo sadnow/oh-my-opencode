@@ -419,6 +419,8 @@ export const BudgetConfigSchema = z.object({
   adaptive_config: AdaptiveConfigSchema.optional(),
   /** Quota targets for different provider types */
   quota_targets: QuotaTargetsSchema.optional(),
+  /** Persist routing logs to file (default: false) */
+  routing_log_persist: z.boolean().default(false),
 })
 
 // Budget notification configuration

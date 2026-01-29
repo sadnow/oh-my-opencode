@@ -34,6 +34,7 @@ describe("Budget Orchestrator × delegate_task Integration", () => {
         auto_downgrade: true,
         auto_upgrade: true,
         min_tier: "economy",
+        routing_log_persist: false,
       },
       usageTracker,
       ["anthropic"]

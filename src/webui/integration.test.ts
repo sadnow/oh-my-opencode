@@ -41,6 +41,7 @@ describe("WebUI Integration", () => {
         auto_downgrade: true,
         auto_upgrade: true,
         min_tier: "budget",
+        routing_log_persist: false,
       },
       usageTracker,
       ["anthropic", "openai"],

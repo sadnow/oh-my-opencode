@@ -26,6 +26,7 @@ describe("BudgetOrchestrator", () => {
         auto_downgrade: true,
         min_tier: "budget",
         auto_upgrade: true,
+        routing_log_persist: false,
       },
       usageTracker,
       ["anthropic", "openai"],

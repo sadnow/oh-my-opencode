@@ -5,6 +5,9 @@
  * for display in the WebUI.
  */
 
+import * as fs from "fs"
+import * as path from "path"
+
 export interface RoutingLogEntry {
   timestamp: string
   level: "info" | "warning" | "error" | "decision"
@@ -16,6 +19,52 @@ export interface RoutingLogEntry {
 export class RoutingLogger {
   private logs: RoutingLogEntry[] = []
   private maxLogs = 1000  // Keep last 1000 entries
+  private persist = false
+  private logFilePath = "oh-my-opencode-routing-logs.json"
+
+  /**
+   * Enable or disable persistence
+   */
+  setPersist(enabled: boolean) {
+    this.persist = enabled
+    if (enabled) {
+      this.loadLogs()
+    }
+  }
+
+  /**
+   * Load logs from file
+   */
+  private loadLogs() {
+    try {
+      if (fs.existsSync(this.logFilePath)) {
+        const content = fs.readFileSync(this.logFilePath, "utf-8")
+        const loadedLogs = JSON.parse(content)
+        if (Array.isArray(loadedLogs)) {
+          this.logs = loadedLogs
+          // Ensure we don't exceed maxLogs on load
+          if (this.logs.length > this.maxLogs) {
+            this.logs = this.logs.slice(-this.maxLogs)
+          }
+        }
+      }
+    } catch (error) {
+      console.error("[routing-logger] Failed to load logs:", error)
+    }
+  }
+
+  /**
+   * Save logs to file
+   */
+  private saveLogs() {
+    if (!this.persist) return
+
+    try {
+      fs.writeFileSync(this.logFilePath, JSON.stringify(this.logs, null, 2), "utf-8")
+    } catch (error) {
+      console.error("[routing-logger] Failed to save logs:", error)
+    }
+  }
 
   /**
    * Log a tier change event
@@ -190,6 +239,7 @@ export class RoutingLogger {
    */
   clearLogs() {
     this.logs = []
+    this.saveLogs()
   }
 
   /**
@@ -233,6 +283,8 @@ export class RoutingLogger {
     if (this.logs.length > this.maxLogs) {
       this.logs = this.logs.slice(-this.maxLogs)
     }
+
+    this.saveLogs()
   }
 }
 

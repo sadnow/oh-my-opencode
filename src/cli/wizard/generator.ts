@@ -303,6 +303,7 @@ function generateBudgetConfig(answers: WizardAnswers): BudgetConfig {
     auto_downgrade: answers.autoDowngrade ?? true,
     auto_upgrade: answers.autoUpgrade ?? true,
     min_tier: "budget",
+    routing_log_persist: false,
   }
 
   // Learning mode
