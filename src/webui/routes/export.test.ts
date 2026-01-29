@@ -4,6 +4,7 @@ import { UsageTracker } from "../../features/usage-tracker";
 import { BudgetOrchestrator } from "../../features/budget-orchestrator";
 import { initHotConfigManager } from "../../features/hot-config";
 import { loadPluginConfig } from "../../plugin-config";
+import { getRoutingLogger } from "../../features/budget-orchestrator/routing-logger";
 
 describe("Export API", () => {
   let server: any;
@@ -117,6 +118,56 @@ describe("Export API", () => {
       expect(response.headers.get("content-type")).toBe("text/csv");
       const text = await response.text();
       expect(text).toContain("name,description");
+    });
+  });
+
+  describe("GET /api/export/routing-logs", () => {
+    beforeAll(() => {
+      const logger = getRoutingLogger();
+      logger.clearLogs();
+      // Add some dummy logs with specific timestamps
+      // We need to manually add logs to control timestamps for filtering tests
+      // Since addLog is private, we use the public logging methods
+      // But public methods use new Date().toISOString(), so we might need to wait or mock
+      // For simplicity, let's just add some logs and test basic export first
+      logger.logTierChange("budget", "standard", "Test reason 1");
+      logger.logTierChange("standard", "pro", "Test reason 2");
+    });
+
+    it("should export routing logs as JSON by default", async () => {
+      const response = await fetch(`${baseURL}/api/export/routing-logs`);
+      expect(response.status).toBe(200);
+      const data = await response.json() as any[];
+      expect(data).toBeArray();
+      expect(data.length).toBeGreaterThanOrEqual(2);
+    });
+
+    it("should export routing logs as CSV when requested", async () => {
+      const response = await fetch(`${baseURL}/api/export/routing-logs?format=csv`);
+      expect(response.status).toBe(200);
+      expect(response.headers.get("content-type")).toBe("text/csv");
+      expect(response.headers.get("content-disposition")).toContain("routing-logs-");
+      const text = await response.text();
+      expect(text).toContain("timestamp,level,category,message,model,reason");
+      expect(text).toContain("tier_change");
+      expect(text).toContain("Test reason 1");
+    });
+
+    it("should filter by since parameter", async () => {
+      const now = new Date();
+      const future = new Date(now.getTime() + 10000).toISOString();
+      const response = await fetch(`${baseURL}/api/export/routing-logs?since=${future}`);
+      expect(response.status).toBe(200);
+      const data = await response.json() as any[];
+      expect(data.length).toBe(0);
+    });
+
+    it("should filter by until parameter", async () => {
+      const past = new Date(Date.now() - 10000).toISOString();
+      const response = await fetch(`${baseURL}/api/export/routing-logs?until=${past}`);
+      expect(response.status).toBe(200);
+      const data = await response.json() as any[];
+      expect(data.length).toBe(0);
     });
   });
 });

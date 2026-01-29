@@ -98,6 +98,7 @@ import {
   handleExportUsage,
   handleExportConfig,
   handleExportPresets,
+  handleExportRoutingLogs,
   type ExportRouteContext,
 } from "./routes/export"
 
@@ -107,6 +108,9 @@ import {
   handleClearRoutingLogs,
   handleGetRoutingLogsSince,
 } from "./routes/routing-logs"
+
+import { getRoutingLogger } from "../features/budget-orchestrator/routing-logger"
+
 
 import {
   handleGetGlobalOverride,
@@ -157,7 +161,7 @@ export function startWebUI(options: WebUIOptions): BunServer {
   const statsCtx: StatsRouteContext = { usageTracker, budgetOrchestrator }
   const adaptiveCtx: AdaptiveSettingsRouteContext = { budgetOrchestrator, configManager }
   const globalOverrideCtx: GlobalOverrideRouteContext = { budgetOrchestrator }
-  const exportCtx: ExportRouteContext = { usageTracker, configManager }
+  const exportCtx: ExportRouteContext = { usageTracker, configManager, routingLogger: getRoutingLogger() }
 
   const server = Bun.serve({
     port,
@@ -312,6 +316,9 @@ async function handleAPI(
   }
   if (pathname === "/export/presets" && method === "GET") {
     return handleExportPresets(req)
+  }
+  if (pathname === "/export/routing-logs" && method === "GET") {
+    return handleExportRoutingLogs(req, ctx.exportCtx)
   }
 
   // Wizard routes
