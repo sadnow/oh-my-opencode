@@ -1,3 +1,9 @@
+// DEBUG: Confirm module is actually loaded by OpenCode
+console.error("╔══════════════════════════════════════════════════════════╗");
+console.error("║  [oh-my-opencode] MODULE LOADED - dist/index.js         ║");
+console.error("║  Build timestamp: Jan 28 23:37                          ║");
+console.error("╚══════════════════════════════════════════════════════════╝");
+
 import type { Plugin } from "@opencode-ai/plugin";
 import {
   createTodoContinuationEnforcer,
@@ -57,6 +63,7 @@ import {
   setSessionAgent,
   updateSessionAgent,
   clearSessionAgent,
+  getRestoredStateCounts,
 } from "./features/claude-code-session-state";
 import {
   builtinTools,
@@ -89,7 +96,17 @@ import { createModelCacheState, getModelLimit } from "./plugin-state";
 import { createConfigHandler } from "./plugin-handlers";
 
 const OhMyOpenCodePlugin: Plugin = async (ctx) => {
+  console.error("╔══════════════════════════════════════════════════════════╗");
+  console.error("║  [OhMyOpenCodePlugin] ENTRY - Plugin initializing       ║");
+  console.error("║  Directory: " + ctx.directory.padEnd(39) + "║");
+  console.error("╚══════════════════════════════════════════════════════════╝");
+  
   log("[OhMyOpenCodePlugin] ENTRY - plugin loading", { directory: ctx.directory })
+  
+  // Show restored session state counts
+  const { subagentSessions: subCount, agentMappings: mapCount } = getRestoredStateCounts();
+  console.error(`[session-state] Restored ${subCount} subagent sessions, ${mapCount} agent mappings`);
+
   // Start background tmux check immediately
   startTmuxCheck();
 
@@ -292,6 +309,12 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
   const usageTracking = usageTracker
     ? createUsageTrackingHook(ctx, usageTracker)
     : null;
+  
+  if (usageTracking) {
+    console.error("[oh-my-opencode] ✅ Usage tracking hook CREATED and will be registered");
+  } else {
+    console.error("[oh-my-opencode] ❌ Usage tracking hook NOT created (tracker disabled)");
+  }
 
   const tmuxSessionManager = new TmuxSessionManager(ctx, tmuxConfig);
 

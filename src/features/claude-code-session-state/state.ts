@@ -110,6 +110,13 @@ export function getSessionAgent(sessionID: string): string | undefined {
   return sessionAgentMap.get(sessionID)
 }
 
+export function getRestoredStateCounts(): { subagentSessions: number; agentMappings: number } {
+  return {
+    subagentSessions: subagentSessions.size,
+    agentMappings: sessionAgentMap.size,
+  }
+}
+
 export function clearSessionAgent(sessionID: string): void {
   console.error(`[session-state] clearSessionAgent entry: sessionID=${sessionID}, sessionAgentMap.size=${sessionAgentMap.size}, subagentSessions.size=${subagentSessions.size}, timestamp=${Date.now()}`)
   sessionAgentMap.delete(sessionID)
