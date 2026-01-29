@@ -164,6 +164,21 @@ export interface PresetConfig {
   categories: CategoriesConfig
   /** Providers required for this preset */
   requiredProviders: string[]
+  /** Metadata for the preset */
+  metadata?: {
+    philosophy: string
+    whenToUse: string[]
+    whenNotToUse: string[]
+    estimatedCostPerHour: number
+    tradeoffs: string[]
+  }
+  /** Rationale for model choices in each category */
+  categoryRationale?: Record<string, {
+    whyThisModel: string
+    whyNotModels: string[]
+    costImplication: string
+    performanceNote: string
+  }>
 }
 
 /**
@@ -226,6 +241,55 @@ export const DEFAULT_PRESET: PresetConfig = {
       model: "anthropic/claude-opus-4-5",
     },
   },
+  metadata: {
+    philosophy: "Maximize quality with intelligent cost optimization by leveraging the best model for each specific task.",
+    whenToUse: [
+      "Standard professional development",
+      "Complex projects requiring high reasoning",
+      "When budget allows for premium orchestration"
+    ],
+    whenNotToUse: [
+      "Extremely cost-sensitive projects",
+      "Simple tasks that don't need multi-model orchestration"
+    ],
+    estimatedCostPerHour: 2.50,
+    tradeoffs: [
+      "Higher cost for orchestration",
+      "Requires multiple provider setups for best results"
+    ]
+  },
+  categoryRationale: {
+    ultrabrain: {
+      whyThisModel: "Claude Opus 4.5 is the gold standard for complex reasoning and planning.",
+      whyNotModels: ["GPT-5.2 (slightly less reliable for orchestration)", "Gemini 3 Pro (weaker reasoning)"],
+      costImplication: "Premium pricing ($5/1M tokens)",
+      performanceNote: "Highest reasoning capability available"
+    },
+    quick: {
+      whyThisModel: "Gemini 3 Flash provides near-instant responses for simple queries.",
+      whyNotModels: ["Claude Haiku 4.5 (slightly slower)", "GPT-4.1-nano (less capable)"],
+      costImplication: "Budget pricing ($0.50/1M tokens)",
+      performanceNote: "Blazing fast latency"
+    },
+    "visual-engineering": {
+      whyThisModel: "Claude Sonnet 4.5 has excellent spatial reasoning and UI/UX understanding.",
+      whyNotModels: ["GPT-5.2 (less aesthetic focus)", "Gemini 3 Pro (inconsistent UI code)"],
+      costImplication: "Standard pricing ($3/1M tokens)",
+      performanceNote: "Great balance of speed and UI quality"
+    },
+    writing: {
+      whyThisModel: "GPT-5.2 excels at natural prose and documentation structure.",
+      whyNotModels: ["Claude (can be too verbose)", "Gemini (sometimes generic)"],
+      costImplication: "Standard pricing ($2/1M tokens)",
+      performanceNote: "Superior linguistic quality"
+    },
+    analysis: {
+      whyThisModel: "Kimi K2 Thinking model provides deep chain-of-thought analysis at budget prices.",
+      whyNotModels: ["Claude Opus (too expensive for raw analysis)", "o1 (higher latency)"],
+      costImplication: "Budget pricing ($0.60/1M tokens)",
+      performanceNote: "Excellent at identifying edge cases"
+    }
+  }
 }
 
 /**
@@ -262,6 +326,43 @@ export const BALANCED_PRESET: PresetConfig = {
       model: "github-copilot/gpt-5-mini",
     },
   },
+  metadata: {
+    philosophy: "Balanced mix of quality and cost, primarily using the Anthropic Claude family.",
+    whenToUse: [
+      "General purpose development",
+      "Users who prefer the Claude ecosystem",
+      "Projects with moderate budgets"
+    ],
+    whenNotToUse: [
+      "Extremely cost-sensitive projects",
+      "Tasks requiring specific OpenAI or Google capabilities"
+    ],
+    estimatedCostPerHour: 1.80,
+    tradeoffs: [
+      "Dependency on Anthropic availability",
+      "Slightly higher cost than budget presets"
+    ]
+  },
+  categoryRationale: {
+    ultrabrain: {
+      whyThisModel: "Opus 4.5 for the most critical reasoning tasks.",
+      whyNotModels: ["Sonnet 4.5 (lesser reasoning)"],
+      costImplication: "Premium pricing",
+      performanceNote: "Highest reliability"
+    },
+    quick: {
+      whyThisModel: "Haiku 4.5 is the fastest in the Claude family.",
+      whyNotModels: ["Sonnet 4.5 (slower/more expensive)"],
+      costImplication: "Budget pricing",
+      performanceNote: "Low latency"
+    },
+    "visual-engineering": {
+      whyThisModel: "Sonnet 4.5 is the sweet spot for coding and UI.",
+      whyNotModels: ["Opus 4.5 (too expensive for implementation)"],
+      costImplication: "Standard pricing",
+      performanceNote: "Excellent coding ability"
+    }
+  }
 }
 
 /**
@@ -297,6 +398,37 @@ export const CLAUDE_HEAVY_PRESET: PresetConfig = {
       model: "github-copilot/claude-sonnet-4.5",
     },
   },
+  metadata: {
+    philosophy: "Highest possible quality by using premium Claude models for almost every task.",
+    whenToUse: [
+      "Critical production code",
+      "Complex refactoring",
+      "When quality is the only metric that matters"
+    ],
+    whenNotToUse: [
+      "Budget-constrained projects",
+      "Simple, repetitive tasks"
+    ],
+    estimatedCostPerHour: 5.00,
+    tradeoffs: [
+      "Very high cost",
+      "Higher latency due to large model usage"
+    ]
+  },
+  categoryRationale: {
+    ultrabrain: {
+      whyThisModel: "Opus 4.5 for maximum reasoning depth.",
+      whyNotModels: ["Sonnet 4.5 (not premium enough for this preset)"],
+      costImplication: "Premium pricing",
+      performanceNote: "Best in class"
+    },
+    "visual-engineering": {
+      whyThisModel: "Opus 4.5 for pixel-perfect UI implementation.",
+      whyNotModels: ["Sonnet 4.5 (standard choice, but we want premium)"],
+      costImplication: "Premium pricing",
+      performanceNote: "Unmatched attention to detail"
+    }
+  }
 }
 
 /**
@@ -348,6 +480,43 @@ export const BUDGET_CONSCIOUS_PRESET: PresetConfig = {
       model: "github-copilot/gpt-5-mini",
     },
   },
+  metadata: {
+    philosophy: "Intelligent cost optimization using high-value budget models without sacrificing essential quality.",
+    whenToUse: [
+      "Personal projects",
+      "Startups with tight budgets",
+      "High-volume repetitive tasks"
+    ],
+    whenNotToUse: [
+      "Highly critical production systems",
+      "Tasks requiring extreme reasoning depth"
+    ],
+    estimatedCostPerHour: 0.60,
+    tradeoffs: [
+      "Slightly lower reasoning reliability",
+      "May require more explicit prompting"
+    ]
+  },
+  categoryRationale: {
+    ultrabrain: {
+      whyThisModel: "Kimi K2 Thinking provides premium-like reasoning at budget prices.",
+      whyNotModels: ["Claude Opus (8x more expensive)"],
+      costImplication: "Budget pricing ($0.60/1M tokens)",
+      performanceNote: "Strong chain-of-thought"
+    },
+    quick: {
+      whyThisModel: "Gemini 3 Flash is the best value for speed and intelligence.",
+      whyNotModels: ["Haiku 4.5 (more expensive)"],
+      costImplication: "Budget pricing ($0.50/1M tokens)",
+      performanceNote: "Industry-leading speed"
+    },
+    "visual-engineering": {
+      whyThisModel: "GLM-4.7 is highly capable at coding tasks for its price point.",
+      whyNotModels: ["Sonnet 4.5 (5x more expensive)"],
+      costImplication: "Budget pricing ($0.60/1M tokens)",
+      performanceNote: "Solid implementation skills"
+    }
+  }
 }
 
 /**
@@ -388,6 +557,38 @@ export const FREE_TIER_PRESET: PresetConfig = {
       model: "opencode/kimi-k2-thinking",
     },
   },
+  metadata: {
+    philosophy: "Zero-cost entry point using only OpenCode's free model registry.",
+    whenToUse: [
+      "Initial trial of the plugin",
+      "Users without paid API subscriptions",
+      "Non-critical personal tasks"
+    ],
+    whenNotToUse: [
+      "Professional development",
+      "Tasks requiring high reliability or specific provider features"
+    ],
+    estimatedCostPerHour: 0.00,
+    tradeoffs: [
+      "Lower rate limits",
+      "Inconsistent availability",
+      "Lower overall reasoning quality"
+    ]
+  },
+  categoryRationale: {
+    ultrabrain: {
+      whyThisModel: "Kimi K2 Thinking is the best free reasoning model available.",
+      whyNotModels: ["Paid models (not allowed in this preset)"],
+      costImplication: "Free",
+      performanceNote: "Impressive for a free model"
+    },
+    "visual-engineering": {
+      whyThisModel: "GLM-4.7 provides decent coding capabilities for free.",
+      whyNotModels: ["Paid models"],
+      costImplication: "Free",
+      performanceNote: "Capable of basic UI tasks"
+    }
+  }
 }
 
 /**
@@ -424,6 +625,37 @@ export const SPEED_OPTIMIZED_PRESET: PresetConfig = {
       model: "github-copilot/gpt-5-mini",
     },
   },
+  metadata: {
+    philosophy: "Minimize latency and maximize iteration speed using the fastest current-gen models.",
+    whenToUse: [
+      "Rapid prototyping",
+      "Simple bug fixes",
+      "When developer time is more expensive than model quality"
+    ],
+    whenNotToUse: [
+      "Complex architectural changes",
+      "Tasks requiring deep reasoning"
+    ],
+    estimatedCostPerHour: 1.20,
+    tradeoffs: [
+      "Lower reasoning depth",
+      "Higher chance of hallucinations in complex tasks"
+    ]
+  },
+  categoryRationale: {
+    quick: {
+      whyThisModel: "Gemini 3 Flash is the industry leader in low-latency responses.",
+      whyNotModels: ["Haiku 4.5 (slightly higher latency)"],
+      costImplication: "Budget pricing",
+      performanceNote: "Near-instant"
+    },
+    ultrabrain: {
+      whyThisModel: "Sonnet 4.5 is used as a faster alternative to Opus for orchestration.",
+      whyNotModels: ["Opus 4.5 (too slow for this preset)"],
+      costImplication: "Standard pricing",
+      performanceNote: "Fast reasoning"
+    }
+  }
 }
 
 /**
@@ -456,6 +688,38 @@ export const QUALITY_FIRST_PRESET: PresetConfig = {
       model: "openai/gpt-5.2",
     },
   },
+  metadata: {
+    philosophy: "Uncompromising quality by using the absolute best model for every category.",
+    whenToUse: [
+      "High-stakes production environments",
+      "Complex system design",
+      "When accuracy is paramount"
+    ],
+    whenNotToUse: [
+      "Budget-sensitive projects",
+      "Simple tasks where speed is preferred"
+    ],
+    estimatedCostPerHour: 8.00,
+    tradeoffs: [
+      "Extremely high cost",
+      "High latency",
+      "High token consumption"
+    ]
+  },
+  categoryRationale: {
+    ultrabrain: {
+      whyThisModel: "Opus 4.5 is the undisputed leader in reasoning.",
+      whyNotModels: ["Any non-premium model"],
+      costImplication: "Premium pricing",
+      performanceNote: "Maximum reliability"
+    },
+    writing: {
+      whyThisModel: "GPT-5.2 provides the most sophisticated prose and structure.",
+      whyNotModels: ["Claude (can be repetitive)"],
+      costImplication: "Standard pricing",
+      performanceNote: "Best linguistic output"
+    }
+  }
 }
 
 /**
@@ -492,6 +756,37 @@ export const PARALLEL_AGENT_PRESET: PresetConfig = {
       model: "github-copilot/gpt-5-mini",
     },
   },
+  metadata: {
+    philosophy: "Optimized for high-concurrency workloads by using fast, cheap models for workers and a capable orchestrator.",
+    whenToUse: [
+      "Large-scale refactoring",
+      "Multi-file analysis",
+      "Background task heavy sessions"
+    ],
+    whenNotToUse: [
+      "Single-file focused work",
+      "Tasks requiring deep sequential reasoning"
+    ],
+    estimatedCostPerHour: 1.50,
+    tradeoffs: [
+      "Worker models may miss subtle details",
+      "Requires careful orchestration to avoid worker drift"
+    ]
+  },
+  categoryRationale: {
+    "parallel-worker": {
+      whyThisModel: "GPT-5-mini via Copilot is effectively free and handles simple parallel tasks well.",
+      whyNotModels: ["Paid models (would explode cost in parallel)"],
+      costImplication: "Free (with subscription)",
+      performanceNote: "Great for I/O bound tasks"
+    },
+    ultrabrain: {
+      whyThisModel: "Sonnet 4.5 provides the necessary intelligence to manage multiple workers without Opus's cost.",
+      whyNotModels: ["Opus 4.5 (too expensive for high-volume orchestration)"],
+      costImplication: "Standard pricing",
+      performanceNote: "Efficient management"
+    }
+  }
 }
 
 /**
@@ -536,6 +831,43 @@ export const HYBRID_REASONING_PRESET: PresetConfig = {
       model: "anthropic/claude-opus-4-5",
     },
   },
+  metadata: {
+    philosophy: "Leverages different model strengths for different stages of the reasoning process.",
+    whenToUse: [
+      "Complex problem solving",
+      "Research-heavy tasks",
+      "When you want premium results but want to save on exploration"
+    ],
+    whenNotToUse: [
+      "Simple, direct tasks",
+      "When single-model consistency is preferred"
+    ],
+    estimatedCostPerHour: 3.00,
+    tradeoffs: [
+      "Increased complexity in orchestration",
+      "Potential for context loss between stages"
+    ]
+  },
+  categoryRationale: {
+    exploration: {
+      whyThisModel: "Gemini 3 Flash is perfect for fast, broad searches.",
+      whyNotModels: ["Opus (too slow/expensive for exploration)"],
+      costImplication: "Budget pricing",
+      performanceNote: "High throughput"
+    },
+    analysis: {
+      whyThisModel: "Kimi K2 Thinking provides deep reasoning for the middle stage.",
+      whyNotModels: ["Sonnet (less 'thinking' focus)"],
+      costImplication: "Budget pricing",
+      performanceNote: "Deep chain-of-thought"
+    },
+    synthesis: {
+      whyThisModel: "Opus 4.5 ensures the final output is of the highest quality.",
+      whyNotModels: ["Any lesser model for the final step"],
+      costImplication: "Premium pricing",
+      performanceNote: "Highest reliability"
+    }
+  }
 }
 
 /**
