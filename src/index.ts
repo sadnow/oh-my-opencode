@@ -564,6 +564,7 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
       await interactiveBashSession?.event(input);
       await ralphLoop?.event(input);
       await atlasHook?.handler(input);
+      await usageTracking?.event(input);
 
       const { event } = input;
       const props = event.properties as Record<string, unknown> | undefined;
