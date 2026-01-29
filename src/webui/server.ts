@@ -95,6 +95,13 @@ import {
 } from "./routes/adaptive-settings"
 
 import {
+  handleExportUsage,
+  handleExportConfig,
+  handleExportPresets,
+  type ExportRouteContext,
+} from "./routes/export"
+
+import {
   handleGetRoutingLogs,
   handleGetRoutingLogStats,
   handleClearRoutingLogs,
@@ -147,6 +154,7 @@ export function startWebUI(options: WebUIOptions): BunServer {
   const statsCtx: StatsRouteContext = { usageTracker, budgetOrchestrator }
   const adaptiveCtx: AdaptiveSettingsRouteContext = { budgetOrchestrator, configManager }
   const globalOverrideCtx: GlobalOverrideRouteContext = { budgetOrchestrator }
+  const exportCtx: ExportRouteContext = { usageTracker, configManager }
 
   const server = Bun.serve({
     port,
@@ -194,6 +202,7 @@ export function startWebUI(options: WebUIOptions): BunServer {
           statsCtx,
           adaptiveCtx,
           globalOverrideCtx,
+          exportCtx,
         })
         return respond(apiResponse)
       }
@@ -219,6 +228,7 @@ interface APIContexts {
   statsCtx: StatsRouteContext
   adaptiveCtx: AdaptiveSettingsRouteContext
   globalOverrideCtx: GlobalOverrideRouteContext
+  exportCtx: ExportRouteContext
 }
 
 /**
@@ -288,6 +298,17 @@ async function handleAPI(
   if (pathname.startsWith("/budget/") && method === "GET") {
     const provider = pathname.replace("/budget/", "")
     return handleGetProviderBudget(provider, ctx.usageCtx)
+  }
+
+  // Export routes
+  if (pathname === "/export/usage" && method === "GET") {
+    return handleExportUsage(req, ctx.exportCtx)
+  }
+  if (pathname === "/export/config" && method === "GET") {
+    return handleExportConfig(ctx.exportCtx)
+  }
+  if (pathname === "/export/presets" && method === "GET") {
+    return handleExportPresets(req)
   }
 
   // Wizard routes
