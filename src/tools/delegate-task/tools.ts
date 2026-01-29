@@ -598,21 +598,26 @@ To continue this session: session_id="${args.session_id}"`
 
               const tierChange = orchestrator.getSmartTierChange(categoryModel)
               
-              if (tierChange.newModel && tierChange.direction === "downgrade") {
+              // Apply BOTH upgrades and downgrades (not just downgrades!)
+              if (tierChange.newModel && tierChange.direction !== "none") {
                 const originalModel = `${categoryModel.providerID}/${categoryModel.modelID}`
-                const downgradedModel = `${tierChange.newModel.providerID}/${tierChange.newModel.modelID}`
+                const newModel = `${tierChange.newModel.providerID}/${tierChange.newModel.modelID}`
                 
-                log("[delegate_task] Budget downgrade triggered", {
+                const isUpgrade = tierChange.direction === "upgrade"
+                const actionLabel = isUpgrade ? "upgrade" : "downgrade"
+                
+                log(`[delegate_task] Budget ${actionLabel} triggered`, {
                   category: args.category,
                   original: originalModel,
-                  downgraded: downgradedModel,
+                  new: newModel,
                   reason: tierChange.reason,
                   tier: tierChange.tier,
+                  direction: tierChange.direction,
                 })
 
-                // Apply downgrade
+                // Apply tier change
                 categoryModel = tierChange.newModel
-                actualModel = downgradedModel
+                actualModel = newModel
 
                 // Show toast notification to user
                 try {
@@ -621,13 +626,13 @@ To continue this session: session_id="${args.session_id}"`
                   if (tuiClient.tui?.showToast) {
                     tuiClient.tui.showToast({
                       body: {
-                        title: "Budget Downgrade",
-                        message: `${originalModel} → ${downgradedModel}: ${tierChange.reason}`,
-                        variant: "warning",
+                        title: isUpgrade ? "Budget Upgrade" : "Budget Downgrade",
+                        message: `${originalModel} → ${newModel}: ${tierChange.reason}`,
+                        variant: isUpgrade ? "success" : "warning",
                         duration: 7000,
                       },
                     }).catch(() => {
-                      log("[delegate_task] Failed to show downgrade toast")
+                      log(`[delegate_task] Failed to show ${actionLabel} toast`)
                     })
                   }
                 } catch (toastError) {
