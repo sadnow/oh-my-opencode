@@ -5,8 +5,9 @@ import { RoutingLogsViewer } from '../components/RoutingLogsViewer'
 import { BudgetDashboard } from '../components/BudgetDashboard'
 import { ClaudeMaxUsage } from '../components/ClaudeMaxUsage'
 import { CopilotUsage } from '../components/CopilotUsage'
+import { Settings } from '../components/Settings'
 
-type TabType = 'presets' | 'routing' | 'budget' | 'usage' | 'export'
+type TabType = 'presets' | 'routing' | 'budget' | 'usage' | 'settings' | 'export'
 
 function App() {
   const [activeTab, setActiveTab] = useState<TabType>('presets')
@@ -42,6 +43,12 @@ function App() {
           onClick={() => setActiveTab('usage')}
         >
           Usage
+        </button>
+        <button
+          className={activeTab === 'settings' ? 'active' : ''}
+          onClick={() => setActiveTab('settings')}
+        >
+          ⚙️ Settings
         </button>
         <button
           className={activeTab === 'export' ? 'active' : ''}
@@ -87,6 +94,10 @@ function App() {
               <CopilotUsage />
             </div>
           </div>
+        )}
+
+        {activeTab === 'settings' && (
+          <Settings />
         )}
 
         {activeTab === 'export' && (

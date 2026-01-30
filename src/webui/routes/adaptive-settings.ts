@@ -113,6 +113,7 @@ export async function handleUpdateAdaptiveSettings(
       }
       ctx.configManager.queueChange(configChange, "adaptive-settings")
       ctx.configManager.applyPendingChanges()
+      ctx.configManager.saveConfig()
     }
 
     // Return updated settings
