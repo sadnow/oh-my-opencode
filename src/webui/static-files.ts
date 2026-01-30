@@ -2616,7 +2616,7 @@ export const BUDGET_DASHBOARD_HTML = `<!DOCTYPE html>
     .status-warning { border-color: var(--warning); color: var(--warning); }
     .status-critical { border-color: var(--error); color: var(--error); }
 
-    .budget-grid {
+.budget-grid {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
       gap: 20px;
@@ -2650,6 +2650,23 @@ export const BUDGET_DASHBOARD_HTML = `<!DOCTYPE html>
     .tier-standard { background: linear-gradient(135deg, #3a86ff, #0077b6); }
     .tier-budget { background: linear-gradient(135deg, #f9c74f, #f9844a); }
     .tier-economy { background: linear-gradient(135deg, #6c757d, #495057); }
+
+    /* Section-specific styles */
+    #subscriptions-section h2 {
+      color: var(--success);
+      border-bottom: 2px solid var(--success);
+      padding-bottom: 8px;
+    }
+
+    #apis-section h2 {
+      color: var(--accent);
+      border-bottom: 2px solid var(--accent);
+      padding-bottom: 8px;
+    }
+
+    .tier-ok { background: linear-gradient(135deg, #10b981, #059669); }
+    .tier-warn { background: linear-gradient(135deg, #f59e0b, #d97706); }
+    .tier-critical { background: linear-gradient(135deg, #ef4444, #dc2626); }
 
     .progress-container {
       margin: 16px 0;
@@ -2849,136 +2866,16 @@ export const BUDGET_DASHBOARD_HTML = `<!DOCTYPE html>
         <div id="enabled-content">
           <div class="global-summary" id="global-summary" style="display: none;"></div>
 
-          <!-- Claude Max Subscription Section (Real-time from Anthropic API) -->
-          <div id="claude-max-section" class="budget-card" style="margin-bottom: 30px; display: none;">
-            <h3>
-              <span style="color: #ff9d00;">Claude Max</span> Subscription
-              <span class="tier-badge tier-premium" id="claude-max-tier">MAX 20X</span>
-              <a href="https://claude.ai/settings/usage" target="_blank" style="margin-left: auto; font-size: 12px; color: var(--accent); text-decoration: none;">Open Claude Console &rarr;</a>
-            </h3>
-            <!-- Usage Meters -->
-            <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; margin-bottom: 16px;">
-              <!-- Current Session -->
-              <div>
-                <div style="font-size: 13px; color: var(--text-secondary); margin-bottom: 8px;">Current Session</div>
-                <div class="progress-container">
-                  <div class="progress-bar">
-                    <div class="progress-fill" id="claude-max-session-progress" style="width: 0%;"></div>
-                  </div>
-                  <div class="progress-labels">
-                    <span class="budget-amount" id="claude-max-session-percent">0% used</span>
-                  </div>
-                </div>
-                <div style="font-size: 11px; color: var(--text-secondary); margin-top: 4px;" id="claude-max-session-reset">Resets --</div>
-              </div>
-              <!-- All Models Weekly -->
-              <div>
-                <div style="font-size: 13px; color: var(--text-secondary); margin-bottom: 8px;">Current Week (All Models)</div>
-                <div class="progress-container">
-                  <div class="progress-bar">
-                    <div class="progress-fill" id="claude-max-all-progress" style="width: 0%;"></div>
-                  </div>
-                  <div class="progress-labels">
-                    <span class="budget-amount" id="claude-max-all-percent">0% used</span>
-                  </div>
-                </div>
-                <div style="font-size: 11px; color: var(--text-secondary); margin-top: 4px;" id="claude-max-all-reset">Resets --</div>
-              </div>
-              <!-- Sonnet Only Weekly -->
-              <div>
-                <div style="font-size: 13px; color: var(--text-secondary); margin-bottom: 8px;">Current Week (Sonnet Only)</div>
-                <div class="progress-container">
-                  <div class="progress-bar">
-                    <div class="progress-fill" id="claude-max-sonnet-progress" style="width: 0%;"></div>
-                  </div>
-                  <div class="progress-labels">
-                    <span class="budget-amount" id="claude-max-sonnet-percent">0% used</span>
-                  </div>
-                </div>
-                <div style="font-size: 11px; color: var(--text-secondary); margin-top: 4px;" id="claude-max-sonnet-reset">Resets --</div>
-              </div>
-            </div>
-            <!-- Status & Controls -->
-            <div style="display: flex; gap: 12px; flex-wrap: wrap; align-items: center; padding-top: 12px; border-top: 1px solid var(--border);">
-              <span id="claude-max-recommendation" class="trend-indicator trend-under"></span>
-              <span id="claude-max-downgrade-hint" style="font-size: 12px; color: var(--warning); display: none;">Consider downgrading to Sonnet</span>
-              <span style="color: var(--text-secondary); font-size: 12px;" id="claude-max-last-updated">Last updated: --</span>
-              <button onclick="toggleClaudeMaxHistory()" id="claude-max-history-toggle" style="margin-left: auto;">Show 24h History</button>
-              <button onclick="refreshClaudeMax()">Refresh</button>
-            </div>
-            <!-- 24h History Chart (Expandable) -->
-            <div id="claude-max-history-container" style="display: none; margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--border);">
-              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-                <h4 style="margin: 0; font-size: 14px; color: var(--text-secondary);">Usage History (Last 24 Hours)</h4>
-                <span style="font-size: 11px; color: var(--text-secondary);" id="claude-max-history-info">-- data points</span>
-              </div>
-              <div style="height: 150px; position: relative;">
-                <canvas id="claude-max-history-chart"></canvas>
-              </div>
-              <div style="display: flex; justify-content: center; gap: 20px; margin-top: 8px; font-size: 11px;">
-                <span><span style="display: inline-block; width: 12px; height: 3px; background: #ff9d00; margin-right: 4px;"></span>Session</span>
-                <span><span style="display: inline-block; width: 12px; height: 3px; background: #7dd3fc; margin-right: 4px;"></span>All Models</span>
-                <span><span style="display: inline-block; width: 12px; height: 3px; background: #86efac; margin-right: 4px;"></span>Sonnet</span>
-              </div>
-            </div>
-            <div id="claude-max-error" style="display: none; margin-top: 12px; padding: 8px 12px; background: rgba(255,100,100,0.1); border-radius: 6px; color: #ff6b6b; font-size: 12px;"></div>
+<!-- Subscriptions Section -->
+          <div id="subscriptions-section" style="margin-bottom: 30px; display: none;">
+            <h2 style="margin-bottom: 16px; font-size: 20px; color: var(--text-primary);">Subscriptions</h2>
+            <div id="subscriptions-grid" class="budget-grid"></div>
           </div>
 
-          <!-- GitHub Copilot Section -->
-          <div id="copilot-section" class="budget-card" style="margin-bottom: 30px; display: none;">
-            <h3>
-              <span style="color: #238636;">GitHub Copilot</span> Premium Requests
-              <span class="tier-badge" style="background: linear-gradient(135deg, #238636, #2ea043);" id="copilot-plan-badge">PRO</span>
-              <a href="https://github.com/settings/copilot" target="_blank" style="margin-left: auto; font-size: 12px; color: var(--accent); text-decoration: none;">Copilot Settings &rarr;</a>
-            </h3>
-            <!-- Usage Meter -->
-            <div style="margin-bottom: 16px;">
-              <div style="font-size: 13px; color: var(--text-secondary); margin-bottom: 8px;">Premium Requests Used</div>
-              <div class="progress-container">
-                <div class="progress-bar">
-                  <div class="progress-fill" id="copilot-usage-progress" style="width: 0%;"></div>
-                </div>
-                <div class="progress-labels">
-                  <span class="budget-amount" id="copilot-usage-percent">0% used</span>
-                  <span class="budget-total" id="copilot-days-remaining">-- days until reset</span>
-                </div>
-              </div>
-              <div style="font-size: 11px; color: var(--text-secondary); margin-top: 4px;" id="copilot-reset-date">Resets --</div>
-            </div>
-            <!-- Status & Controls -->
-            <div style="display: flex; gap: 12px; flex-wrap: wrap; align-items: center; padding-top: 12px; border-top: 1px solid var(--border);">
-              <span id="copilot-recommendation" class="trend-indicator trend-under"></span>
-              <span id="copilot-reduce-hint" style="font-size: 12px; color: var(--warning); display: none;">Consider reducing usage</span>
-              <span style="color: var(--text-secondary); font-size: 12px;" id="copilot-last-updated">Last updated: --</span>
-              <span style="color: var(--text-secondary); font-size: 11px;" id="copilot-fetch-method"></span>
-              <button onclick="toggleCopilotHistory()" id="copilot-history-toggle" style="margin-left: auto;">Show 24h History</button>
-              <button onclick="refreshCopilot()">Refresh</button>
-            </div>
-            <!-- 24h History Chart (Expandable) -->
-            <div id="copilot-history-container" style="display: none; margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--border);">
-              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-                <h4 style="margin: 0; font-size: 14px; color: var(--text-secondary);">Usage History (Last 24 Hours)</h4>
-                <span style="font-size: 11px; color: var(--text-secondary);" id="copilot-history-info">-- data points</span>
-              </div>
-              <div style="height: 150px; position: relative;">
-                <canvas id="copilot-history-chart"></canvas>
-              </div>
-              <div style="display: flex; justify-content: center; gap: 20px; margin-top: 8px; font-size: 11px;">
-                <span><span style="display: inline-block; width: 12px; height: 3px; background: #238636; margin-right: 4px;"></span>Usage %</span>
-              </div>
-            </div>
-            <div id="copilot-error" style="display: none; margin-top: 12px; padding: 8px 12px; background: rgba(255,100,100,0.1); border-radius: 6px; color: #ff6b6b; font-size: 12px;"></div>
-          </div>
-
-          <!-- Other Providers (collapsible) -->
-          <div id="other-providers-section" style="margin-bottom: 30px; display: none;">
-            <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 12px;">
-              <button onclick="toggleOtherProviders()" id="other-providers-toggle" style="padding: 6px 12px; font-size: 13px;">
-                <span id="other-providers-arrow">&#9654;</span> Other API Providers
-              </button>
-              <span style="font-size: 12px; color: var(--text-secondary);" id="other-providers-summary"></span>
-            </div>
-            <div id="providers-grid" class="budget-grid" style="display: none;"></div>
+          <!-- Pay-per-use APIs Section -->
+          <div id="apis-section" style="margin-bottom: 30px; display: none;">
+            <h2 style="margin-bottom: 16px; font-size: 20px; color: var(--text-primary);">Pay-per-use APIs</h2>
+            <div id="apis-grid" class="budget-grid"></div>
           </div>
 
           <!-- Spending Trends (collapsible) -->
@@ -3438,9 +3335,8 @@ function initKeyboardShortcuts() {
 // Quick status bar
 async function loadQuickStatus() {
   try {
-    const [claudeRes, copilotRes, orchRes] = await Promise.all([
-      fetch(API_BASE + '/claude-max/usage').then(r => r.json()).catch(() => null),
-      fetch(API_BASE + '/copilot/usage').then(r => r.json()).catch(() => null),
+    const [budgetRes, orchRes] = await Promise.all([
+      fetch(API_BASE + '/budget/dashboard').then(r => r.json()).catch(() => null),
       fetch(API_BASE + '/orchestration/status').then(r => r.json()).catch(() => null),
     ]);
 
@@ -3450,18 +3346,48 @@ async function loadQuickStatus() {
       tierEl.className = 'status-item tier-' + orchRes.data.currentTier;
     }
 
+    // Find most critical subscription
     const claudeEl = document.getElementById('qs-claude');
-    if (claudeRes?.success && claudeRes.data?.allModels) {
-      const pct = claudeRes.data.allModels.percentUsed || 0;
-      claudeEl.textContent = 'Claude: ' + pct.toFixed(0) + '%';
-      claudeEl.className = 'status-item ' + (pct >= 90 ? 'status-critical' : pct >= 70 ? 'status-warning' : 'status-ok');
+    if (budgetRes?.success && budgetRes.data?.subscriptions) {
+      const subscriptions = budgetRes.data.subscriptions;
+      if (subscriptions.length > 0) {
+        // Find subscription with highest usage (most critical)
+        const criticalSub = subscriptions.reduce(function(max, s) {
+          const usedPct = 100 - (s.remaining_pct || 0);
+          const maxUsedPct = 100 - (max.remaining_pct || 0);
+          return usedPct > maxUsedPct ? s : max;
+        }, subscriptions[0]);
+
+        const usedPct = 100 - (criticalSub.remaining_pct || 0);
+        claudeEl.textContent = criticalSub.provider + ': ' + usedPct.toFixed(0) + '%';
+        claudeEl.className = 'status-item ' + (usedPct >= 90 ? 'status-critical' : usedPct >= 70 ? 'status-warning' : 'status-ok');
+      } else {
+        claudeEl.textContent = 'Subs: --';
+        claudeEl.className = 'status-item';
+      }
     }
 
+    // Find most critical API
     const copilotEl = document.getElementById('qs-copilot');
-    if (copilotRes?.success && copilotRes.data) {
-      const pct = copilotRes.data.percentUsed || 0;
-      copilotEl.textContent = 'Copilot: ' + pct.toFixed(0) + '%';
-      copilotEl.className = 'status-item ' + (pct >= 90 ? 'status-critical' : pct >= 70 ? 'status-warning' : 'status-ok');
+    if (budgetRes?.success && budgetRes.data?.apis) {
+      const apis = budgetRes.data.apis;
+      if (apis.length > 0) {
+        // Find API with highest spending
+        const criticalApi = apis.reduce(function(max, a) {
+          const details = a.details || {};
+          const used = details.used || 0;
+          const maxUsed = (max.details || {}).used || 0;
+          return used > maxUsed ? a : max;
+        }, apis[0]);
+
+        const details = criticalApi.details || {};
+        const used = details.used || 0;
+        copilotEl.textContent = criticalApi.provider + ': $' + used.toFixed(2);
+        copilotEl.className = 'status-item ' + (criticalApi.severity === 'critical' ? 'status-critical' : criticalApi.severity === 'warn' ? 'status-warning' : 'status-ok');
+      } else {
+        copilotEl.textContent = 'APIs: --';
+        copilotEl.className = 'status-item';
+      }
     }
   } catch (err) {
     console.error('Quick status error:', err);
@@ -3486,11 +3412,10 @@ async function loadDashboard() {
     document.getElementById('enabled-content').style.display = 'block';
 
     renderGlobalSummary(data);
-    renderProviders(data.providers);
+    renderSubscriptions(data.subscriptions);
+    renderApis(data.apis);
     renderOverrideStatus(data.override);
     await loadAndRenderChart();
-    await loadClaudeMaxUsage();
-    await loadCopilotUsage();
   } catch (err) {
     console.error('Dashboard load error:', err);
     document.getElementById('loading').textContent = 'Error loading dashboard';
@@ -3581,6 +3506,83 @@ function renderProviders(providers) {
       '<span>' + p.percentage.toFixed(1) + '% used</span>' +
       '<span>' + p.daysRemaining + ' days left</span>' +
       '<span class="trend-indicator ' + trendClass + '">' + trendIcon + ' ' + p.trend.replace('-', ' ') + '</span>' +
+      '</div>' +
+      '</div>';
+  }).join('');
+}
+
+function renderSubscriptions(subscriptions) {
+  const section = document.getElementById('subscriptions-section');
+  const container = document.getElementById('subscriptions-grid');
+
+  if (!subscriptions || subscriptions.length === 0) {
+    section.style.display = 'none';
+    return;
+  }
+
+  section.style.display = 'block';
+
+  container.innerHTML = subscriptions.map(function(s) {
+    const progressClass = s.severity === 'ok' ? 'green' : s.severity === 'warn' ? 'yellow' : 'red';
+    const metricLabel = s.metric_label || 'Usage';
+    const remainingPct = s.remaining_pct || 0;
+    const usedPct = 100 - remainingPct;
+    const details = s.details || {};
+
+    return '<div class="budget-card">' +
+      '<h3 style="display: flex; align-items: center;">' + s.provider +
+      '<span class="tier-badge tier-' + s.severity + '" style="margin-left: 8px;">' + s.severity.toUpperCase() + '</span>' +
+      '</h3>' +
+      '<div class="progress-container">' +
+      '<div class="progress-bar">' +
+      '<div class="progress-fill ' + progressClass + '" style="width: ' + Math.min(100, usedPct) + '%"></div>' +
+      '</div>' +
+      '<div class="progress-labels">' +
+      '<span class="budget-amount">' + usedPct.toFixed(0) + '% used</span>' +
+      '<span class="budget-total">' + remainingPct.toFixed(0) + '% remaining</span>' +
+      '</div>' +
+      '</div>' +
+      '<div style="display: flex; gap: 16px; margin-top: 12px; font-size: 13px; color: var(--text-secondary);">' +
+      '<span>' + metricLabel + ': ' + (details.used || 0) + ' / ' + (details.total || 0) + ' ' + (details.unit || '') + '</span>' +
+      '</div>' +
+      '</div>';
+  }).join('');
+}
+
+function renderApis(apis) {
+  const section = document.getElementById('apis-section');
+  const container = document.getElementById('apis-grid');
+
+  if (!apis || apis.length === 0) {
+    section.style.display = 'none';
+    return;
+  }
+
+  section.style.display = 'block';
+
+  container.innerHTML = apis.map(function(a) {
+    const progressClass = a.severity === 'ok' ? 'green' : a.severity === 'warn' ? 'yellow' : 'red';
+    const metricLabel = a.metric_label || 'Cost';
+    const details = a.details || {};
+    const used = details.used || 0;
+    const total = details.total || 0;
+    const percentage = total > 0 ? (used / total) * 100 : 0;
+
+    return '<div class="budget-card">' +
+      '<h3 style="display: flex; align-items: center;">' + a.provider +
+      '<span class="tier-badge tier-' + a.severity + '" style="margin-left: 8px;">' + a.severity.toUpperCase() + '</span>' +
+      '</h3>' +
+      '<div class="progress-container">' +
+      '<div class="progress-bar">' +
+      '<div class="progress-fill ' + progressClass + '" style="width: ' + Math.min(100, percentage) + '%"></div>' +
+      '</div>' +
+      '<div class="progress-labels">' +
+      '<span class="budget-amount">$' + used.toFixed(2) + ' spent</span>' +
+      '<span class="budget-total">$' + total.toFixed(2) + ' budget</span>' +
+      '</div>' +
+      '</div>' +
+      '<div style="display: flex; gap: 16px; margin-top: 12px; font-size: 13px; color: var(--text-secondary);">' +
+      '<span>' + percentage.toFixed(1) + '% of budget used</span>' +
       '</div>' +
       '</div>';
   }).join('');

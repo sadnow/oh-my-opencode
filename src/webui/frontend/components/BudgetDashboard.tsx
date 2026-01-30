@@ -1,5 +1,19 @@
 import { useState, useEffect } from 'react'
 
+interface BudgetStatus {
+  provider: string
+  type: 'subscription' | 'api'
+  metric_label: string
+  remaining_pct: number
+  severity: 'ok' | 'warn' | 'critical'
+  recommendation?: 'upgrade' | 'downgrade' | 'limit' | 'none'
+  details: {
+    used: number
+    total: number
+    unit: string
+  }
+}
+
 interface BudgetDashboardData {
   success: boolean
   data: {
@@ -28,6 +42,8 @@ interface BudgetDashboardData {
         amount: number
       }>
     }>
+    subscriptions: BudgetStatus[]
+    apis: BudgetStatus[]
     globalTier: string
     override: {
       forcedTier: string | null
@@ -74,8 +90,25 @@ export function BudgetDashboard() {
     return '#28a745'
   }
 
+  const getSeverityColor = (severity: 'ok' | 'warn' | 'critical') => {
+    switch (severity) {
+      case 'critical': return '#dc3545'
+      case 'warn': return '#ffc107'
+      case 'ok': return '#28a745'
+    }
+  }
+
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount)
+  }
+
+  const getProviderDisplayName = (provider: string) => {
+    const names: Record<string, string> = {
+      'claude-max': 'Claude Max',
+      'copilot': 'GitHub Copilot',
+      'opencode-zen': 'OpenCode Zen'
+    }
+    return names[provider] || provider
   }
 
   if (!loading && !error && data && !data.data.enabled) {
@@ -164,108 +197,148 @@ export function BudgetDashboard() {
             </div>
           </div>
 
-          {/* Provider Breakdown */}
-          <h3 style={{ marginTop: '30px', marginBottom: '15px', fontSize: 'var(--font-size-lg)', fontWeight: 'var(--font-weight-semibold)' }}>Provider Breakdown</h3>
-          <div className="responsive-grid" style={{ display: 'grid', gap: '15px' }}>
-            {data.data.providers.map((provider) => (
-              <div
-                key={provider.provider}
-                className="card"
-              >
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', marginBottom: '15px' }}>
-                  <div>
-                    <h4 style={{ margin: 0, fontSize: '18px', fontWeight: 'bold', textTransform: 'capitalize' }}>
-                      {provider.provider}
-                    </h4>
-                    <div style={{ fontSize: '13px', color: 'var(--color-text-secondary)', marginTop: '5px' }}>
-                      <span className="tooltip-trigger" aria-label="Current tier explanation">
-                        Current: <span style={{ fontWeight: 'bold', color: 'var(--color-text-primary)' }}>{data.data.globalTier}</span>
-                        <span className="tooltip-icon">?</span>
-                        <span className="tooltip-content" role="tooltip">
-                          Your current subscription tier
-                        </span>
-                      </span>
-                      {provider.recommendedTier !== data.data.globalTier && (
-                        <>
-                          {' → '}
-                          <span className="tooltip-trigger" aria-label="Recommended tier explanation">
-                            Recommended: <span style={{ fontWeight: 'bold', color: 'var(--color-accent)' }}>{provider.recommendedTier}</span>
-                            <span className="tooltip-icon">?</span>
-                            <span className="tooltip-content" role="tooltip">
-                              Suggested tier based on your usage
-                            </span>
-                          </span>
-                        </>
-                      )}
+          {/* Subscriptions Section */}
+          {data.data.subscriptions.length > 0 && (
+            <>
+              <h3 style={{ marginTop: '30px', marginBottom: '15px', fontSize: 'var(--font-size-lg)', fontWeight: 'var(--font-weight-semibold)' }}>
+                Subscriptions
+              </h3>
+              <div className="responsive-grid" style={{ display: 'grid', gap: '15px' }}>
+                {data.data.subscriptions.map((status) => (
+                  <div
+                    key={status.provider}
+                    className="card"
+                  >
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', marginBottom: '15px' }}>
+                      <div>
+                        <h4 style={{ margin: 0, fontSize: '18px', fontWeight: 'bold' }}>
+                          {getProviderDisplayName(status.provider)}
+                        </h4>
+                        <div style={{ fontSize: '13px', color: 'var(--color-text-secondary)', marginTop: '5px' }}>
+                          {status.metric_label}
+                        </div>
+                      </div>
+                      <div className="status-badge" style={{
+                        background: getSeverityColor(status.severity) + '20',
+                        color: getSeverityColor(status.severity)
+                      }}>
+                        {status.remaining_pct.toFixed(0)}%
+                      </div>
                     </div>
-                  </div>
-                  <div className="status-badge" style={{
-                    background: getUsageColor(provider.percentage) + '20',
-                    color: getUsageColor(provider.percentage)
-                  }}>
-                    {provider.percentage.toFixed(1)}%
-                  </div>
-                </div>
 
-                <div style={{ marginBottom: '10px' }}>
-                  <div className="progress-bar">
-                    <div className="progress-bar-fill" style={{
-                      width: `${Math.min(provider.percentage, 100)}%`,
-                      background: getUsageColor(provider.percentage)
-                    }} />
-                  </div>
-                </div>
+                    <div style={{ marginBottom: '10px' }}>
+                      <div className="progress-bar">
+                        <div className="progress-bar-fill" style={{
+                          width: `${status.remaining_pct}%`,
+                          background: getSeverityColor(status.severity)
+                        }} />
+                      </div>
+                    </div>
 
-                <div className="grid-3col" style={{ display: 'grid', gap: '15px', fontSize: '13px' }}>
-                  <div>
-                    <div style={{ color: 'var(--color-text-secondary)' }}>
-                      <span className="tooltip-trigger" aria-label="Spent explanation">
-                        Spent
-                        <span className="tooltip-icon">?</span>
-                        <span className="tooltip-content" role="tooltip">
-                          Total amount spent this period
-                        </span>
-                      </span>
-                    </div>
-                    <div style={{ fontWeight: 'bold', color: 'var(--color-text-primary)', marginTop: '3px' }}>
-                      {formatCurrency(provider.used)}
-                    </div>
-                  </div>
-                  <div>
-                    <div style={{ color: 'var(--color-text-secondary)' }}>
-                      <span className="tooltip-trigger" aria-label="Budget explanation">
-                        Budget
-                        <span className="tooltip-icon">?</span>
-                        <span className="tooltip-content" role="tooltip">
-                          Your spending limit for this period
-                        </span>
-                      </span>
-                    </div>
-                    <div style={{ fontWeight: 'bold', color: 'var(--color-text-primary)', marginTop: '3px' }}>
-                      {formatCurrency(provider.budget)}
+                    <div className="grid-3col" style={{ display: 'grid', gap: '15px', fontSize: '13px' }}>
+                      <div>
+                        <div style={{ color: 'var(--color-text-secondary)' }}>
+                          Used
+                        </div>
+                        <div style={{ fontWeight: 'bold', color: 'var(--color-text-primary)', marginTop: '3px' }}>
+                          {status.details.used} {status.details.unit}
+                        </div>
+                      </div>
+                      <div>
+                        <div style={{ color: 'var(--color-text-secondary)' }}>
+                          Total
+                        </div>
+                        <div style={{ fontWeight: 'bold', color: 'var(--color-text-primary)', marginTop: '3px' }}>
+                          {status.details.total} {status.details.unit}
+                        </div>
+                      </div>
+                      <div>
+                        <div style={{ color: 'var(--color-text-secondary)' }}>
+                          Status
+                        </div>
+                        <div style={{ fontWeight: 'bold', color: getSeverityColor(status.severity), marginTop: '3px', textTransform: 'capitalize' }}>
+                          {status.severity}
+                        </div>
+                      </div>
                     </div>
                   </div>
-                  <div>
-                    <div style={{ color: 'var(--color-text-secondary)' }}>
-                      <span className="tooltip-trigger" aria-label="Trend explanation">
-                        Trend
-                        <span className="tooltip-icon">?</span>
-                        <span className="tooltip-content" role="tooltip">
-                          Spending trend relative to budget
-                        </span>
-                      </span>
-                    </div>
-                    <div style={{ fontWeight: 'bold', color: 'var(--color-text-primary)', marginTop: '3px', textTransform: 'capitalize' }}>
-                      {provider.trend}
-                    </div>
-                  </div>
-                </div>
+                ))}
               </div>
-            ))}
-          </div>
+            </>
+          )}
 
-          {data.data.providers.length === 0 && (
-            <p style={{ color: 'var(--color-text-secondary)', fontStyle: 'italic' }}>No provider data available.</p>
+          {/* Pay-per-use APIs Section */}
+          {data.data.apis.length > 0 && (
+            <>
+              <h3 style={{ marginTop: '30px', marginBottom: '15px', fontSize: 'var(--font-size-lg)', fontWeight: 'var(--font-weight-semibold)' }}>
+                Pay-per-use APIs
+              </h3>
+              <div className="responsive-grid" style={{ display: 'grid', gap: '15px' }}>
+                {data.data.apis.map((status) => (
+                  <div
+                    key={status.provider}
+                    className="card"
+                  >
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', marginBottom: '15px' }}>
+                      <div>
+                        <h4 style={{ margin: 0, fontSize: '18px', fontWeight: 'bold' }}>
+                          {getProviderDisplayName(status.provider)}
+                        </h4>
+                        <div style={{ fontSize: '13px', color: 'var(--color-text-secondary)', marginTop: '5px' }}>
+                          {status.metric_label}
+                        </div>
+                      </div>
+                      <div className="status-badge" style={{
+                        background: getSeverityColor(status.severity) + '20',
+                        color: getSeverityColor(status.severity)
+                      }}>
+                        {status.remaining_pct.toFixed(0)}%
+                      </div>
+                    </div>
+
+                    <div style={{ marginBottom: '10px' }}>
+                      <div className="progress-bar">
+                        <div className="progress-bar-fill" style={{
+                          width: `${status.remaining_pct}%`,
+                          background: getSeverityColor(status.severity)
+                        }} />
+                      </div>
+                    </div>
+
+                    <div className="grid-3col" style={{ display: 'grid', gap: '15px', fontSize: '13px' }}>
+                      <div>
+                        <div style={{ color: 'var(--color-text-secondary)' }}>
+                          Used
+                        </div>
+                        <div style={{ fontWeight: 'bold', color: 'var(--color-text-primary)', marginTop: '3px' }}>
+                          {formatCurrency(status.details.used)}
+                        </div>
+                      </div>
+                      <div>
+                        <div style={{ color: 'var(--color-text-secondary)' }}>
+                          Budget
+                        </div>
+                        <div style={{ fontWeight: 'bold', color: 'var(--color-text-primary)', marginTop: '3px' }}>
+                          {formatCurrency(status.details.total)}
+                        </div>
+                      </div>
+                      <div>
+                        <div style={{ color: 'var(--color-text-secondary)' }}>
+                          Status
+                        </div>
+                        <div style={{ fontWeight: 'bold', color: getSeverityColor(status.severity), marginTop: '3px', textTransform: 'capitalize' }}>
+                          {status.severity}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
+
+          {data.data.subscriptions.length === 0 && data.data.apis.length === 0 && (
+            <p style={{ color: 'var(--color-text-secondary)', fontStyle: 'italic' }}>No budget data available.</p>
           )}
         </>
       )}
