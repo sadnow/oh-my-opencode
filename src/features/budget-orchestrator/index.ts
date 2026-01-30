@@ -15,6 +15,7 @@ import type {
   TierChangeResult,
   TierChangeDirection,
   AdaptiveBudgetSummary,
+  BudgetStatus,
 } from "./types"
 import type { UsageTracker, ProviderUsageSummary } from "../usage-tracker"
 import type { ClaudeMaxUsageTracker } from "../claude-max-usage"
@@ -29,6 +30,8 @@ import {
 } from "./algorithm"
 import { formatModelRef, parseModelRef, getModelTier, TIER_ORDER, findUpgradedModel, findDowngradedModel } from "./tiers"
 import { AdaptiveBudgetManager, type AdaptiveBudgetConfig } from "./adaptive-budget"
+import { SubscriptionBudgetManager } from "./subscription-manager"
+import { APIBudgetManager } from "./api-manager"
 import { BudgetOverrideManager, getOverrideManager } from "./override"
 import { GlobalOverrideManager, getGlobalOverrideManager, type UseCase } from "./global-override"
 import { getRoutingLogger } from "./routing-logger"
@@ -49,6 +52,10 @@ export class BudgetOrchestrator {
   
   // Global override manager for provider-level control
   private globalOverrideManager: GlobalOverrideManager
+
+  // Subscription and API budget managers
+  private subscriptionManager: SubscriptionBudgetManager
+  private apiManager: APIBudgetManager
 
   // Track current session for learning
   private currentSessionStart: number | null = null
@@ -109,6 +116,18 @@ export class BudgetOrchestrator {
     
     // Initialize global override manager
     this.globalOverrideManager = getGlobalOverrideManager()
+
+    // Initialize managers
+    this.subscriptionManager = new SubscriptionBudgetManager(
+      subscriptionTrackers?.claudeMaxTracker,
+      subscriptionTrackers?.copilotTracker,
+      migratedConfig.quota_targets
+    )
+
+    this.apiManager = new APIBudgetManager(
+      usageTracker,
+      migratedConfig.apis
+    )
 
     // Initialize adaptive budget managers for each provider
     for (const [provider, budget] of Object.entries(this.config.providerBudgets)) {
@@ -784,6 +803,16 @@ export class BudgetOrchestrator {
     }
 
     return messages
+  }
+
+  /**
+   * Get all budget statuses (subscriptions + APIs)
+   */
+  getAllBudgetStatuses(): BudgetStatus[] {
+    return [
+      ...this.subscriptionManager.getStatuses(),
+      ...this.apiManager.getStatuses()
+    ]
   }
 
   /**

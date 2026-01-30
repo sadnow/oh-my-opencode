@@ -20,7 +20,8 @@ describe("BudgetOrchestrator", () => {
         enabled: true,
         provider_budgets: {
           anthropic: 20,
-          openai: 50,
+          "github-copilot": 10,
+          opencode: 20,
         },
         target_percentage: 0.7,
         auto_downgrade: true,
@@ -29,7 +30,7 @@ describe("BudgetOrchestrator", () => {
         routing_log_persist: false,
       },
       usageTracker,
-      ["anthropic", "openai"],
+      ["anthropic", "openai", "opencode"],
       undefined // No subscription trackers in test
     )
   })
@@ -108,6 +109,59 @@ describe("BudgetOrchestrator", () => {
     it("should return status messages for tracked providers", () => {
       const messages = orchestrator.getBudgetStatusMessages()
       expect(typeof messages).toBe("object")
+    })
+  })
+
+  describe("getAllBudgetStatuses", () => {
+    it("should return combined statuses from both managers", () => {
+      // Mock trackers to ensure statuses are returned
+      const mockClaudeMaxTracker = {
+        getData: () => ({
+          allModels: { percentUsed: 50 },
+          error: null
+        })
+      }
+      const mockCopilotTracker = {
+        getData: () => ({
+          percentUsed: 30,
+          premiumRequestsUsed: 300,
+          premiumRequestsLimit: 1000,
+          error: null
+        })
+      }
+
+      const orchestratorWithTrackers = new BudgetOrchestrator(
+        {
+          enabled: true,
+          provider_budgets: {
+            anthropic: 20,
+            "github-copilot": 10,
+            opencode: 20,
+          },
+          target_percentage: 0.7,
+          auto_downgrade: true,
+          min_tier: "budget",
+          auto_upgrade: true,
+          routing_log_persist: false,
+        },
+        usageTracker,
+        ["anthropic", "openai", "opencode"],
+        {
+          claudeMaxTracker: mockClaudeMaxTracker as any,
+          copilotTracker: mockCopilotTracker as any
+        }
+      )
+
+      const statuses = orchestratorWithTrackers.getAllBudgetStatuses()
+      
+      expect(statuses.length).toBeGreaterThan(0)
+      expect(statuses.some(s => s.type === "subscription")).toBe(true)
+      expect(statuses.some(s => s.type === "api")).toBe(true)
+      
+      // Verify specific providers
+      expect(statuses.some(s => s.provider === "claude-max")).toBe(true)
+      expect(statuses.some(s => s.provider === "copilot")).toBe(true)
+      expect(statuses.some(s => s.provider === "opencode-zen")).toBe(true)
     })
   })
 
