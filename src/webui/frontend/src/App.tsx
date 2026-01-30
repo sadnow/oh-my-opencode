@@ -3,86 +3,119 @@ import { PresetComparison } from '../components/PresetComparison'
 import { ExportButton } from '../components/ExportButton'
 import { RoutingLogsViewer } from '../components/RoutingLogsViewer'
 import { BudgetDashboard } from '../components/BudgetDashboard'
+import { ClaudeMaxUsage } from '../components/ClaudeMaxUsage'
+import { CopilotUsage } from '../components/CopilotUsage'
 
-type TabType = 'presets' | 'routing' | 'budget' | 'export'
+type TabType = 'presets' | 'routing' | 'budget' | 'usage' | 'export'
 
 function App() {
   const [activeTab, setActiveTab] = useState<TabType>('presets')
-  
-  const tabStyle = (tab: TabType) => ({
-    padding: '10px 20px',
-    border: 'none',
-    background: activeTab === tab ? '#0066cc' : '#f0f0f0',
-    color: activeTab === tab ? 'white' : '#333',
-    cursor: 'pointer',
-    marginRight: '5px',
-    borderRadius: '4px 4px 0 0',
-    fontWeight: activeTab === tab ? 'bold' : 'normal',
-  })
-  
+
   return (
-    <div style={{ padding: '20px', fontFamily: 'system-ui, -apple-system, sans-serif' }}>
-      <header>
-        <h1 style={{ margin: 0, color: '#333' }}>oh-im-broke Dashboard</h1>
-        <p style={{ color: '#666', marginTop: '5px' }}>Budget-conscious AI orchestration</p>
-        <nav style={{ marginTop: '20px', borderBottom: '2px solid #0066cc' }}>
-          <button onClick={() => setActiveTab('presets')} style={tabStyle('presets')}>
-            Presets
-          </button>
-          <button onClick={() => setActiveTab('routing')} style={tabStyle('routing')}>
-            Routing Logs
-          </button>
-          <button onClick={() => setActiveTab('budget')} style={tabStyle('budget')}>
-            Budget
-          </button>
-          <button onClick={() => setActiveTab('export')} style={tabStyle('export')}>
-            Export
-          </button>
-        </nav>
+    <div style={{ padding: '20px', fontFamily: 'var(--font-family)', minHeight: '100vh', background: 'var(--color-bg-secondary)' }}>
+      <header className="header">
+        <h1>oh-im-broke Dashboard</h1>
+        <p>Budget-conscious AI orchestration</p>
       </header>
-      
-      <main style={{ marginTop: '30px' }}>
+
+      <nav className="nav-tabs" style={{ marginBottom: '30px' }}>
+        <button
+          className={activeTab === 'presets' ? 'active' : ''}
+          onClick={() => setActiveTab('presets')}
+        >
+          Presets
+        </button>
+        <button
+          className={activeTab === 'routing' ? 'active' : ''}
+          onClick={() => setActiveTab('routing')}
+        >
+          Routing Logs
+        </button>
+        <button
+          className={activeTab === 'budget' ? 'active' : ''}
+          onClick={() => setActiveTab('budget')}
+        >
+          Budget
+        </button>
+        <button
+          className={activeTab === 'usage' ? 'active' : ''}
+          onClick={() => setActiveTab('usage')}
+        >
+          Usage
+        </button>
+        <button
+          className={activeTab === 'export' ? 'active' : ''}
+          onClick={() => setActiveTab('export')}
+        >
+          Export
+        </button>
+      </nav>
+
+      <main>
         {activeTab === 'presets' && (
           <div>
             <PresetComparison />
           </div>
         )}
-        
+
         {activeTab === 'routing' && (
           <div>
-            <h2>Routing Logs</h2>
-            <p style={{ color: '#666' }}>Model selection decisions and tier changes</p>
+            <h2 style={{ fontSize: 'var(--font-size-xl)', fontWeight: 'var(--font-weight-bold)', marginBottom: 'var(--space-sm)' }}>
+              Routing Logs
+            </h2>
+            <p style={{ color: 'var(--color-text-secondary)', marginBottom: 'var(--space-lg)' }}>
+              Model selection decisions and tier changes
+            </p>
             <RoutingLogsViewer />
           </div>
         )}
-        
+
         {activeTab === 'budget' && (
           <BudgetDashboard />
         )}
-        
+
+        {activeTab === 'usage' && (
+          <div>
+            <h2 style={{ fontSize: 'var(--font-size-xl)', fontWeight: 'var(--font-weight-bold)', marginBottom: 'var(--space-sm)' }}>
+              Usage Tracking
+            </h2>
+            <p style={{ color: 'var(--color-text-secondary)', marginBottom: 'var(--space-lg)' }}>
+              Real-time Claude Max and Copilot usage
+            </p>
+            <div style={{ display: 'grid', gap: '20px' }}>
+              <ClaudeMaxUsage />
+              <CopilotUsage />
+            </div>
+          </div>
+        )}
+
         {activeTab === 'export' && (
           <div>
-            <h2>Export Data</h2>
-            <p style={{ color: '#666' }}>Download usage, config, and logs</p>
-            <div style={{ display: 'flex', gap: '10px', marginTop: '20px', flexWrap: 'wrap' }}>
-              <ExportButton 
-                endpoint="/api/export/usage" 
-                label="Export Usage" 
+            <h2 style={{ fontSize: 'var(--font-size-xl)', fontWeight: 'var(--font-weight-bold)', marginBottom: 'var(--space-sm)' }}>
+              Export Data
+            </h2>
+            <p style={{ color: 'var(--color-text-secondary)', marginBottom: 'var(--space-lg)' }}>
+              Download usage, config, and logs
+            </p>
+            <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+              <ExportButton
+                endpoint="/api/export/usage"
+                label="Export Usage"
                 filename="usage-export"
               />
-              <ExportButton 
-                endpoint="/api/export/config" 
-                label="Export Config" 
+              <ExportButton
+                endpoint="/api/export/config"
+                label="Export Config"
                 filename="config-export"
               />
-              <ExportButton 
-                endpoint="/api/export/presets" 
-                label="Export Presets" 
+              <ExportButton
+                endpoint="/api/export/presets"
+                label="Export Presets"
                 filename="presets-export"
               />
-              <ExportButton 
-                endpoint="/api/export/routing-logs" 
-                label="Export Routing Logs" 
+              <ExportButton
+                endpoint="/api/export/routing-logs"
+                label="Export Routing Logs"
                 filename="routing-logs-export"
               />
             </div>

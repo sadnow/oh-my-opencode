@@ -30,7 +30,8 @@
     "postinstall": "node postinstall.mjs",
     "prepublishOnly": "bun run clean && bun run build",
     "typecheck": "tsc --noEmit",
-    "test": "bun test"
+    "test": "bun test",
+    "webui": "bun run fork/start-webui.ts"
   },
   "keywords": [
     "opencode",

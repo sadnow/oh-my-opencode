@@ -2,71 +2,68 @@ export const OIB_WEBUI_TEMPLATE = `You are launching the oh-im-broke WebUI dashb
 
 ## WHAT TO DO
 
-1. **Start the WebUI server**:
-   - Import and call \`startWebUI\` from \`src/webui\`
-   - Default port: 3847
-   - Server serves React app from \`dist/webui/\` or embedded fallback
+1. **Check if server is running**:
+   - Use bash tool: \`curl -s http://localhost:3847 --max-time 2\`
+   - If it succeeds (exit code 0), server is running.
+   - If it fails, server is NOT running.
 
-2. **Open default browser**:
-   - Use Node.js \`child_process.exec\` to open browser
-   - Platform-specific commands:
-     - Windows: \`start http://localhost:3847\`
+2. **If NOT running - START IT AUTOMATICALLY**:
+   - Show message: "🔄 Starting WebUI server..."
+   - Use bash tool to start server in background:
+     - Windows (Git Bash/MINGW): \`cd /c/000DEV/oh-my-opencode-fork && nohup bun run webui > /dev/null 2>&1 &\`
+     - macOS/Linux: \`cd ~/path/to/project && nohup bun run webui > /dev/null 2>&1 &\`
+   - Wait for server to be ready (poll every 2 seconds, max 10 attempts):
+     \`\`\`bash
+     curl -s http://localhost:3847 --max-time 2
+     \`\`\`
+   - Once ready, proceed to step 3.
+   - If not ready after 20 seconds, show error message with server logs.
+
+3. **Open browser**:
+   - Use bash tool to open default browser:
+     - Windows (Git Bash/MINGW): \`cmd.exe /c start http://localhost:3847\`
      - macOS: \`open http://localhost:3847\`
      - Linux: \`xdg-open http://localhost:3847\`
-   - Use \`process.platform\` to detect OS
+   - Detect OS from \`uname -s\` output (MINGW = Windows)
+   - Return a success message.
 
-3. **Handle errors**:
-   - If server already running on port: inform user and provide URL
-   - If browser fails to open: provide manual URL
-   - If server fails to start: show error with troubleshooting
+## OUTPUT FORMAT (Server was already running)
 
-## IMPLEMENTATION GUIDE
-
-Use the following approach:
-
-1. Import \`startWebUI\` from \`src/webui/index.ts\`
-2. Import \`exec\` from Node's \`child_process\` module
-3. Call \`await startWebUI({ port: 3847 })\` to start server
-4. Detect platform using \`process.platform\`
-5. Build cross-platform open command:
-   - Windows: \`start http://localhost:3847\`
-   - macOS: \`open http://localhost:3847\`  
-   - Linux: \`xdg-open http://localhost:3847\`
-6. Execute the command with \`exec()\`
-7. Handle errors gracefully (port in use, browser fails to open)
-8. Return success message with URL
-
-## OUTPUT FORMAT
-
-Success:
-\`\`\`
 🚀 oh-im-broke WebUI Dashboard
 
-✅ Server started on port 3847
+✅ Server is running on port 3847
 🌐 Opening browser at http://localhost:3847
 
 Dashboard features:
 - Preset comparison with cost estimates
 - Budget health indicators
-- Routing logs and audit trail
+- Routing logs and audit trail  
 - Export data (CSV/JSON)
-- Progressive disclosure (beginner/power-user modes)
+- Usage tracking (Claude Max & Copilot)
 
-Press Ctrl+C to stop the server.
-\`\`\`
+To stop the server, use: /oib-webui-stop
 
-Already running:
-\`\`\`
-ℹ️  WebUI server is already running
+## OUTPUT FORMAT (Server was started)
 
-Visit: http://localhost:3847
+🚀 oh-im-broke WebUI Dashboard
 
-To restart, stop the existing server first.
-\`\`\`
+🔄 Server was not running - starting it now...
+✅ Server started successfully on port 3847
+🌐 Opening browser at http://localhost:3847
+
+Dashboard features:
+- Preset comparison with cost estimates
+- Budget health indicators
+- Routing logs and audit trail  
+- Export data (CSV/JSON)
+- Usage tracking (Claude Max & Copilot)
+
+To stop the server, use: /oib-webui-stop
 
 ## IMPORTANT
 
-- Server runs in foreground - user must keep terminal open
-- Provide clear instructions for stopping (Ctrl+C)
-- If browser doesn't open automatically, show manual URL
-- Server serves both React app and API endpoints`
+- ALWAYS try to start the server automatically if not running.
+- Use bash tool with \`start /B\` on Windows to run in background.
+- Poll the server endpoint to confirm it's ready before opening browser.
+- Provide clear feedback at each step.
+- Confirm the port number (3847).`
