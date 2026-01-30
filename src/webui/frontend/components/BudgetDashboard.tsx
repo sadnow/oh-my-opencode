@@ -198,13 +198,13 @@ export function BudgetDashboard() {
           </div>
 
           {/* Subscriptions Section */}
-          {data.data.subscriptions.length > 0 && (
+          {(data.data.subscriptions?.length ?? 0) > 0 && (
             <>
               <h3 style={{ marginTop: '30px', marginBottom: '15px', fontSize: 'var(--font-size-lg)', fontWeight: 'var(--font-weight-semibold)' }}>
                 Subscriptions
               </h3>
               <div className="responsive-grid" style={{ display: 'grid', gap: '15px' }}>
-                {data.data.subscriptions.map((status) => (
+                {(data.data.subscriptions ?? []).map((status) => (
                   <div
                     key={status.provider}
                     className="card"
@@ -268,13 +268,13 @@ export function BudgetDashboard() {
           )}
 
           {/* Pay-per-use APIs Section */}
-          {data.data.apis.length > 0 && (
+          {(data.data.apis?.length ?? 0) > 0 && (
             <>
               <h3 style={{ marginTop: '30px', marginBottom: '15px', fontSize: 'var(--font-size-lg)', fontWeight: 'var(--font-weight-semibold)' }}>
                 Pay-per-use APIs
               </h3>
               <div className="responsive-grid" style={{ display: 'grid', gap: '15px' }}>
-                {data.data.apis.map((status) => (
+                {(data.data.apis ?? []).map((status) => (
                   <div
                     key={status.provider}
                     className="card"
@@ -337,7 +337,7 @@ export function BudgetDashboard() {
             </>
           )}
 
-          {data.data.subscriptions.length === 0 && data.data.apis.length === 0 && (
+          {(data.data.subscriptions?.length ?? 0) === 0 && (data.data.apis?.length ?? 0) === 0 && (
             <p style={{ color: 'var(--color-text-secondary)', fontStyle: 'italic' }}>No budget data available.</p>
           )}
         </>
