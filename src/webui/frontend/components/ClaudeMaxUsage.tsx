@@ -145,10 +145,33 @@ export function ClaudeMaxUsage() {
 
       {!loading && !error && data && (
         <>
+          {/* Current Session */}
+          <div style={{ marginBottom: '20px' }}>
+            <div style={{ fontSize: '13px', color: 'var(--color-text-secondary)', marginBottom: '8px' }}>
+              Current Session (5 hours) • Resets {data.data.formatted.currentSessionReset}
+            </div>
+            <div style={{
+              height: '8px',
+              background: 'var(--color-bg-tertiary)',
+              borderRadius: '4px',
+              overflow: 'hidden'
+            }}>
+              <div style={{
+                height: '100%',
+                width: `${Math.min(data.data.currentSession.percentUsed, 100)}%`,
+                background: getUsageColor(data.data.currentSession.percentUsed),
+                transition: 'width 0.3s ease'
+              }} />
+            </div>
+            <div style={{ fontSize: '18px', fontWeight: 'bold', color: getUsageColor(data.data.currentSession.percentUsed), marginTop: '8px' }}>
+              {data.data.currentSession.percentUsed.toFixed(1)}% used
+            </div>
+          </div>
+
           {/* Weekly All Models */}
           <div style={{ marginBottom: '20px' }}>
             <div style={{ fontSize: '13px', color: 'var(--color-text-secondary)', marginBottom: '8px' }}>
-              Weekly Usage (All Models) • Resets {data.data.formatted.allModelsReset}
+              Current Week (All Models) • Resets {data.data.formatted.allModelsReset}
             </div>
             <div style={{
               height: '8px',
@@ -171,7 +194,7 @@ export function ClaudeMaxUsage() {
           {/* Sonnet Only */}
           <div style={{ marginBottom: '20px' }}>
             <div style={{ fontSize: '13px', color: 'var(--color-text-secondary)', marginBottom: '8px' }}>
-              Weekly Sonnet Only • Resets {data.data.formatted.sonnetOnlyReset}
+              Current Week (Sonnet Only) • Resets {data.data.formatted.sonnetOnlyReset}
             </div>
             <div style={{
               height: '8px',
@@ -188,29 +211,6 @@ export function ClaudeMaxUsage() {
             </div>
             <div style={{ fontSize: '18px', fontWeight: 'bold', color: getUsageColor(data.data.sonnetOnly.percentUsed), marginTop: '8px' }}>
               {data.data.sonnetOnly.percentUsed.toFixed(1)}% used
-            </div>
-          </div>
-
-          {/* Current Session */}
-          <div style={{ marginBottom: '20px' }}>
-            <div style={{ fontSize: '13px', color: 'var(--color-text-secondary)', marginBottom: '8px' }}>
-              Current Session (5 hours) • Resets {data.data.formatted.currentSessionReset}
-            </div>
-            <div style={{
-              height: '8px',
-              background: 'var(--color-bg-tertiary)',
-              borderRadius: '4px',
-              overflow: 'hidden'
-            }}>
-              <div style={{
-                height: '100%',
-                width: `${Math.min(data.data.currentSession.percentUsed, 100)}%`,
-                background: getUsageColor(data.data.currentSession.percentUsed),
-                transition: 'width 0.3s ease'
-              }} />
-            </div>
-            <div style={{ fontSize: '18px', fontWeight: 'bold', color: getUsageColor(data.data.currentSession.percentUsed), marginTop: '8px' }}>
-              {data.data.currentSession.percentUsed.toFixed(1)}% used
             </div>
           </div>
 
