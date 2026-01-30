@@ -4,13 +4,21 @@ interface CopilotData {
   success: boolean
   error?: string
   data: {
-    usage: {
-      requests_this_month: number
-      monthly_limit: number
-      usage_percentage: number
-      reset_date: string
-      estimated_cost: number
+    percentUsed: number
+    premiumRequestsUsed: number
+    premiumRequestsLimit: number
+    resetDate: string
+    daysUntilReset: number
+    plan: string
+    copilotPlan: string
+    isOverLimit: boolean
+    lastUpdated: string
+    fetchMethod: string
+    formatted: {
+      resetDate: string
     }
+    recommendation: string
+    shouldReduceUsage: boolean
   }
 }
 
@@ -50,48 +58,21 @@ export function CopilotUsage() {
     return '#28a745'
   }
 
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount)
-  }
-
-  const formatResetDate = (dateString: string) => {
-    const date = new Date(dateString)
-    const now = new Date()
-    const diffDays = Math.ceil((date.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
-
-    if (diffDays < 0) return 'Resets today'
-    if (diffDays === 0) return 'Resets today'
-    if (diffDays === 1) return 'Resets tomorrow'
-    if (diffDays <= 7) return `Resets in ${diffDays} days`
-
-    return `Resets ${date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`
-  }
-
   return (
     <div style={{
       padding: '20px',
-      background: 'white',
+      background: 'var(--color-bg-primary)',
       borderRadius: '8px',
-      border: '1px solid #dee2e6',
-      boxShadow: '0 1px 3px rgba(0,0,0,0.1)'
+      border: '1px solid var(--color-border)',
+      boxShadow: '0 1px 3px var(--color-shadow)'
     }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', marginBottom: '15px' }}>
         <div>
-          <h3 style={{ margin: 0, fontSize: '20px', fontWeight: 'bold', color: '#333' }}>
-            Copilot Monthly Usage
+          <h3 style={{ margin: 0, fontSize: '20px', fontWeight: 'bold', color: 'var(--color-text-primary)' }}>
+            GitHub Copilot Monthly Usage
           </h3>
-          <div style={{ fontSize: '12px', color: '#666', fontStyle: 'italic', marginTop: '5px' }}>
-            {data ? (
-              <span className="tooltip-trigger" aria-label="Monthly reset explanation">
-                {formatResetDate(data.data.usage.reset_date)}
-                <span className="tooltip-icon">?</span>
-                <span className="tooltip-content" role="tooltip">
-                  Monthly limit resets on the 1st
-                </span>
-              </span>
-            ) : (
-              'Loading...'
-            )}
+          <div style={{ fontSize: '12px', color: 'var(--color-text-secondary)', fontStyle: 'italic', marginTop: '5px' }}>
+            Real-time from GitHub API
           </div>
         </div>
         <button
@@ -99,7 +80,7 @@ export function CopilotUsage() {
           disabled={loading}
           style={{
             padding: '6px 12px',
-            background: '#0066cc',
+            background: 'var(--color-accent)',
             color: 'white',
             border: 'none',
             borderRadius: '4px',
@@ -113,32 +94,32 @@ export function CopilotUsage() {
         </button>
       </div>
 
-      {loading && <p style={{ color: '#666' }}>Loading Copilot usage...</p>}
+      {loading && <p style={{ color: 'var(--color-text-secondary)' }}>Loading Copilot usage...</p>}
 
       {error && (
         <div style={{
           padding: '20px',
-          background: '#f8f9fa',
-          border: '2px solid #17a2b8',
-          borderRadius: '8px',
+          background: 'var(--color-bg-tertiary)',
+          border: '2px solid var(--color-info)',
+          borderRadius: 'var(--border-radius-md)',
           marginBottom: '15px'
         }}>
           <div style={{ display: 'flex', alignItems: 'start', gap: '12px' }}>
             <span style={{ fontSize: '24px' }}>ℹ️</span>
             <div>
-              <h4 style={{ margin: '0 0 8px 0', color: '#333' }}>
+              <h4 style={{ margin: '0 0 8px 0', color: 'var(--color-text-primary)' }}>
                 Copilot Tracking Not Available
               </h4>
-              <p style={{ margin: '0 0 12px 0', color: '#666', fontSize: '14px' }}>
-                This feature requires GitHub Copilot usage tracking to be configured.
+              <p style={{ margin: '0 0 12px 0', color: 'var(--color-text-secondary)', fontSize: '14px' }}>
+                {error}
               </p>
-              <details style={{ fontSize: '13px', color: '#666' }}>
+              <details style={{ fontSize: '13px', color: 'var(--color-text-secondary)' }}>
                 <summary style={{ cursor: 'pointer', marginBottom: '8px', fontWeight: '500' }}>
                   How to enable
                 </summary>
                 <ol style={{ margin: '8px 0 0 0', paddingLeft: '20px', lineHeight: '1.6' }}>
-                  <li>Configure <code>copilotTracker</code> in your oh-im-broke config</li>
-                  <li>Provide your GitHub Copilot credentials</li>
+                  <li>Run: <code>gh auth login</code></li>
+                  <li>Ensure you have GitHub Copilot Pro subscription</li>
                   <li>Restart the WebUI server</li>
                 </ol>
               </details>
@@ -149,79 +130,61 @@ export function CopilotUsage() {
 
       {!loading && !error && data && (
         <>
-          <div style={{ marginBottom: '15px' }}>
+          <div style={{ marginBottom: '20px' }}>
+            <div style={{ fontSize: '13px', color: 'var(--color-text-secondary)', marginBottom: '8px' }}>
+              Premium Requests • Resets {data.data.formatted.resetDate} ({data.data.daysUntilReset} days)
+            </div>
             <div style={{
               height: '8px',
-              background: '#e9ecef',
+              background: 'var(--color-bg-tertiary)',
               borderRadius: '4px',
               overflow: 'hidden'
             }}>
               <div style={{
                 height: '100%',
-                width: `${Math.min(data.data.usage.usage_percentage, 100)}%`,
-                background: getUsageColor(data.data.usage.usage_percentage),
+                width: `${Math.min(data.data.percentUsed, 100)}%`,
+                background: getUsageColor(data.data.percentUsed),
                 transition: 'width 0.3s ease'
               }} />
             </div>
+            <div style={{ fontSize: '18px', fontWeight: 'bold', color: getUsageColor(data.data.percentUsed), marginTop: '8px' }}>
+              {data.data.percentUsed.toFixed(1)}% used
+            </div>
           </div>
 
-          <div className="grid-2col" style={{ display: 'grid', gap: '15px', fontSize: '14px' }}>
+          <div className="grid-2col" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '15px', fontSize: '14px' }}>
             <div>
-              <div style={{ color: '#666' }}>
-                <span className="tooltip-trigger" aria-label="Requests explanation">
-                  Requests This Month
-                  <span className="tooltip-icon">?</span>
-                  <span className="tooltip-content" role="tooltip">
-                    Total API requests made this month
-                  </span>
-                </span>
-              </div>
-              <div style={{ fontWeight: 'bold', color: '#333', marginTop: '3px' }}>
-                {data.data.usage.requests_this_month.toLocaleString()} / {data.data.usage.monthly_limit.toLocaleString()}
+              <div style={{ color: 'var(--color-text-secondary)' }}>Premium Requests Used</div>
+              <div style={{ fontWeight: 'bold', color: 'var(--color-text-primary)', marginTop: '3px' }}>
+                {data.data.premiumRequestsUsed.toLocaleString()}
               </div>
             </div>
             <div>
-              <div style={{ color: '#666' }}>
-                <span className="tooltip-trigger" aria-label="Usage percentage explanation">
-                  Usage Percentage
-                  <span className="tooltip-icon">?</span>
-                  <span className="tooltip-content" role="tooltip">
-                    Percentage of monthly limit used
-                  </span>
-                </span>
-              </div>
-              <div style={{ fontWeight: 'bold', color: getUsageColor(data.data.usage.usage_percentage), marginTop: '3px' }}>
-                {data.data.usage.usage_percentage.toFixed(1)}%
+              <div style={{ color: 'var(--color-text-secondary)' }}>Monthly Limit</div>
+              <div style={{ fontWeight: 'bold', color: 'var(--color-text-primary)', marginTop: '3px' }}>
+                {data.data.premiumRequestsLimit.toLocaleString()}
               </div>
             </div>
             <div>
-              <div style={{ color: '#666' }}>
-                <span className="tooltip-trigger" aria-label="Estimated cost explanation">
-                  Estimated Cost
-                  <span className="tooltip-icon">?</span>
-                  <span className="tooltip-content" role="tooltip">
-                    Approximate cost based on usage
-                  </span>
-                </span>
-              </div>
-              <div style={{ fontWeight: 'bold', color: '#333', marginTop: '3px' }}>
-                {formatCurrency(data.data.usage.estimated_cost)}
+              <div style={{ color: 'var(--color-text-secondary)' }}>Plan</div>
+              <div style={{ fontWeight: 'bold', color: 'var(--color-text-primary)', marginTop: '3px', textTransform: 'uppercase' }}>
+                {data.data.plan}
               </div>
             </div>
             <div>
-              <div style={{ color: '#666' }}>
-                <span className="tooltip-trigger" aria-label="Monthly limit explanation">
-                  Monthly Limit
-                  <span className="tooltip-icon">?</span>
-                  <span className="tooltip-content" role="tooltip">
-                    Maximum requests allowed per month
-                  </span>
-                </span>
-              </div>
-              <div style={{ fontWeight: 'bold', color: '#333', marginTop: '3px' }}>
-                {data.data.usage.monthly_limit.toLocaleString()} requests
+              <div style={{ color: 'var(--color-text-secondary)' }}>Status</div>
+              <div style={{ 
+                fontWeight: 'bold', 
+                color: data.data.isOverLimit ? '#dc3545' : '#28a745', 
+                marginTop: '3px' 
+              }}>
+                {data.data.isOverLimit ? 'OVER LIMIT' : 'OK'}
               </div>
             </div>
+          </div>
+
+          <div style={{ fontSize: '11px', color: 'var(--color-text-secondary)', marginTop: '12px' }}>
+            Last updated: {new Date(data.data.lastUpdated).toLocaleTimeString()} • Method: {data.data.fetchMethod}
           </div>
         </>
       )}

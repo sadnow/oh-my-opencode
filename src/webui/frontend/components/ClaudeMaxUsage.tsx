@@ -4,13 +4,36 @@ interface ClaudeMaxData {
   success: boolean
   error?: string
   data: {
-    usage: {
-      requests_this_week: number
-      weekly_limit: number
-      usage_percentage: number
-      reset_date: string
-      estimated_cost: number
+    currentSession: {
+      percentUsed: number
+      resetDate: string
     }
+    allModels: {
+      percentUsed: number
+      resetDate: string
+    }
+    sonnetOnly: {
+      percentUsed: number
+      resetDate: string
+    }
+    opusOnly: {
+      percentUsed: number
+      resetDate: string
+    } | null
+    subscription: {
+      tier: string
+      isActive: boolean
+      extraUsageEnabled: boolean
+    }
+    lastUpdated: string
+    formatted: {
+      currentSessionReset: string
+      allModelsReset: string
+      sonnetOnlyReset: string
+      opusOnlyReset: string | null
+    }
+    recommendation: string
+    shouldDowngrade: boolean
   }
 }
 
@@ -50,23 +73,6 @@ export function ClaudeMaxUsage() {
     return '#28a745'
   }
 
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount)
-  }
-
-  const formatResetDate = (dateString: string) => {
-    const date = new Date(dateString)
-    const now = new Date()
-    const diffDays = Math.ceil((date.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
-
-    if (diffDays < 0) return 'Resets today'
-    if (diffDays === 0) return 'Resets today'
-    if (diffDays === 1) return 'Resets tomorrow'
-    if (diffDays <= 7) return `Resets in ${diffDays} days`
-
-    return `Resets ${date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`
-  }
-
   return (
     <div style={{
       padding: '20px',
@@ -81,17 +87,7 @@ export function ClaudeMaxUsage() {
             Claude Max Weekly Usage
           </h3>
           <div style={{ fontSize: '12px', color: 'var(--color-text-secondary)', fontStyle: 'italic', marginTop: '5px' }}>
-            {data ? (
-              <span className="tooltip-trigger" aria-label="Weekly reset explanation">
-                {formatResetDate(data.data.usage.reset_date)}
-                <span className="tooltip-icon">?</span>
-                <span className="tooltip-content" role="tooltip">
-                  Weekly limit resets every Monday
-                </span>
-              </span>
-            ) : (
-              'Loading...'
-            )}
+            Real-time from Anthropic API
           </div>
         </div>
         <button
@@ -130,16 +126,16 @@ export function ClaudeMaxUsage() {
                 Claude Max Tracking Not Available
               </h4>
               <p style={{ margin: '0 0 12px 0', color: 'var(--color-text-secondary)', fontSize: '14px' }}>
-                This feature requires Claude Max subscription tracking to be configured.
+                {error}
               </p>
               <details style={{ fontSize: '13px', color: 'var(--color-text-secondary)' }}>
                 <summary style={{ cursor: 'pointer', marginBottom: '8px', fontWeight: '500' }}>
                   How to enable
                 </summary>
                 <ol style={{ margin: '8px 0 0 0', paddingLeft: '20px', lineHeight: '1.6' }}>
-                  <li>Configure <code>claudeMaxTracker</code> in your oh-im-broke config</li>
-                  <li>Provide your Anthropic API credentials</li>
-                  <li>Restart the WebUI server</li>
+                  <li>Ensure you have Claude Max subscription</li>
+                  <li>OAuth credentials are stored in ~/.claude/.credentials.json</li>
+                  <li>This is the same token Claude Code uses</li>
                 </ol>
               </details>
             </div>
@@ -149,7 +145,11 @@ export function ClaudeMaxUsage() {
 
       {!loading && !error && data && (
         <>
-          <div style={{ marginBottom: '15px' }}>
+          {/* Weekly All Models */}
+          <div style={{ marginBottom: '20px' }}>
+            <div style={{ fontSize: '13px', color: 'var(--color-text-secondary)', marginBottom: '8px' }}>
+              Weekly Usage (All Models) • Resets {data.data.formatted.allModelsReset}
+            </div>
             <div style={{
               height: '8px',
               background: 'var(--color-bg-tertiary)',
@@ -158,70 +158,64 @@ export function ClaudeMaxUsage() {
             }}>
               <div style={{
                 height: '100%',
-                width: `${Math.min(data.data.usage.usage_percentage, 100)}%`,
-                background: getUsageColor(data.data.usage.usage_percentage),
+                width: `${Math.min(data.data.allModels.percentUsed, 100)}%`,
+                background: getUsageColor(data.data.allModels.percentUsed),
                 transition: 'width 0.3s ease'
               }} />
             </div>
+            <div style={{ fontSize: '18px', fontWeight: 'bold', color: getUsageColor(data.data.allModels.percentUsed), marginTop: '8px' }}>
+              {data.data.allModels.percentUsed.toFixed(1)}% used
+            </div>
           </div>
 
-          <div className="grid-2col" style={{ display: 'grid', gap: '15px', fontSize: '14px' }}>
-            <div>
-              <div style={{ color: 'var(--color-text-secondary)' }}>
-                <span className="tooltip-trigger" aria-label="Requests explanation">
-                  Requests This Week
-                  <span className="tooltip-icon">?</span>
-                  <span className="tooltip-content" role="tooltip">
-                    Total API requests made this week
-                  </span>
-                </span>
-              </div>
-              <div style={{ fontWeight: 'bold', color: 'var(--color-text-primary)', marginTop: '3px' }}>
-                {data.data.usage.requests_this_week.toLocaleString()} / {data.data.usage.weekly_limit.toLocaleString()}
-              </div>
+          {/* Sonnet Only */}
+          <div style={{ marginBottom: '20px' }}>
+            <div style={{ fontSize: '13px', color: 'var(--color-text-secondary)', marginBottom: '8px' }}>
+              Weekly Sonnet Only • Resets {data.data.formatted.sonnetOnlyReset}
             </div>
-            <div>
-              <div style={{ color: 'var(--color-text-secondary)' }}>
-                <span className="tooltip-trigger" aria-label="Usage percentage explanation">
-                  Usage Percentage
-                  <span className="tooltip-icon">?</span>
-                  <span className="tooltip-content" role="tooltip">
-                    Percentage of weekly limit used
-                  </span>
-                </span>
-              </div>
-              <div style={{ fontWeight: 'bold', color: getUsageColor(data.data.usage.usage_percentage), marginTop: '3px' }}>
-                {data.data.usage.usage_percentage.toFixed(1)}%
-              </div>
+            <div style={{
+              height: '8px',
+              background: 'var(--color-bg-tertiary)',
+              borderRadius: '4px',
+              overflow: 'hidden'
+            }}>
+              <div style={{
+                height: '100%',
+                width: `${Math.min(data.data.sonnetOnly.percentUsed, 100)}%`,
+                background: getUsageColor(data.data.sonnetOnly.percentUsed),
+                transition: 'width 0.3s ease'
+              }} />
             </div>
-            <div>
-              <div style={{ color: 'var(--color-text-secondary)' }}>
-                <span className="tooltip-trigger" aria-label="Estimated cost explanation">
-                  Estimated Cost
-                  <span className="tooltip-icon">?</span>
-                  <span className="tooltip-content" role="tooltip">
-                    Approximate cost based on usage
-                  </span>
-                </span>
-              </div>
-              <div style={{ fontWeight: 'bold', color: 'var(--color-text-primary)', marginTop: '3px' }}>
-                {formatCurrency(data.data.usage.estimated_cost)}
-              </div>
+            <div style={{ fontSize: '18px', fontWeight: 'bold', color: getUsageColor(data.data.sonnetOnly.percentUsed), marginTop: '8px' }}>
+              {data.data.sonnetOnly.percentUsed.toFixed(1)}% used
             </div>
-            <div>
-              <div style={{ color: 'var(--color-text-secondary)' }}>
-                <span className="tooltip-trigger" aria-label="Weekly limit explanation">
-                  Weekly Limit
-                  <span className="tooltip-icon">?</span>
-                  <span className="tooltip-content" role="tooltip">
-                    Maximum requests allowed per week
-                  </span>
-                </span>
-              </div>
-              <div style={{ fontWeight: 'bold', color: 'var(--color-text-primary)', marginTop: '3px' }}>
-                {data.data.usage.weekly_limit.toLocaleString()} requests
-              </div>
+          </div>
+
+          {/* Current Session */}
+          <div style={{ marginBottom: '20px' }}>
+            <div style={{ fontSize: '13px', color: 'var(--color-text-secondary)', marginBottom: '8px' }}>
+              Current Session (5 hours) • Resets {data.data.formatted.currentSessionReset}
             </div>
+            <div style={{
+              height: '8px',
+              background: 'var(--color-bg-tertiary)',
+              borderRadius: '4px',
+              overflow: 'hidden'
+            }}>
+              <div style={{
+                height: '100%',
+                width: `${Math.min(data.data.currentSession.percentUsed, 100)}%`,
+                background: getUsageColor(data.data.currentSession.percentUsed),
+                transition: 'width 0.3s ease'
+              }} />
+            </div>
+            <div style={{ fontSize: '18px', fontWeight: 'bold', color: getUsageColor(data.data.currentSession.percentUsed), marginTop: '8px' }}>
+              {data.data.currentSession.percentUsed.toFixed(1)}% used
+            </div>
+          </div>
+
+          <div style={{ fontSize: '11px', color: 'var(--color-text-secondary)', marginTop: '12px' }}>
+            Last updated: {new Date(data.data.lastUpdated).toLocaleTimeString()}
           </div>
         </>
       )}
