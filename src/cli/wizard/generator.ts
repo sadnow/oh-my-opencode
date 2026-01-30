@@ -5,7 +5,7 @@
 
 import * as fs from "fs"
 import * as path from "path"
-import type { OhMyOpenCodeConfig, BudgetConfig, AdaptiveConfig, LearningMode, QuotaTargets } from "../../config/schema"
+import type { OhMyOpenCodeConfig, BudgetConfig, AdaptiveConfig, LearningMode, QuotaTargets, SubscriptionBudget, APIBudget } from "../../config/schema"
 import { getOpenCodeConfigDir } from "../../shared"
 import type { WizardAnswers } from "./questions"
 import { getPreset, findBestModelForRole } from "./presets"
@@ -323,24 +323,49 @@ function generateBudgetConfig(answers: WizardAnswers): BudgetConfig {
     budget.quota_targets = quotaTargets
   }
 
-  // Calculate provider-specific budgets
+  // Calculate provider-specific budgets (legacy)
   const providerBudgets: Record<string, number> = {}
+
+  // Initialize subscription and API configs (new format)
+  const subscriptions: SubscriptionBudget = {}
+  const apis: APIBudget = {}
 
   // For OAuth providers, estimate based on plan
   if (answers.hasAnthropicOAuth) {
     // Claude Pro = ~$20/mo worth, Max 5x = ~$100/mo, Max 20x = ~$200/mo worth
-    providerBudgets.anthropic = answers.claudePlan === "max-20x" ? 200 :
-                                 answers.claudePlan === "max-5x" ? 100 : 20
+    const monthlyBudget = answers.claudePlan === "max-20x" ? 200 :
+                          answers.claudePlan === "max-5x" ? 100 : 20
+    providerBudgets.anthropic = monthlyBudget
+
+    // New format: weekly limit (0-100%)
+    // Default to 100% if not specified, or use target if available
+    subscriptions.claude_max = {
+      weekly_limit: answers.claudeMaxWeeklyTarget ?? 100
+    }
   }
+
   if (answers.hasCopilot) {
     // Copilot Free = $0, Pro = $10/mo, Enterprise = $39/mo
-    providerBudgets["github-copilot"] = answers.copilotPlan === "enterprise" ? 39 :
-                                         answers.copilotPlan === "pro" ? 10 : 0
+    const monthlyBudget = answers.copilotPlan === "enterprise" ? 39 :
+                          answers.copilotPlan === "pro" ? 10 : 0
+    providerBudgets["github-copilot"] = monthlyBudget
+
+    // New format: weekly limit (0-100%)
+    if (answers.copilotPlan !== "free") {
+      subscriptions.copilot = {
+        weekly_limit: answers.copilotMonthlyTarget ?? 100
+      }
+    }
   }
 
   // Zen budget
   if (answers.hasOpencodeZen && answers.zenBudget) {
     providerBudgets.opencode = answers.zenBudget
+
+    // New format: weekly dollar limit
+    apis.opencode_zen = {
+      weekly_limit: answers.zenBudget / 4 // Monthly to weekly estimate
+    }
   }
 
   // Monthly budget override
@@ -348,8 +373,17 @@ function generateBudgetConfig(answers: WizardAnswers): BudgetConfig {
     budget.daily_target = answers.monthlyBudget / 30
   }
 
+  // Keep legacy provider_budgets for backward compatibility
   if (Object.keys(providerBudgets).length > 0) {
     budget.provider_budgets = providerBudgets
+  }
+
+  // Add new format fields
+  if (Object.keys(subscriptions).length > 0) {
+    budget.subscriptions = subscriptions
+  }
+  if (Object.keys(apis).length > 0) {
+    budget.apis = apis
   }
 
   return budget
