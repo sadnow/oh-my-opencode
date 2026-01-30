@@ -401,14 +401,43 @@ export const QuotaTargetsSchema = z.object({
   zen_monthly_dollars: z.number().min(0).optional(),
 })
 
+/** Subscription-based budget configuration */
+export const SubscriptionBudgetSchema = z.object({
+  /** Claude Max subscription budget ($200/month) */
+  claude_max: z.object({
+    /** Weekly usage limit (0-100%) */
+    weekly_limit: z.number().min(0).optional(),
+  }).optional(),
+  /** GitHub Copilot subscription budget ($40/month) */
+  copilot: z.object({
+    /** Weekly usage limit (0-100%) */
+    weekly_limit: z.number().min(0).optional(),
+  }).optional(),
+})
+export type SubscriptionBudget = z.infer<typeof SubscriptionBudgetSchema>
+
+/** API-based budget configuration */
+export const APIBudgetSchema = z.object({
+  /** OpenCode Zen API budget */
+  opencode_zen: z.object({
+    /** Weekly dollar limit */
+    weekly_limit: z.number().min(0).optional(),
+  }).optional(),
+})
+export type APIBudget = z.infer<typeof APIBudgetSchema>
+
 // Budget configuration
 export const BudgetConfigSchema = z.object({
   /** Enable budget-aware orchestration (default: false) */
   enabled: z.boolean().default(false),
   /** Target percentage of budget to use before downgrading (default: 0.7 = 70%) */
   target_percentage: z.number().min(0).max(1).default(0.7),
-  /** Monthly USD budget per provider */
+  /** Monthly USD budget per provider (deprecated: use subscriptions or apis) */
   provider_budgets: z.record(z.string(), z.number().min(0)).optional(),
+  /** Subscription-based budgets (Claude Max, Copilot) */
+  subscriptions: SubscriptionBudgetSchema.optional(),
+  /** API-based budgets (OpenCode Zen) */
+  apis: APIBudgetSchema.optional(),
   /** Auto-downgrade to cheaper models when over budget (default: true) */
   auto_downgrade: z.boolean().default(true),
   /** Minimum tier to downgrade to (default: "budget") */
