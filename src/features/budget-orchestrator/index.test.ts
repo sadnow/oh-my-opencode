@@ -182,6 +182,47 @@ describe("BudgetOrchestrator", () => {
       expect(models.orchestrator).toHaveProperty("modelID")
     })
   })
+
+  describe("Config Migration", () => {
+    it("should not migrate if new format exists", () => {
+      const config = {
+        enabled: true,
+        subscriptions: { claude_max: { weekly_limit: 50 } }
+      }
+      // @ts-ignore - testing private method or constructor behavior
+      const migrated = orchestrator["migrateConfig"](config)
+      expect(migrated.subscriptions?.claude_max?.weekly_limit).toBe(50)
+      expect(migrated.provider_budgets).toBeUndefined()
+    })
+
+    it("should migrate provider_budgets to new format", () => {
+      const config = {
+        enabled: true,
+        provider_budgets: {
+          anthropic: 50,
+          "github-copilot": 10,
+          opencode: 20
+        }
+      }
+      // @ts-ignore
+      const migrated = orchestrator["migrateConfig"](config)
+      expect(migrated.subscriptions?.claude_max?.weekly_limit).toBe(50)
+      expect(migrated.subscriptions?.copilot?.weekly_limit).toBe(10)
+      expect(migrated.apis?.opencode_zen?.weekly_limit).toBe(20)
+    })
+
+    it("should handle partial provider_budgets", () => {
+      const config = {
+        enabled: true,
+        provider_budgets: { anthropic: 50 }
+      }
+      // @ts-ignore
+      const migrated = orchestrator["migrateConfig"](config)
+      expect(migrated.subscriptions?.claude_max?.weekly_limit).toBe(50)
+      expect(migrated.subscriptions?.copilot).toBeUndefined()
+      expect(migrated.apis?.opencode_zen).toBeUndefined()
+    })
+  })
 })
 
 /**

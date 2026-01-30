@@ -86,20 +86,23 @@ export class BudgetOrchestrator {
     this.claudeMaxTracker = subscriptionTrackers?.claudeMaxTracker
     this.copilotTracker = subscriptionTrackers?.copilotTracker
 
+    // Migrate old config format if needed
+    const migratedConfig = this.migrateConfig(config ?? ({ enabled: false } as BudgetConfig))
+
     this.config = {
-      enabled: config?.enabled ?? false,
-      targetPercentage: config?.target_percentage ?? 0.7,
-      providerBudgets: config?.provider_budgets ?? {},
-      autoDowngrade: config?.auto_downgrade ?? true,
-      minTier: config?.min_tier ?? "budget",
-      dailyTarget: config?.daily_target,
+      enabled: migratedConfig.enabled ?? false,
+      targetPercentage: migratedConfig.target_percentage ?? 0.7,
+      providerBudgets: migratedConfig.provider_budgets ?? {},
+      autoDowngrade: migratedConfig.auto_downgrade ?? true,
+      minTier: migratedConfig.min_tier ?? "budget",
+      dailyTarget: migratedConfig.daily_target,
     }
 
     // Initialize runtime settings from config
-    this.autoUpgrade = config?.auto_upgrade ?? true
-    this.autoDowngrade = config?.auto_downgrade ?? true
-    this.learningMode = config?.learning_mode ?? "balanced"
-    this.quotaTargets = config?.quota_targets ?? {}
+    this.autoUpgrade = migratedConfig.auto_upgrade ?? true
+    this.autoDowngrade = migratedConfig.auto_downgrade ?? true
+    this.learningMode = migratedConfig.learning_mode ?? "balanced"
+    this.quotaTargets = migratedConfig.quota_targets ?? {}
 
     // Initialize override manager
     this.overrideManager = getOverrideManager()
@@ -788,6 +791,47 @@ export class BudgetOrchestrator {
    */
   setAvailableProviders(providers: string[]): void {
     this.availableProviders = providers
+  }
+
+  /**
+   * Migrate old config format to new format.
+   */
+  private migrateConfig(config: BudgetConfig): BudgetConfig {
+    // If new format exists, use it
+    if (config.subscriptions || config.apis) {
+      return config
+    }
+
+    // Migrate old provider_budgets
+    const migrated = { ...config }
+
+    if (config.provider_budgets) {
+      migrated.subscriptions = {}
+      migrated.apis = {}
+
+      // Anthropic -> Claude Max
+      if (config.provider_budgets.anthropic) {
+        migrated.subscriptions.claude_max = {
+          weekly_limit: config.provider_budgets.anthropic,
+        }
+      }
+
+      // GitHub Copilot
+      if (config.provider_budgets["github-copilot"]) {
+        migrated.subscriptions.copilot = {
+          weekly_limit: config.provider_budgets["github-copilot"],
+        }
+      }
+
+      // OpenCode Zen
+      if (config.provider_budgets.opencode) {
+        migrated.apis.opencode_zen = {
+          weekly_limit: config.provider_budgets.opencode,
+        }
+      }
+    }
+
+    return migrated
   }
 
   /**
