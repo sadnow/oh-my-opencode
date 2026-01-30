@@ -6,6 +6,7 @@
 import type { BudgetOrchestrator } from "../../features/budget-orchestrator"
 import type { UsageTracker } from "../../features/usage-tracker"
 import type { ModelTier } from "../../config/schema"
+import type { BudgetStatus } from "../../features/budget-orchestrator/types"
 
 // ============================================================================
 // Types
@@ -46,6 +47,8 @@ interface ProviderDashboardData {
 interface DashboardResponse {
   enabled: boolean
   providers: ProviderDashboardData[]
+  subscriptions: BudgetStatus[]
+  apis: BudgetStatus[]
   globalTier: ModelTier
   override: {
     forcedTier: ModelTier | null
@@ -116,6 +119,8 @@ export function handleGetDashboard(ctx: BudgetDashboardContext): Response {
       data: {
         enabled: false,
         providers: [],
+        subscriptions: [],
+        apis: [],
         globalTier: "standard",
         override: {
           forcedTier: null,
@@ -157,12 +162,18 @@ export function handleGetDashboard(ctx: BudgetDashboardContext): Response {
     })
   }
 
+  const allStatuses = budgetOrchestrator.getAllBudgetStatuses()
+  const subscriptions = allStatuses.filter((s: BudgetStatus) => s.type === "subscription")
+  const apis = allStatuses.filter((s: BudgetStatus) => s.type === "api")
+
   const overrideManager = budgetOrchestrator.getOverrideManager()
   const overrideSummary = overrideManager.getSummary()
 
   const response: DashboardResponse = {
     enabled: true,
     providers,
+    subscriptions,
+    apis,
     globalTier: budgetOrchestrator.getRecommendedTier(),
     override: {
       forcedTier: overrideSummary.forcedTier,
