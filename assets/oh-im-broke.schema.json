@@ -2890,6 +2890,14 @@
             "localhost",
             "0.0.0.0"
           ]
+        },
+        "default_mode": {
+          "description": "Default UI mode for the WebUI (beginner or power-user)",
+          "type": "string",
+          "enum": [
+            "beginner",
+            "power-user"
+          ]
         }
       }
     },
@@ -2927,6 +2935,43 @@
           "additionalProperties": {
             "type": "number",
             "minimum": 0
+          }
+        },
+        "subscriptions": {
+          "type": "object",
+          "properties": {
+            "claude_max": {
+              "type": "object",
+              "properties": {
+                "weekly_limit": {
+                  "type": "number",
+                  "minimum": 0
+                }
+              }
+            },
+            "copilot": {
+              "type": "object",
+              "properties": {
+                "weekly_limit": {
+                  "type": "number",
+                  "minimum": 0
+                }
+              }
+            }
+          }
+        },
+        "apis": {
+          "type": "object",
+          "properties": {
+            "opencode_zen": {
+              "type": "object",
+              "properties": {
+                "weekly_limit": {
+                  "type": "number",
+                  "minimum": 0
+                }
+              }
+            }
           }
         },
         "auto_downgrade": {
@@ -3007,6 +3052,10 @@
               "minimum": 0
             }
           }
+        },
+        "routing_log_persist": {
+          "default": false,
+          "type": "boolean"
         }
       }
     },

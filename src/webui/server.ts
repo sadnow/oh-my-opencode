@@ -109,6 +109,11 @@ import {
   handleGetRoutingLogsSince,
 } from "./routes/routing-logs"
 
+import {
+  handleGetHealthCheck,
+  type HealthCheckRouteContext,
+} from "./routes/health-check"
+
 import { getRoutingLogger } from "../features/budget-orchestrator/routing-logger"
 
 
@@ -151,7 +156,7 @@ export interface WebUIOptions {
 export function startWebUI(options: WebUIOptions): BunServer {
   const { port, bind, configManager, usageTracker, budgetOrchestrator, claudeMaxTracker, copilotTracker } = options
 
-  const configCtx: ConfigRouteContext = { configManager }
+const configCtx: ConfigRouteContext = { configManager }
   const usageCtx: UsageRouteContext = { usageTracker, budgetOrchestrator }
   const wizardCtx: WizardRouteContext = { configManager }
   const orchCtx: OrchestrationRouteContext = { budgetOrchestrator }
@@ -162,6 +167,7 @@ export function startWebUI(options: WebUIOptions): BunServer {
   const adaptiveCtx: AdaptiveSettingsRouteContext = { budgetOrchestrator, configManager }
   const globalOverrideCtx: GlobalOverrideRouteContext = { budgetOrchestrator }
   const exportCtx: ExportRouteContext = { usageTracker, configManager, routingLogger: getRoutingLogger() }
+  const healthCheckCtx: HealthCheckRouteContext = { usageTracker }
 
   const server = Bun.serve({
     port,
@@ -196,7 +202,7 @@ export function startWebUI(options: WebUIOptions): BunServer {
         })
       }
 
-      // API routes
+// API routes
       if (pathname.startsWith("/api/")) {
         const apiResponse = await handleAPI(req, url, {
           configCtx,
@@ -210,6 +216,7 @@ export function startWebUI(options: WebUIOptions): BunServer {
           adaptiveCtx,
           globalOverrideCtx,
           exportCtx,
+          healthCheckCtx,
         })
         return respond(apiResponse)
       }
@@ -236,6 +243,7 @@ interface APIContexts {
   adaptiveCtx: AdaptiveSettingsRouteContext
   globalOverrideCtx: GlobalOverrideRouteContext
   exportCtx: ExportRouteContext
+  healthCheckCtx: HealthCheckRouteContext
 }
 
 /**
@@ -458,7 +466,7 @@ async function handleAPI(
     return handleGetRoutingLogsSince(timestamp)
   }
 
-  // Global override routes
+// Global override routes
   if (pathname === "/global-override" && method === "GET") {
     return handleGetGlobalOverride(ctx.globalOverrideCtx)
   }
@@ -489,6 +497,11 @@ async function handleAPI(
     return handleClearGlobalOverrides(ctx.globalOverrideCtx)
   }
 
+  // Health check routes
+  if (pathname === "/health-check" && method === "GET") {
+    return handleGetHealthCheck(ctx.healthCheckCtx)
+  }
+
   // 404
   return Response.json(
     { success: false, error: `Not found: ${method} ${pathname}` },
@@ -508,11 +521,11 @@ function serveStatic(pathname: string): Response {
 
     if (existsSync(filePath)) {
       const file = Bun.file(filePath)
-      const contentType = pathname.endsWith(".js")
+      const contentType = filePath.endsWith(".js")
         ? "application/javascript"
-        : pathname.endsWith(".css")
+        : filePath.endsWith(".css")
           ? "text/css"
-          : pathname.endsWith(".html")
+          : filePath.endsWith(".html")
             ? "text/html"
             : "text/plain"
 

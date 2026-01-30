@@ -5,6 +5,7 @@ import { RALPH_LOOP_TEMPLATE, CANCEL_RALPH_TEMPLATE } from "./templates/ralph-lo
 import { REFACTOR_TEMPLATE } from "./templates/refactor"
 import { START_WORK_TEMPLATE } from "./templates/start-work"
 import { OIB_WEBUI_TEMPLATE } from "./templates/oib-webui"
+import { OIB_WEBUI_STOP_TEMPLATE } from "./templates/oib-webui-stop"
 
 const BUILTIN_COMMAND_DEFINITIONS: Record<BuiltinCommandName, Omit<CommandDefinition, "name">> = {
   "init-deep": {
@@ -50,6 +51,16 @@ ${CANCEL_RALPH_TEMPLATE}
     description: "(builtin) Launch oh-im-broke WebUI dashboard in default browser",
     template: `<command-instruction>
 ${OIB_WEBUI_TEMPLATE}
+</command-instruction>
+
+<user-request>
+$ARGUMENTS
+</user-request>`,
+  },
+  "oib-webui-stop": {
+    description: "(builtin) Stop the oh-im-broke WebUI server",
+    template: `<command-instruction>
+${OIB_WEBUI_STOP_TEMPLATE}
 </command-instruction>
 
 <user-request>
