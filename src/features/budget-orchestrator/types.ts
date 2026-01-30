@@ -111,3 +111,19 @@ export interface AdaptiveBudgetSummary {
   /** Should downgrade from current tier */
   shouldDowngrade: boolean
 }
+
+export type BudgetType = 'subscription' | 'api'
+
+export interface BudgetStatus {
+  provider: string
+  type: BudgetType
+  metric_label: string // "% used", "requests remaining", "$ used"
+  remaining_pct: number // 0-100
+  severity: 'ok' | 'warn' | 'critical'
+  recommendation?: 'upgrade' | 'downgrade' | 'limit' | 'none'
+  details: {
+    used: number
+    total: number
+    unit: string // "%", "requests", "$"
+  }
+}
