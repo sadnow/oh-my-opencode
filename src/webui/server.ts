@@ -113,6 +113,10 @@ import {
 } from "./routes/routing-logs"
 
 import {
+  handleGetAlerts,
+} from "./routes/alerts"
+
+import {
   handleGetHealthCheck,
   type HealthCheckRouteContext,
 } from "./routes/health-check"
@@ -477,7 +481,12 @@ async function handleAPI(
     return handleGetRoutingLogsSince(timestamp)
   }
 
-// Global override routes
+  // Alerts routes
+  if (pathname === "/alerts" && method === "GET") {
+    return handleGetAlerts(req)
+  }
+
+  // Global override routes
   if (pathname === "/global-override" && method === "GET") {
     return handleGetGlobalOverride(ctx.globalOverrideCtx)
   }
