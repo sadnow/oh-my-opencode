@@ -262,11 +262,11 @@ const formatResetCountdown = (resetDate: string): string => {
 
 // Ticker Item Component
 const TickerItem = ({ name, value, color, trend }: { name: string; value: string; color: string; trend?: { value: number; direction: 'up' | 'down' | 'flat' } }) => (
-  <div className="ticker-item" style={{ display: 'flex', alignItems: 'center', gap: '8px', whiteSpace: 'nowrap' }}>
-    <span style={{ fontWeight: 600, fontSize: '13px' }}>{name}</span>
-    <span style={{ color, fontWeight: 700, fontSize: '14px' }}>{value}</span>
+  <div className="ticker-item" style={{ display: 'flex', alignItems: 'center', gap: 'var(--spacing-2, 8px)', whiteSpace: 'nowrap' }}>
+    <span style={{ fontWeight: 600, fontSize: 'var(--font-size-sm, 12px)' }}>{name}</span>
+    <span style={{ color, fontWeight: 700, fontSize: 'var(--font-size-base, 14px)' }}>{value}</span>
     {trend && trend.direction !== 'flat' && (
-      <span style={{ color: trend.direction === 'up' ? 'var(--color-danger, #dc3545)' : 'var(--color-success, #28a745)', fontSize: '12px' }}>
+      <span style={{ color: trend.direction === 'up' ? 'var(--color-danger, #dc3545)' : 'var(--color-success, #28a745)', fontSize: 'var(--font-size-sm, 12px)' }}>
         {trend.direction === 'up' ? '▲' : '▼'}{trend.value.toFixed(0)}%
       </span>
     )}
@@ -328,8 +328,8 @@ const TimePeriodSelector = ({ selected, onSelect }: { selected: TimePeriod; onSe
   return (
     <div className="time-period-selector" style={{
       display: 'flex',
-      gap: '8px',
-      marginBottom: '24px'
+      gap: 'var(--spacing-2, 8px)',
+      marginBottom: 'var(--spacing-4, 16px)'
     }}>
       {periods.map(period => (
         <button
@@ -337,13 +337,13 @@ const TimePeriodSelector = ({ selected, onSelect }: { selected: TimePeriod; onSe
           onClick={() => onSelect(period)}
           className={`period-button ${selected === period ? 'active' : ''}`}
           style={{
-            padding: '8px 16px',
-            borderRadius: '6px',
+            padding: 'var(--spacing-2, 8px) var(--spacing-4, 16px)',
+            borderRadius: 'var(--radius-md, 6px)',
             border: '1px solid var(--color-border, #333)',
             background: selected === period ? 'var(--color-accent, #646cff)' : 'var(--color-bg-secondary, #2a2a2a)',
             color: selected === period ? '#fff' : 'var(--color-text-primary, #fff)',
             cursor: 'pointer',
-            fontSize: '13px',
+            fontSize: 'var(--font-size-sm, 12px)',
             fontWeight: 500,
             transition: 'all 0.2s'
           }}
@@ -360,31 +360,31 @@ const KPICard = ({ label, value, trend, color, unit }: { label: string; value: s
   <div className="kpi-card" style={{
     background: 'var(--color-bg-primary, #1a1a1a)',
     border: '1px solid var(--color-border, #333)',
-    borderRadius: '8px',
-    padding: '20px',
+    borderRadius: 'var(--radius-lg, 8px)',
+    padding: 'var(--spacing-3, 12px)',
     position: 'relative',
     overflow: 'hidden'
   }}>
-    <div style={{ fontSize: '12px', color: 'var(--color-text-secondary, #888)', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+    <div style={{ fontSize: 'var(--font-size-sm, 12px)', color: 'var(--color-text-secondary, #888)', marginBottom: 'var(--spacing-2, 8px)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
       {label}
     </div>
-    <div style={{ fontSize: '28px', fontWeight: 700, color: color || 'var(--color-text-primary, #fff)' }}>
+    <div style={{ fontSize: '24px', fontWeight: 700, color: color || 'var(--color-text-primary, #fff)' }}>
       {typeof value === 'number' ? value.toFixed(2) : value}{unit}
     </div>
     {trend && (
       <div style={{
-        fontSize: '12px',
+        fontSize: 'var(--font-size-sm, 12px)',
         color: trend.direction === 'up' ? 'var(--color-danger, #dc3545)' : trend.direction === 'down' ? 'var(--color-success, #28a745)' : 'var(--color-text-secondary, #888)',
-        marginTop: '4px',
+        marginTop: 'var(--spacing-1, 4px)',
         display: 'flex',
         alignItems: 'center',
-        gap: '4px'
+        gap: 'var(--spacing-1, 4px)'
       }}>
         {trend.direction === 'up' && '▲'}
         {trend.direction === 'down' && '▼'}
         {trend.direction !== 'flat' && `${trend.value.toFixed(1)}%`}
         {trend.direction === 'flat' && '→'}
-        <span style={{ color: 'var(--color-text-secondary, #888)', marginLeft: '4px' }}>vs prev</span>
+        <span style={{ color: 'var(--color-text-secondary, #888)', marginLeft: 'var(--spacing-1, 4px)' }}>vs prev</span>
       </div>
     )}
   </div>
@@ -435,8 +435,8 @@ const ProviderCard = ({ provider, data, claudeMaxData, copilotData }: {
     <div className="provider-card" style={{
       background: 'var(--color-bg-primary, #1a1a1a)',
       border: `1px solid ${color}40`,
-      borderRadius: '8px',
-      padding: '20px',
+      borderRadius: 'var(--radius-lg, 8px)',
+      padding: 'var(--spacing-3, 12px)',
       position: 'relative',
       overflow: 'hidden'
     }}>
@@ -451,14 +451,14 @@ const ProviderCard = ({ provider, data, claudeMaxData, copilotData }: {
       }} />
 
       {/* Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', marginBottom: '16px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-          <span style={{ fontSize: '24px' }}>{icon}</span>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', marginBottom: 'var(--spacing-3, 12px)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--spacing-3, 12px)' }}>
+          <span style={{ fontSize: '20px' }}>{icon}</span>
           <div>
-            <div style={{ fontSize: '16px', fontWeight: 600, color: 'var(--color-text-primary, #fff)' }}>
+            <div style={{ fontSize: 'var(--font-size-md, 16px)', fontWeight: 600, color: 'var(--color-text-primary, #fff)' }}>
               {displayName}
             </div>
-<div style={{ fontSize: '12px', color: 'var(--color-text-secondary, #888)' }}>
+<div style={{ fontSize: 'var(--font-size-sm, 12px)', color: 'var(--color-text-secondary, #888)' }}>
           Pay-per-use
         </div>
           </div>
@@ -466,9 +466,9 @@ const ProviderCard = ({ provider, data, claudeMaxData, copilotData }: {
         <div className="status-badge" style={{
           background: `${getSeverityColor(severity)}20`,
           color: getSeverityColor(severity),
-          padding: '4px 10px',
-          borderRadius: '4px',
-          fontSize: '11px',
+          padding: 'var(--spacing-1, 4px) var(--spacing-2, 8px)',
+          borderRadius: 'var(--radius-sm, 4px)',
+          fontSize: 'var(--font-size-xs, 11px)',
           fontWeight: 600,
           textTransform: 'uppercase'
         }}>
@@ -477,17 +477,17 @@ const ProviderCard = ({ provider, data, claudeMaxData, copilotData }: {
       </div>
 
       {/* Main percentage display */}
-      <div style={{ marginBottom: '16px' }}>
-        <div style={{ fontSize: '48px', fontWeight: 700, color, lineHeight: 1 }}>
+      <div style={{ marginBottom: 'var(--spacing-3, 12px)' }}>
+        <div style={{ fontSize: '24px', fontWeight: 700, color, lineHeight: 1 }}>
           {data.percentage.toFixed(0)}%
         </div>
-        <div style={{ fontSize: '13px', color: 'var(--color-text-secondary, #888)' }}>
+        <div style={{ fontSize: 'var(--font-size-sm, 12px)', color: 'var(--color-text-secondary, #888)' }}>
           {formatCurrency(data.used)} of {formatCurrency(data.budget)}
         </div>
       </div>
 
       {/* Sparkline */}
-      <div style={{ height: '40px', marginBottom: '16px' }}>
+      <div style={{ height: '24px', marginBottom: 'var(--spacing-3, 12px)' }}>
         <Sparkline data={sparklineData} color={color} />
       </div>
 
@@ -495,8 +495,8 @@ const ProviderCard = ({ provider, data, claudeMaxData, copilotData }: {
       <div style={{
         display: 'grid',
         gridTemplateColumns: 'repeat(2, 1fr)',
-        gap: '12px',
-        fontSize: '12px'
+        gap: 'var(--spacing-3, 12px)',
+        fontSize: 'var(--font-size-sm, 12px)'
       }}>
         <div>
           <div style={{ color: 'var(--color-text-secondary, #888)', marginBottom: '2px' }}>Burn Rate</div>
@@ -527,22 +527,22 @@ const ProviderCard = ({ provider, data, claudeMaxData, copilotData }: {
       {/* Claude Max specific */}
       {provider === 'claude-max' && claudeMaxData && (
         <div style={{
-          marginTop: '16px',
-          paddingTop: '16px',
+          marginTop: 'var(--spacing-3, 12px)',
+          paddingTop: 'var(--spacing-3, 12px)',
           borderTop: '1px solid var(--color-border, #333)',
-          fontSize: '11px'
+          fontSize: 'var(--font-size-xs, 11px)'
         }}>
           {claudeMaxData.tier && (
-            <div style={{ fontSize: '13px', marginTop: '8px', marginBottom: '8px' }}>
+            <div style={{ fontSize: 'var(--font-size-sm, 12px)', marginTop: 'var(--spacing-2, 8px)', marginBottom: 'var(--spacing-2, 8px)' }}>
               <strong>Tier:</strong> {claudeMaxData.tier}
             </div>
           )}
           {claudeMaxData.currentSession.resetDate && (
-            <div style={{ fontSize: '12px', color: 'var(--color-text-secondary, #999)', marginBottom: '8px' }}>
+            <div style={{ fontSize: 'var(--font-size-sm, 12px)', color: 'var(--color-text-secondary, #999)', marginBottom: 'var(--spacing-2, 8px)' }}>
               {formatResetCountdown(claudeMaxData.currentSession.resetDate)}
             </div>
           )}
-          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 'var(--spacing-2, 8px)' }}>
             <span style={{ color: 'var(--color-text-secondary, #888)' }}>Current Session</span>
             <span style={{ color: getUsageColor(claudeMaxData.currentSession.percentUsed), fontWeight: 600 }}>
               {claudeMaxData.currentSession.percentUsed}%
@@ -562,22 +562,22 @@ const ProviderCard = ({ provider, data, claudeMaxData, copilotData }: {
       {/* Copilot specific */}
       {provider === 'copilot' && copilotData && (
         <div style={{
-          marginTop: '16px',
-          paddingTop: '16px',
+          marginTop: 'var(--spacing-3, 12px)',
+          paddingTop: 'var(--spacing-3, 12px)',
           borderTop: '1px solid var(--color-border, #333)',
-          fontSize: '11px'
+          fontSize: 'var(--font-size-xs, 11px)'
         }}>
           {copilotData.tier && (
-            <div style={{ fontSize: '13px', marginTop: '8px', marginBottom: '8px' }}>
+            <div style={{ fontSize: 'var(--font-size-sm, 12px)', marginTop: 'var(--spacing-2, 8px)', marginBottom: 'var(--spacing-2, 8px)' }}>
               <strong>Tier:</strong> {copilotData.tier}
             </div>
           )}
           {copilotData.resetDate && (
-            <div style={{ fontSize: '12px', color: 'var(--color-text-secondary, #999)', marginBottom: '8px' }}>
+            <div style={{ fontSize: 'var(--font-size-sm, 12px)', color: 'var(--color-text-secondary, #999)', marginBottom: 'var(--spacing-2, 8px)' }}>
               {formatResetCountdown(copilotData.resetDate)}
             </div>
           )}
-          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 'var(--spacing-2, 8px)' }}>
             <span style={{ color: 'var(--color-text-secondary, #888)' }}>Premium Requests</span>
             <span style={{ color: 'var(--color-text-primary, #fff)', fontWeight: 600 }}>
               {copilotData.premiumRequestsUsed} / {copilotData.premiumRequestsLimit}
@@ -649,9 +649,9 @@ const SimpleLineChart = ({ data, providers, height = 200 }: { data: TrendDataPoi
         right: 0,
         display: 'flex',
         justifyContent: 'space-between',
-        fontSize: '10px',
+        fontSize: 'var(--font-size-xs, 10px)',
         color: 'var(--color-text-secondary, #888)',
-        padding: '0 4px'
+        padding: '0 var(--spacing-1, 4px)'
       }}>
         {data.filter((_, i) => i % Math.ceil(data.length / 5) === 0).map((d, i) => (
           <span key={i}>{new Date(d.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>
@@ -664,7 +664,7 @@ const SimpleLineChart = ({ data, providers, height = 200 }: { data: TrendDataPoi
 // Model Breakdown Table
 const ModelBreakdownTable = ({ usageData }: { usageData: UsageData | null }) => {
   if (!usageData || !usageData.summaries) {
-    return <div style={{ color: 'var(--color-text-secondary, #888)', padding: '20px', textAlign: 'center' }}>No usage data available</div>
+    return <div style={{ color: 'var(--color-text-secondary, #888)', padding: 'var(--spacing-4, 16px)', textAlign: 'center' }}>No usage data available</div>
   }
 
   const models = Object.entries(usageData.summaries).map(([model, data]) => ({
@@ -674,24 +674,24 @@ const ModelBreakdownTable = ({ usageData }: { usageData: UsageData | null }) => 
   })).sort((a, b) => b.totalCost - a.totalCost)
 
   return (
-    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
+    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 'var(--font-size-sm, 12px)' }}>
       <thead>
         <tr style={{ borderBottom: '1px solid var(--color-border, #333)' }}>
-          <th style={{ textAlign: 'left', padding: '12px', color: 'var(--color-text-secondary, #888)', fontWeight: 600 }}>Model</th>
-          <th style={{ textAlign: 'right', padding: '12px', color: 'var(--color-text-secondary, #888)', fontWeight: 600 }}>Calls</th>
-          <th style={{ textAlign: 'right', padding: '12px', color: 'var(--color-text-secondary, #888)', fontWeight: 600 }}>Tokens</th>
-          <th style={{ textAlign: 'right', padding: '12px', color: 'var(--color-text-secondary, #888)', fontWeight: 600 }}>Cost</th>
-          <th style={{ textAlign: 'right', padding: '12px', color: 'var(--color-text-secondary, #888)', fontWeight: 600 }}>Avg/Call</th>
+          <th style={{ textAlign: 'left', padding: 'var(--spacing-3, 12px)', color: 'var(--color-text-secondary, #888)', fontWeight: 600 }}>Model</th>
+          <th style={{ textAlign: 'right', padding: 'var(--spacing-3, 12px)', color: 'var(--color-text-secondary, #888)', fontWeight: 600 }}>Calls</th>
+          <th style={{ textAlign: 'right', padding: 'var(--spacing-3, 12px)', color: 'var(--color-text-secondary, #888)', fontWeight: 600 }}>Tokens</th>
+          <th style={{ textAlign: 'right', padding: 'var(--spacing-3, 12px)', color: 'var(--color-text-secondary, #888)', fontWeight: 600 }}>Cost</th>
+          <th style={{ textAlign: 'right', padding: 'var(--spacing-3, 12px)', color: 'var(--color-text-secondary, #888)', fontWeight: 600 }}>Avg/Call</th>
         </tr>
       </thead>
       <tbody>
         {models.map((m) => (
           <tr key={m.model} style={{ borderBottom: '1px solid var(--color-border, #333)' }}>
-            <td style={{ padding: '12px', color: 'var(--color-text-primary, #fff)' }}>{m.model}</td>
-            <td style={{ padding: '12px', textAlign: 'right', color: 'var(--color-text-primary, #fff)' }}>{formatNumber(m.callCount)}</td>
-            <td style={{ padding: '12px', textAlign: 'right', color: 'var(--color-text-primary, #fff)' }}>{formatNumber(m.totalInputTokens + m.totalOutputTokens)}</td>
-            <td style={{ padding: '12px', textAlign: 'right', color: 'var(--color-text-primary, #fff)' }}>{formatCurrency(m.totalCost)}</td>
-            <td style={{ padding: '12px', textAlign: 'right', color: 'var(--color-text-primary, #fff)' }}>{formatCurrency(m.avgCostPerCall)}</td>
+            <td style={{ padding: 'var(--spacing-3, 12px)', color: 'var(--color-text-primary, #fff)' }}>{m.model}</td>
+            <td style={{ padding: 'var(--spacing-3, 12px)', textAlign: 'right', color: 'var(--color-text-primary, #fff)' }}>{formatNumber(m.callCount)}</td>
+            <td style={{ padding: 'var(--spacing-3, 12px)', textAlign: 'right', color: 'var(--color-text-primary, #fff)' }}>{formatNumber(m.totalInputTokens + m.totalOutputTokens)}</td>
+            <td style={{ padding: 'var(--spacing-3, 12px)', textAlign: 'right', color: 'var(--color-text-primary, #fff)' }}>{formatCurrency(m.totalCost)}</td>
+            <td style={{ padding: 'var(--spacing-3, 12px)', textAlign: 'right', color: 'var(--color-text-primary, #fff)' }}>{formatCurrency(m.avgCostPerCall)}</td>
           </tr>
         ))}
       </tbody>
@@ -739,10 +739,10 @@ const AlertsPanel = ({ data, claudeMaxData, copilotData }: {
   if (alerts.length === 0) {
     return (
       <div style={{
-        padding: '20px',
+        padding: 'var(--spacing-4, 16px)',
         textAlign: 'center',
         color: 'var(--color-success, #28a745)',
-        fontSize: '14px'
+        fontSize: 'var(--font-size-base, 14px)'
       }}>
         ✓ All systems operating within normal parameters
       </div>
@@ -750,20 +750,20 @@ const AlertsPanel = ({ data, claudeMaxData, copilotData }: {
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-2, 8px)' }}>
       {alerts.map((alert, i) => (
         <div
           key={i}
           style={{
-            padding: '12px',
-            borderRadius: '6px',
+            padding: 'var(--spacing-3, 12px)',
+            borderRadius: 'var(--radius-md, 6px)',
             background: alert.type === 'warning' ? 'var(--color-danger, #dc3545)20' :
                      alert.type === 'success' ? 'var(--color-success, #28a745)20' :
                      'var(--color-info, #17a2b8)20',
             borderLeft: `3px solid ${alert.type === 'warning' ? 'var(--color-danger, #dc3545)' :
                                       alert.type === 'success' ? 'var(--color-success, #28a745)' :
                                       'var(--color-info, #17a2b8)'}`,
-            fontSize: '13px',
+            fontSize: 'var(--font-size-sm, 12px)',
             color: 'var(--color-text-primary, #fff)'
           }}
         >
@@ -948,13 +948,13 @@ export function BudgetDashboard() {
 
   return (
     <div>
-      {/* Header */}
-      <div style={{ marginBottom: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+{/* Header */}
+      <div style={{ marginBottom: 'var(--spacing-4, 16px)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div>
-          <h2 style={{ margin: 0, fontSize: '24px', fontWeight: 700, color: 'var(--color-text-primary, #fff)' }}>
+          <h2 style={{ margin: 0, fontSize: 'var(--font-size-lg, 18px)', fontWeight: 700, color: 'var(--color-text-primary, #fff)' }}>
             Budget Dashboard
           </h2>
-          <p style={{ color: 'var(--color-text-secondary, #888)', marginTop: '4px', fontSize: '14px' }}>
+          <p style={{ color: 'var(--color-text-secondary, #888)', marginTop: 'var(--spacing-1, 4px)', fontSize: 'var(--font-size-base, 14px)' }}>
             Real-time spending analytics across all AI providers
           </p>
         </div>
@@ -962,29 +962,29 @@ export function BudgetDashboard() {
           onClick={fetchDashboard}
           className="button"
           style={{
-            padding: '8px 16px',
-            borderRadius: '6px',
+            padding: 'var(--spacing-2, 8px) var(--spacing-4, 16px)',
+            borderRadius: 'var(--radius-md, 6px)',
             border: '1px solid var(--color-border, #333)',
             background: 'var(--color-bg-secondary, #2a2a2a)',
             color: 'var(--color-text-primary, #fff)',
             cursor: 'pointer',
-            fontSize: '13px'
+            fontSize: 'var(--font-size-sm, 12px)'
           }}
         >
           ⟳ Refresh
         </button>
       </div>
 
-      {loading && <div style={{ color: 'var(--color-text-secondary, #888)', padding: '40px', textAlign: 'center' }}>Loading dashboard data...</div>}
+      {loading && <div style={{ color: 'var(--color-text-secondary, #888)', padding: 'var(--spacing-4, 16px)', textAlign: 'center' }}>Loading dashboard data...</div>}
 
       {error && (
         <div className="card" style={{
-          padding: '15px',
+          padding: 'var(--spacing-3, 12px)',
           background: 'var(--color-danger, #dc3545)20',
           border: '1px solid var(--color-danger, #dc3545)',
           color: 'var(--color-danger, #dc3545)',
-          marginBottom: '20px',
-          borderRadius: '8px'
+          marginBottom: 'var(--spacing-4, 16px)',
+          borderRadius: 'var(--radius-lg, 8px)'
         }}>
           <strong>Error:</strong> {error}
         </div>
@@ -995,14 +995,14 @@ export function BudgetDashboard() {
           {/* Live Ticker */}
           <LiveTicker providers={filteredProviders} totalSpend={kpiData.totalSpent} />
 
-          {/* Global Override Banner */}
+{/* Global Override Banner */}
           {data.data.override?.forcedTier && (
             <div style={{
               background: 'var(--color-warning, #ffc107)',
               color: '#000',
-              padding: '12px 16px',
-              borderRadius: '6px',
-              marginBottom: '16px',
+              padding: 'var(--spacing-3, 12px) var(--spacing-4, 16px)',
+              borderRadius: 'var(--radius-md, 6px)',
+              marginBottom: 'var(--spacing-4, 16px)',
               fontWeight: 600
             }}>
               ⚠️ Global Override Active: Tier forced to "{data.data.override.forcedTier}"
@@ -1021,8 +1021,8 @@ export function BudgetDashboard() {
           {/* Time Period Selector */}
           <TimePeriodSelector selected={timePeriod} onSelect={handlePeriodChange} />
 
-          {/* KPI Cards */}
-          <div className="responsive-grid" style={{ marginBottom: '24px' }}>
+{/* KPI Cards */}
+          <div className="responsive-grid" style={{ marginBottom: 'var(--spacing-4, 16px)', gridTemplateColumns: 'repeat(3, 1fr)' }}>
             <KPICard
               label="Total Spend"
               value={kpiData.totalSpent}
@@ -1064,11 +1064,11 @@ export function BudgetDashboard() {
             )}
           </div>
 
-          {/* Provider Cards Grid */}
-          <h3 style={{ fontSize: '18px', fontWeight: 600, marginBottom: '16px', color: 'var(--color-text-primary, #fff)' }}>
+{/* Provider Cards Grid */}
+          <h3 style={{ fontSize: 'var(--font-size-lg, 18px)', fontWeight: 600, marginBottom: 'var(--spacing-4, 16px)', color: 'var(--color-text-primary, #fff)' }}>
             Provider Status
           </h3>
-          <div className="responsive-grid" style={{ marginBottom: '24px' }}>
+          <div className="responsive-grid" style={{ marginBottom: 'var(--spacing-4, 16px)' }}>
             {filteredProviders.map(provider => (
               <ProviderCard
                 key={provider.provider}
@@ -1080,62 +1080,62 @@ export function BudgetDashboard() {
             ))}
           </div>
 
-          {/* Usage Chart */}
-          <h3 style={{ fontSize: '18px', fontWeight: 600, marginBottom: '16px', color: 'var(--color-text-primary, #fff)' }}>
+{/* Usage Chart */}
+          <h3 style={{ fontSize: 'var(--font-size-lg, 18px)', fontWeight: 600, marginBottom: 'var(--spacing-4, 16px)', color: 'var(--color-text-primary, #fff)' }}>
             Spending Trends
           </h3>
-          <div className="card" style={{ marginBottom: '24px', padding: '20px' }}>
+          <div className="card" style={{ marginBottom: 'var(--spacing-4, 16px)', padding: 'var(--spacing-4, 16px)' }}>
             {trendsData ? (
               <SimpleLineChart data={trendsData.trends} providers={trendsData.providers} />
             ) : (
-              <div style={{ color: 'var(--color-text-secondary, #888)', padding: '40px', textAlign: 'center' }}>
+              <div style={{ color: 'var(--color-text-secondary, #888)', padding: 'var(--spacing-4, 16px)', textAlign: 'center' }}>
                 Loading trend data...
               </div>
             )}
           </div>
 
-          {/* Two-column layout for Model Breakdown and Alerts */}
-          <div className="responsive-grid" style={{ marginBottom: '24px' }}>
+{/* Two-column layout for Model Breakdown and Alerts */}
+          <div className="responsive-grid" style={{ marginBottom: 'var(--spacing-4, 16px)' }}>
             {/* Model Breakdown */}
-            <div className="card" style={{ padding: '20px' }}>
-              <h3 style={{ fontSize: '16px', fontWeight: 600, marginBottom: '16px', color: 'var(--color-text-primary, #fff)' }}>
+            <div className="card" style={{ padding: 'var(--spacing-4, 16px)' }}>
+              <h3 style={{ fontSize: 'var(--font-size-md, 16px)', fontWeight: 600, marginBottom: 'var(--spacing-4, 16px)', color: 'var(--color-text-primary, #fff)' }}>
                 Model Breakdown
               </h3>
               <ModelBreakdownTable usageData={usageData} />
             </div>
 
             {/* Alerts */}
-            <div className="card" style={{ padding: '20px' }}>
-              <h3 style={{ fontSize: '16px', fontWeight: 600, marginBottom: '16px', color: 'var(--color-text-primary, #fff)' }}>
+            <div className="card" style={{ padding: 'var(--spacing-4, 16px)' }}>
+              <h3 style={{ fontSize: 'var(--font-size-md, 16px)', fontWeight: 600, marginBottom: 'var(--spacing-4, 16px)', color: 'var(--color-text-primary, #fff)' }}>
                 Alerts & Recommendations
               </h3>
               <AlertsPanel data={data.data} claudeMaxData={claudeMaxData || undefined} copilotData={copilotData || undefined} />
             </div>
           </div>
 
-          {/* Session Insights */}
+{/* Session Insights */}
           {claudeMaxData && (
-            <div className="card" style={{ padding: '20px', marginBottom: '24px' }}>
-              <h3 style={{ fontSize: '16px', fontWeight: 600, marginBottom: '16px', color: 'var(--color-text-primary, #fff)' }}>
+            <div className="card" style={{ padding: 'var(--spacing-4, 16px)', marginBottom: 'var(--spacing-4, 16px)' }}>
+              <h3 style={{ fontSize: 'var(--font-size-md, 16px)', fontWeight: 600, marginBottom: 'var(--spacing-4, 16px)', color: 'var(--color-text-primary, #fff)' }}>
                 Session Insights
               </h3>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 'var(--spacing-4, 16px)' }}>
                 <div>
-                  <div style={{ fontSize: '12px', color: 'var(--color-text-secondary, #888)', marginBottom: '4px' }}>Current Session Usage</div>
-                  <div style={{ fontSize: '20px', fontWeight: 600, color: getUsageColor(claudeMaxData.currentSession.percentUsed) }}>
+                  <div style={{ fontSize: 'var(--font-size-sm, 12px)', color: 'var(--color-text-secondary, #888)', marginBottom: 'var(--spacing-1, 4px)' }}>Current Session Usage</div>
+                  <div style={{ fontSize: 'var(--font-size-lg, 18px)', fontWeight: 600, color: getUsageColor(claudeMaxData.currentSession.percentUsed) }}>
                     {claudeMaxData.currentSession.percentUsed}%
                   </div>
                 </div>
                 <div>
-                  <div style={{ fontSize: '12px', color: 'var(--color-text-secondary, #888)', marginBottom: '4px' }}>All Models Usage</div>
-                  <div style={{ fontSize: '20px', fontWeight: 600, color: getUsageColor(claudeMaxData.allModels.percentUsed) }}>
+                  <div style={{ fontSize: 'var(--font-size-sm, 12px)', color: 'var(--color-text-secondary, #888)', marginBottom: 'var(--spacing-1, 4px)' }}>All Models Usage</div>
+                  <div style={{ fontSize: 'var(--font-size-lg, 18px)', fontWeight: 600, color: getUsageColor(claudeMaxData.allModels.percentUsed) }}>
                     {claudeMaxData.allModels.percentUsed}%
                   </div>
                 </div>
                 {claudeMaxData.sonnetOnly && (
                   <div>
-                    <div style={{ fontSize: '12px', color: 'var(--color-text-secondary, #888)', marginBottom: '4px' }}>Sonnet Only Usage</div>
-                    <div style={{ fontSize: '20px', fontWeight: 600, color: getUsageColor(claudeMaxData.sonnetOnly.percentUsed) }}>
+                    <div style={{ fontSize: 'var(--font-size-sm, 12px)', color: 'var(--color-text-secondary, #888)', marginBottom: 'var(--spacing-1, 4px)' }}>Sonnet Only Usage</div>
+                    <div style={{ fontSize: 'var(--font-size-lg, 18px)', fontWeight: 600, color: getUsageColor(claudeMaxData.sonnetOnly.percentUsed) }}>
                       {claudeMaxData.sonnetOnly.percentUsed}%
                     </div>
                   </div>
@@ -1144,9 +1144,9 @@ export function BudgetDashboard() {
             </div>
           )}
 
-          {/* ROI Comparison - Collapsible Section */}
+{/* ROI Comparison - Collapsible Section */}
           {roiComparison && (
-            <div className="card" style={{ padding: '20px', marginBottom: '24px' }}>
+            <div className="card" style={{ padding: 'var(--spacing-4, 16px)', marginBottom: 'var(--spacing-4, 16px)' }}>
               <button
                 onClick={() => setIsROIExpanded(!isROIExpanded)}
                 style={{
@@ -1158,19 +1158,19 @@ export function BudgetDashboard() {
                   border: 'none',
                   padding: 0,
                   cursor: 'pointer',
-                  fontSize: '16px',
+                  fontSize: 'var(--font-size-md, 16px)',
                   fontWeight: 600,
                   color: 'var(--color-text-primary, #fff)'
                 }}
               >
-                <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <span style={{ fontSize: '20px' }}>💰</span>
+                <span style={{ display: 'flex', alignItems: 'center', gap: 'var(--spacing-2, 8px)' }}>
+                  <span style={{ fontSize: 'var(--font-size-lg, 18px)' }}>💰</span>
                   ROI Comparison
                 </span>
-                <span style={{ fontSize: '20px' }}>{isROIExpanded ? '▼' : '▶'}</span>
+                <span style={{ fontSize: 'var(--font-size-lg, 18px)' }}>{isROIExpanded ? '▼' : '▶'}</span>
               </button>
               {isROIExpanded && (
-                <div style={{ marginTop: '20px' }}>
+                <div style={{ marginTop: 'var(--spacing-4, 16px)' }}>
                   <ROIComparison
                     currentModel={roiComparison.currentModel}
                     currentCost={roiComparison.currentCost}
@@ -1183,10 +1183,10 @@ export function BudgetDashboard() {
             </div>
           )}
 
-          {/* Logged Alerts Panel */}
-          <div className="card" style={{ padding: '20px', marginBottom: '24px' }}>
-            <h3 style={{ fontSize: '16px', fontWeight: 600, marginBottom: '16px', color: 'var(--color-text-primary, #fff)' }}>
-              <span style={{ fontSize: '20px', marginRight: '8px' }}>📋</span>
+{/* Logged Alerts Panel */}
+          <div className="card" style={{ padding: 'var(--spacing-4, 16px)', marginBottom: 'var(--spacing-4, 16px)' }}>
+            <h3 style={{ fontSize: 'var(--font-size-md, 16px)', fontWeight: 600, marginBottom: 'var(--spacing-4, 16px)', color: 'var(--color-text-primary, #fff)' }}>
+              <span style={{ fontSize: 'var(--font-size-lg, 18px)', marginRight: 'var(--spacing-2, 8px)' }}>📋</span>
               Logged Alerts
             </h3>
             <LoggedAlertsPanel />
