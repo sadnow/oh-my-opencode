@@ -110,13 +110,16 @@ export function LoggedAlertsPanel() {
         border: '1px solid var(--color-border, #2d2d44)'
       }}>
         <div>
-          <label style={{
-            marginRight: '8px',
-            fontWeight: '600',
-            color: 'var(--color-text-primary, #fff)',
-            fontSize: '13px'
-          }}>Level:</label>
+          <label
+            htmlFor="level-filter"
+            style={{
+              marginRight: '8px',
+              fontWeight: '600',
+              color: 'var(--color-text-primary, #fff)',
+              fontSize: '13px'
+            }}>Level:</label>
           <select
+            id="level-filter"
             value={levelFilter}
             onChange={(e) => setLevelFilter(e.target.value)}
             style={{
@@ -136,13 +139,16 @@ export function LoggedAlertsPanel() {
         </div>
 
         <div>
-          <label style={{
-            marginRight: '8px',
-            fontWeight: '600',
-            color: 'var(--color-text-primary, #fff)',
-            fontSize: '13px'
-          }}>Category:</label>
+          <label
+            htmlFor="category-filter"
+            style={{
+              marginRight: '8px',
+              fontWeight: '600',
+              color: 'var(--color-text-primary, #fff)',
+              fontSize: '13px'
+            }}>Category:</label>
           <select
+            id="category-filter"
             value={categoryFilter}
             onChange={(e) => setCategoryFilter(e.target.value)}
             style={{
