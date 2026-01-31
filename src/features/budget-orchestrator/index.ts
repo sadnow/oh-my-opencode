@@ -35,6 +35,7 @@ import { APIBudgetManager } from "./api-manager"
 import { BudgetOverrideManager, getOverrideManager } from "./override"
 import { GlobalOverrideManager, getGlobalOverrideManager, type UseCase } from "./global-override"
 import { getRoutingLogger } from "./routing-logger"
+import { AnomalyRecord } from "./anomaly-detector"
 import { join } from "path"
 import { homedir } from "os"
 
@@ -256,6 +257,15 @@ export class BudgetOrchestrator {
    */
   isEnabled(): boolean {
     return this.config.enabled && this.usageTracker !== null
+  }
+
+  /**
+   * Get detected anomalies for a provider.
+   */
+  getAnomalies(provider: string): AnomalyRecord[] {
+    const manager = this.adaptiveManagers.get(provider)
+    if (!manager) return []
+    return manager.getAnomalies()
   }
 
   /**

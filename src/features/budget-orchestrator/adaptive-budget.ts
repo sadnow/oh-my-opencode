@@ -8,6 +8,7 @@
 
 import { log } from "../../shared"
 import type { ModelTier } from "../../config/schema"
+import { AnomalyDetector, type AnomalyRecord } from "./anomaly-detector"
 
 // ============================================================================
 // Types
@@ -275,6 +276,7 @@ export class AdaptiveBudgetManager {
   private config: AdaptiveBudgetConfig
   private persistPath: string | null
   private fileLock: FileLock | null = null
+  private anomalyDetector: AnomalyDetector
 
   constructor(config: Partial<AdaptiveBudgetConfig> = {}, persistPath?: string) {
     // Validate config
@@ -296,6 +298,7 @@ export class AdaptiveBudgetManager {
     }
 
     this.state = this.loadState() ?? this.createInitialState()
+    this.anomalyDetector = new AnomalyDetector()
 
     log("[adaptive-budget] Initialized:", {
       totalBudget: this.config.totalBudget,
@@ -604,6 +607,9 @@ export class AdaptiveBudgetManager {
 
     // Update session cost statistics
     this.updateSessionCostStats(cost)
+
+    // Detect anomalies
+    this.anomalyDetector.detectAndRecord(cost)
 
     // Update hourly pattern
     this.updateHourlyPattern(pattern)
@@ -967,6 +973,13 @@ export class AdaptiveBudgetManager {
       current: this.state.tierStabilityCounter,
       required: this.config.stabilityChecksBeforeUpgrade,
     }
+  }
+
+  /**
+   * Get detected anomalies.
+   */
+  getAnomalies(): AnomalyRecord[] {
+    return this.anomalyDetector.getAnomalies()
   }
 
   /**
