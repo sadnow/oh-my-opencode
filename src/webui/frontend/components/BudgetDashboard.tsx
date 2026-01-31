@@ -815,6 +815,22 @@ export function BudgetDashboard() {
         fetch('/api/stats/roi-comparison')
       ])
 
+      // Check all responses before parsing JSON
+      const responses = [
+        { res: dashboardRes, name: 'budget/dashboard' },
+        { res: claudeMaxRes, name: 'claude-max/usage' },
+        { res: copilotRes, name: 'copilot/usage' },
+        { res: usageRes, name: 'usage' },
+        { res: trendsRes, name: 'budget/trends' },
+        { res: anomaliesRes, name: 'anomalies' },
+        { res: roiRes, name: 'stats/roi-comparison' }
+      ]
+      for (const { res, name } of responses) {
+        if (!res.ok) {
+          throw new Error(`API request failed: /api/${name} returned ${res.status} ${res.statusText}`)
+        }
+      }
+
       const [dashboardData, claudeData, copilotResult, usageResult, trendsResult, anomaliesResult, roiResult] = await Promise.all([
         dashboardRes.json(),
         claudeMaxRes.json(),
