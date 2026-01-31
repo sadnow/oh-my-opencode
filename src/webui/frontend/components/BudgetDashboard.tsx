@@ -242,14 +242,14 @@ export function BudgetDashboard() {
                         background: getSeverityColor(status.severity) + '20',
                         color: getSeverityColor(status.severity)
                       }}>
-                        {status.remaining_pct.toFixed(0)}%
+                        {((status.details.used / status.details.total) * 100).toFixed(1)}% used
                       </div>
                     </div>
 
                     <div style={{ marginBottom: '10px' }}>
                       <div className="progress-bar">
                         <div className="progress-bar-fill" style={{
-                          width: `${status.remaining_pct}%`,
+                          width: `${(status.details.used / status.details.total) * 100}%`,
                           background: getSeverityColor(status.severity)
                         }} />
                       </div>
@@ -340,14 +340,14 @@ export function BudgetDashboard() {
                         background: getSeverityColor(status.severity) + '20',
                         color: getSeverityColor(status.severity)
                       }}>
-                        {status.remaining_pct.toFixed(0)}%
+                        {((status.details.used / status.details.total) * 100).toFixed(1)}% used
                       </div>
                     </div>
 
                     <div style={{ marginBottom: '10px' }}>
                       <div className="progress-bar">
                         <div className="progress-bar-fill" style={{
-                          width: `${status.remaining_pct}%`,
+                          width: `${(status.details.used / status.details.total) * 100}%`,
                           background: getSeverityColor(status.severity)
                         }} />
                       </div>
