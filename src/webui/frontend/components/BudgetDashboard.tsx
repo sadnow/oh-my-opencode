@@ -3,7 +3,10 @@ import { LoggedAlertsPanel } from './LoggedAlertsPanel'
 import { ForecastWidget } from './ForecastWidget'
 import { ROIComparison } from './ROIComparison'
 import { AnomalyIndicator } from './AnomalyIndicator'
-import { AnomalyRecord } from '../../../features/budget-orchestrator/anomaly-detector'
+import type { AnomalyRecord } from '../../../features/budget-orchestrator/anomaly-detector'
+import { SpendingHeatmap } from './SpendingHeatmap'
+import { BudgetGauge } from './BudgetGauge'
+import { CostTimeline } from './CostTimeline'
 
 // ============================================================================
 // Types
@@ -1062,6 +1065,77 @@ export function BudgetDashboard() {
                 daysRemaining={filteredProviders[0].daysRemaining}
               />
             )}
+          </div>
+
+          {/* New Visualization Components - 3-Column Grid */}
+          <h3 style={{ fontSize: 'var(--font-size-lg, 18px)', fontWeight: 600, marginBottom: 'var(--spacing-4, 16px)', color: 'var(--color-text-primary, #fff)' }}>
+            Spending Analytics
+          </h3>
+          <div className="responsive-grid" style={{ marginBottom: 'var(--spacing-4, 16px)', gridTemplateColumns: 'repeat(3, 1fr)' }}>
+            {/* Spending Heatmap */}
+            <div className="card" style={{ padding: 'var(--spacing-4, 16px)' }}>
+              <h4 style={{ fontSize: 'var(--font-size-md, 16px)', fontWeight: 600, marginBottom: 'var(--spacing-3, 12px)', color: 'var(--color-text-primary, #fff)' }}>
+                Spending Heatmap
+              </h4>
+              <SpendingHeatmap
+                data={(() => {
+                  // Transform daily spending data into hourly/day format
+                  const heatmapData: Array<{ hour: number; day: number; amount: number }> = []
+                  filteredProviders.forEach(provider => {
+                    provider.dailySpending.forEach(spending => {
+                      const date = new Date(spending.date)
+                      const day = date.getDay() // 0-6 (Sun-Sat)
+                      const hour = date.getHours() // 0-23
+                      heatmapData.push({ hour, day, amount: spending.amount })
+                    })
+                  })
+                  return heatmapData
+                })()}
+              />
+            </div>
+
+            {/* Budget Gauge */}
+            <div className="card" style={{ padding: 'var(--spacing-4, 16px)', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+              <h4 style={{ fontSize: 'var(--font-size-md, 16px)', fontWeight: 600, marginBottom: 'var(--spacing-3, 12px)', color: 'var(--color-text-primary, #fff)' }}>
+                Overall Budget Usage
+              </h4>
+              <BudgetGauge
+                percentage={kpiData.overallUsagePercentage}
+                label="Used"
+                size={120}
+                strokeWidth={12}
+              />
+              <div style={{ marginTop: 'var(--spacing-3, 12px)', textAlign: 'center', fontSize: 'var(--font-size-sm, 12px)', color: 'var(--color-text-secondary, #888)' }}>
+                <div>{formatCurrency(kpiData.totalSpent)} of {formatCurrency(kpiData.totalBudget)}</div>
+                <div style={{ marginTop: 'var(--spacing-1, 4px)' }}>
+                  {kpiData.daysRemainingAtCurrentRate.toFixed(1)} days remaining at current rate
+                </div>
+              </div>
+            </div>
+
+            {/* Cost Timeline */}
+            <div className="card" style={{ padding: 'var(--spacing-4, 16px)' }}>
+              <h4 style={{ fontSize: 'var(--font-size-md, 16px)', fontWeight: 600, marginBottom: 'var(--spacing-3, 12px)', color: 'var(--color-text-primary, #fff)' }}>
+                Cost Timeline
+              </h4>
+              <CostTimeline
+                events={anomalies.map(a => ({
+                  timestamp: a.timestamp.toISOString(),
+                  type: a.type,
+                  message: `${a.type} detected: ${formatCurrency(a.value)} (z-score: ${a.zScore.toFixed(2)})`
+                }))}
+                spendingData={(() => {
+                  // Transform daily spending into timeline format
+                  const timelineData: Array<{ timestamp: string; amount: number }> = []
+                  filteredProviders.forEach(provider => {
+                    provider.dailySpending.forEach(spending => {
+                      timelineData.push({ timestamp: spending.date, amount: spending.amount })
+                    })
+                  })
+                  return timelineData
+                })()}
+              />
+            </div>
           </div>
 
 {/* Provider Cards Grid */}
