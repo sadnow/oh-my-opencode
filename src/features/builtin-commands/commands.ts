@@ -6,6 +6,10 @@ import { REFACTOR_TEMPLATE } from "./templates/refactor"
 import { START_WORK_TEMPLATE } from "./templates/start-work"
 import { OIB_WEBUI_TEMPLATE } from "./templates/oib-webui"
 import { OIB_WEBUI_STOP_TEMPLATE } from "./templates/oib-webui-stop"
+import { OIB_STATUS_TEMPLATE } from "./templates/oib-status"
+import { OIB_TIER_TEMPLATE } from "./templates/oib-tier"
+import { OIB_MAX_TEMPLATE } from "./templates/oib-max"
+import { OIB_ECO_TEMPLATE } from "./templates/oib-eco"
 
 const BUILTIN_COMMAND_DEFINITIONS: Record<BuiltinCommandName, Omit<CommandDefinition, "name">> = {
   "init-deep": {
@@ -61,6 +65,47 @@ $ARGUMENTS
     description: "(builtin) Stop the oh-im-broke WebUI server",
     template: `<command-instruction>
 ${OIB_WEBUI_STOP_TEMPLATE}
+</command-instruction>
+
+<user-request>
+$ARGUMENTS
+</user-request>`,
+  },
+  "oib-status": {
+    description: "(builtin) Show comprehensive budget status, usage, and alerts",
+    template: `<command-instruction>
+${OIB_STATUS_TEMPLATE}
+</command-instruction>
+
+<user-request>
+$ARGUMENTS
+</user-request>`,
+  },
+  "oib-tier": {
+    description: "(builtin) Set tier control: premium, standard, budget, economy, or auto",
+    template: `<command-instruction>
+${OIB_TIER_TEMPLATE}
+</command-instruction>
+
+<user-request>
+$ARGUMENTS
+</user-request>`,
+    argumentHint: "<premium|standard|budget|economy|auto>",
+  },
+  "oib-max": {
+    description: "(builtin) Force premium tier for maximum performance (meta-development)",
+    template: `<command-instruction>
+${OIB_MAX_TEMPLATE}
+</command-instruction>
+
+<user-request>
+$ARGUMENTS
+</user-request>`,
+  },
+  "oib-eco": {
+    description: "(builtin) Enable economy mode - only cheapest models (emergency)",
+    template: `<command-instruction>
+${OIB_ECO_TEMPLATE}
 </command-instruction>
 
 <user-request>
