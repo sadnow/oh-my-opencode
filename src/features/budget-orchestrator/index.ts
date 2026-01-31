@@ -130,6 +130,12 @@ export class BudgetOrchestrator {
       migratedConfig.quota_targets
     )
 
+    // Load manual Zen usage from config if available
+    const manualZenUsage = migratedConfig.quota_targets?.zen_manual_usage_dollars
+    if (manualZenUsage !== undefined) {
+      this.apiManager.setManualZenUsage(manualZenUsage)
+    }
+
     // Initialize adaptive budget managers for each provider
     for (const [provider, budget] of Object.entries(this.config.providerBudgets)) {
       const periodHours = this.getProviderPeriodHours(provider)
@@ -772,6 +778,30 @@ export class BudgetOrchestrator {
       }
     }
 
+    // Check OpenCode Zen API budget
+    const zenBudget = this.quotaTargets.zen_monthly_dollars
+    if (zenBudget && zenBudget > 0) {
+      const zenUsage = this.getEffectiveZenUsage()
+      const zenPercentUsed = (zenUsage / zenBudget) * 100
+      
+      let constraintTier: ModelTier = "premium"
+      
+      if (zenPercentUsed >= 100) {
+        constraintTier = "economy"
+        log(`[budget-orchestrator] Zen constraint: ${zenPercentUsed.toFixed(1)}% >= 100% → economy tier`)
+      } else if (zenPercentUsed >= 90) {
+        constraintTier = "budget"
+        log(`[budget-orchestrator] Zen constraint: ${zenPercentUsed.toFixed(1)}% >= 90% → budget tier`)
+      } else if (zenPercentUsed >= 70) {
+        constraintTier = "standard"
+        log(`[budget-orchestrator] Zen constraint: ${zenPercentUsed.toFixed(1)}% >= 70% → standard tier`)
+      } else {
+        log(`[budget-orchestrator] Zen constraint: ${zenPercentUsed.toFixed(1)}% < 70% → premium tier`)
+      }
+      
+      mostRestrictiveTier = compareTiers(mostRestrictiveTier, constraintTier)
+    }
+
     log(`[budget-orchestrator] Final subscription-constrained tier: ${mostRestrictiveTier}`)
     return mostRestrictiveTier
   }
@@ -1180,12 +1210,20 @@ export class BudgetOrchestrator {
     // Calculate current usage percentage for quota checks
     const usagePercentByProvider = this.calculateUsagePercentages()
     
+    // Filter out null values from quotaTargets for compatibility
+    const filteredQuotaTargets: Record<string, number> = {}
+    for (const [key, value] of Object.entries(this.quotaTargets)) {
+      if (typeof value === 'number') {
+        filteredQuotaTargets[key] = value
+      }
+    }
+    
     return this.globalOverrideManager.getBestAvailableModel(
       useCase,
       preferredModel,
       this.availableProviders,
       usagePercentByProvider,
-      this.quotaTargets
+      filteredQuotaTargets
     )
   }
   
@@ -1226,6 +1264,43 @@ export class BudgetOrchestrator {
    */
   clearGlobalOverrides(source: "cli" | "webui" | "api" = "api"): void {
     this.globalOverrideManager.clearAll({ source })
+  }
+
+  // ============================================
+  // Manual Zen Usage Override
+  // ============================================
+
+  /**
+   * Set manual Zen usage override (from actual billing).
+   * This allows users to input their actual billing amount from the OpenCode Zen dashboard,
+   * which may differ from the tracked usage.
+   * 
+   * @param amount The actual amount from billing, or null to use tracked usage
+   */
+  setManualZenUsage(amount: number | null): void {
+    this.apiManager.setManualZenUsage(amount)
+    log("[budget-orchestrator] Manual Zen usage set to:", amount)
+  }
+
+  /**
+   * Get the current manual Zen usage override.
+   */
+  getManualZenUsage(): number | null {
+    return this.apiManager.getManualZenUsage()
+  }
+
+  /**
+   * Get the tracked Zen usage from usage tracker.
+   */
+  getTrackedZenUsage(): number {
+    return this.apiManager.getTrackedZenUsage()
+  }
+
+  /**
+   * Get the effective Zen usage (manual override if set, otherwise tracked).
+   */
+  getEffectiveZenUsage(): number {
+    return this.apiManager.getEffectiveZenUsage()
   }
 }
 

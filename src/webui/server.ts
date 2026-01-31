@@ -54,6 +54,8 @@ import {
   handleGetDashboard,
   handleGetTrends,
   handleSetOverride,
+  handleGetZenUsage,
+  handleSetZenUsage,
   type BudgetDashboardContext,
 } from "./routes/budget-dashboard"
 
@@ -160,7 +162,7 @@ const configCtx: ConfigRouteContext = { configManager }
   const usageCtx: UsageRouteContext = { usageTracker, budgetOrchestrator }
   const wizardCtx: WizardRouteContext = { configManager }
   const orchCtx: OrchestrationRouteContext = { budgetOrchestrator }
-  const budgetDashCtx: BudgetDashboardContext = { budgetOrchestrator, usageTracker }
+  const budgetDashCtx: BudgetDashboardContext = { budgetOrchestrator, usageTracker, configManager }
   const claudeMaxCtx: ClaudeMaxRouteContext = { claudeMaxTracker: claudeMaxTracker ?? null }
   const copilotCtx: CopilotRouteContext = { copilotTracker: copilotTracker ?? null }
   const statsCtx: StatsRouteContext = { usageTracker, budgetOrchestrator }
@@ -308,6 +310,13 @@ async function handleAPI(
   }
   if (pathname === "/budget/override" && method === "POST") {
     return handleSetOverride(req, ctx.budgetDashCtx)
+  }
+  // Manual Zen usage override
+  if (pathname === "/budget/zen-usage" && method === "POST") {
+    return handleSetZenUsage(req, ctx.budgetDashCtx)
+  }
+  if (pathname === "/budget/zen-usage" && method === "GET") {
+    return handleGetZenUsage(ctx.budgetDashCtx)
   }
   // Provider-specific budget routes
   if (pathname.startsWith("/budget/") && method === "GET") {

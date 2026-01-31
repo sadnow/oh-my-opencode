@@ -399,6 +399,8 @@ export const QuotaTargetsSchema = z.object({
   copilot_monthly_percent: z.number().min(0).max(100).optional(),
   /** Zen/API monthly dollar target */
   zen_monthly_dollars: z.number().min(0).optional(),
+  /** Manual Zen usage override (actual billing from dashboard) */
+  zen_manual_usage_dollars: z.number().min(0).nullable().optional(),
 })
 
 /** Subscription-based budget configuration */

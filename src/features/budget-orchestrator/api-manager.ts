@@ -9,6 +9,8 @@ export interface APIBudgetConfig {
 }
 
 export class APIBudgetManager {
+  private manualZenUsage: number | null = null
+
   constructor(
     private usageTracker: UsageTracker | null,
     private apiConfig?: APIBudgetConfig,
@@ -22,6 +24,41 @@ export class APIBudgetManager {
     this.quotaTargets = targets
   }
 
+  /**
+   * Set manual Zen usage override (from actual billing)
+   * @param amount The actual amount from billing, or null to use tracked usage
+   */
+  setManualZenUsage(amount: number | null): void {
+    this.manualZenUsage = amount
+  }
+
+  /**
+   * Get the current manual Zen usage override
+   */
+  getManualZenUsage(): number | null {
+    return this.manualZenUsage
+  }
+
+  /**
+   * Get the tracked Zen usage from usage tracker
+   */
+  getTrackedZenUsage(): number {
+    if (!this.usageTracker) return 0
+    
+    const opencodeUsage = this.usageTracker.getProviderSummary('opencode')
+    const googleUsage = this.usageTracker.getProviderSummary('google')
+    const openaiUsage = this.usageTracker.getProviderSummary('openai')
+    
+    return opencodeUsage.totalCost + googleUsage.totalCost + openaiUsage.totalCost
+  }
+
+  /**
+   * Get the effective Zen usage (manual override if set, otherwise tracked)
+   */
+  getEffectiveZenUsage(): number {
+    return this.manualZenUsage ?? this.getTrackedZenUsage()
+  }
+
   getStatuses(): BudgetStatus[] {
     const statuses: BudgetStatus[] = []
     
@@ -32,20 +69,15 @@ export class APIBudgetManager {
     // Use monthly limit from quota_targets, or fallback to weekly * 4
     const effectiveMonthlyLimit = monthlyLimit ?? (weeklyLimit ? weeklyLimit * 4 : undefined)
     
-    if (effectiveMonthlyLimit && this.usageTracker) {
-      // Sum all pay-per-use API providers for Zen usage
-      const opencodeUsage = this.usageTracker.getProviderSummary('opencode')
-      const googleUsage = this.usageTracker.getProviderSummary('google')
-      const openaiUsage = this.usageTracker.getProviderSummary('openai')
-      
-      // Total Zen usage = opencode + google + openai (all pay-per-use APIs)
-      const totalZenUsage = opencodeUsage.totalCost + googleUsage.totalCost + openaiUsage.totalCost
+    if (effectiveMonthlyLimit) {
+      const totalZenUsage = this.getEffectiveZenUsage()
       const percentUsed = (totalZenUsage / effectiveMonthlyLimit) * 100
+      const isManual = this.manualZenUsage !== null
       
       statuses.push({
         provider: 'opencode-zen',
         type: 'api',
-        metric_label: '$ used (monthly)',
+        metric_label: isManual ? '$ used (monthly, manual)' : '$ used (monthly)',
         remaining_pct: Math.max(0, 100 - percentUsed),
         severity: this.getSeverity(percentUsed),
         recommendation: this.getRecommendation(percentUsed),

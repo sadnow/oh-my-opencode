@@ -5,7 +5,8 @@
 
 import type { BudgetOrchestrator } from "../../features/budget-orchestrator"
 import type { UsageTracker } from "../../features/usage-tracker"
-import type { ModelTier } from "../../config/schema"
+import type { HotConfigManager } from "../../features/hot-config"
+import type { ModelTier, OhMyOpenCodeConfig } from "../../config/schema"
 import type { BudgetStatus } from "../../features/budget-orchestrator/types"
 
 // ============================================================================
@@ -15,6 +16,7 @@ import type { BudgetStatus } from "../../features/budget-orchestrator/types"
 export interface BudgetDashboardContext {
   budgetOrchestrator: BudgetOrchestrator | null
   usageTracker: UsageTracker | null
+  configManager?: HotConfigManager
 }
 
 interface DailySpending {
@@ -310,6 +312,107 @@ export async function handleSetOverride(
           { status: 400 }
         )
     }
+  } catch (error) {
+    return Response.json(
+      { success: false, error: String(error) },
+      { status: 500 }
+    )
+  }
+}
+
+/**
+ * GET /api/budget/zen-usage
+ * Get current Zen usage (tracked and manual override)
+ */
+export function handleGetZenUsage(ctx: BudgetDashboardContext): Response {
+  const { budgetOrchestrator } = ctx
+
+  if (!budgetOrchestrator) {
+    return Response.json(
+      { success: false, error: "Budget orchestrator not available" },
+      { status: 400 }
+    )
+  }
+
+  const manualUsage = budgetOrchestrator.getManualZenUsage()
+  const trackedUsage = budgetOrchestrator.getTrackedZenUsage()
+  const effectiveUsage = budgetOrchestrator.getEffectiveZenUsage()
+  const quotaTargets = budgetOrchestrator.getQuotaTargets()
+
+  return Response.json({
+    success: true,
+    data: {
+      manualUsage,
+      trackedUsage,
+      effectiveUsage,
+      monthlyBudget: quotaTargets.zen_monthly_dollars ?? null,
+      isManualOverride: manualUsage !== null,
+    },
+  })
+}
+
+/**
+ * POST /api/budget/zen-usage
+ * Set manual Zen usage override (from actual billing)
+ */
+export async function handleSetZenUsage(
+  req: Request,
+  ctx: BudgetDashboardContext
+): Promise<Response> {
+  const { budgetOrchestrator, configManager } = ctx
+
+  if (!budgetOrchestrator) {
+    return Response.json(
+      { success: false, error: "Budget orchestrator not available" },
+      { status: 400 }
+    )
+  }
+
+  try {
+    const body = await req.json() as {
+      amount: number | null
+    }
+
+    // Validate amount
+    if (body.amount !== null && (typeof body.amount !== "number" || body.amount < 0)) {
+      return Response.json(
+        { success: false, error: "Amount must be a non-negative number or null" },
+        { status: 400 }
+      )
+    }
+
+    // Set in runtime
+    budgetOrchestrator.setManualZenUsage(body.amount)
+
+    // Persist to config file if configManager is available
+    let persisted = false
+    if (configManager) {
+      const currentTargets = budgetOrchestrator.getQuotaTargets()
+      const configChange: Partial<OhMyOpenCodeConfig> = {
+        budget: {
+          quota_targets: {
+            ...currentTargets,
+            zen_manual_usage_dollars: body.amount,
+          },
+        } as OhMyOpenCodeConfig["budget"],
+      }
+      configManager.queueChange(configChange, "zen-manual-usage")
+      configManager.applyPendingChanges()
+      configManager.saveConfig()
+      persisted = true
+    }
+
+    return Response.json({
+      success: true,
+      message: body.amount !== null
+        ? `Manual Zen usage set to $${body.amount.toFixed(2)}${persisted ? " (persisted)" : ""}`
+        : `Manual Zen usage override cleared (using tracked usage)${persisted ? " (persisted)" : ""}`,
+      data: {
+        manualUsage: body.amount,
+        effectiveUsage: budgetOrchestrator.getEffectiveZenUsage(),
+      },
+      persisted,
+    })
   } catch (error) {
     return Response.json(
       { success: false, error: String(error) },

@@ -27,6 +27,7 @@ export function Settings() {
   
   // Form state
   const [zenWeeklyBudget, setZenWeeklyBudget] = useState<string>('')
+  const [zenActualBilling, setZenActualBilling] = useState<string>('')
   const [claudeMaxTarget, setClaudeMaxTarget] = useState<string>('')
   const [copilotTarget, setCopilotTarget] = useState<string>('')
   const [autoUpgrade, setAutoUpgrade] = useState(true)
@@ -43,6 +44,7 @@ export function Settings() {
     setError(null)
     
     try {
+      // Load adaptive settings
       const res = await fetch('/api/adaptive/settings')
       const data: SettingsResponse = await res.json()
       
@@ -68,6 +70,17 @@ export function Settings() {
         }
       } else {
         setError(data.error || 'Failed to load settings')
+      }
+
+      // Load Zen usage (manual override)
+      const zenRes = await fetch('/api/budget/zen-usage')
+      const zenData = await zenRes.json()
+      if (zenData.success && zenData.data) {
+        if (zenData.data.manualUsage !== null) {
+          setZenActualBilling(zenData.data.manualUsage.toString())
+        } else {
+          setZenActualBilling('')
+        }
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load settings')
@@ -104,12 +117,27 @@ export function Settings() {
       
       const data = await res.json()
       
-      if (data.success) {
+      if (!data.success) {
+        setError(data.error || 'Failed to save settings')
+        return
+      }
+
+      // Save Zen actual billing (manual override)
+      const zenAmount = zenActualBilling ? parseFloat(zenActualBilling) : null
+      const zenRes = await fetch('/api/budget/zen-usage', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ amount: zenAmount }),
+      })
+      
+      const zenData = await zenRes.json()
+      
+      if (zenData.success) {
         setSuccess('Settings saved successfully!' + (data.persisted ? ' (Config file updated)' : ' (Runtime only)'))
         // Reload to show saved values
         await loadSettings()
       } else {
-        setError(data.error || 'Failed to save settings')
+        setError(zenData.error || 'Failed to save Zen usage')
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to save settings')
@@ -200,6 +228,44 @@ export function Settings() {
             />
             <p style={{ marginTop: '6px', fontSize: '13px', color: 'var(--color-text-secondary)' }}>
               Maximum amount to spend per week on OpenCode Zen API calls
+            </p>
+          </div>
+
+          {/* Actual Zen Billing This Month */}
+          <div>
+            <label style={{ display: 'block', marginBottom: '8px', fontWeight: '600' }}>
+              Actual Zen Billing This Month ($)
+              <span style={{ 
+                display: 'inline-block',
+                marginLeft: '8px',
+                padding: '2px 8px',
+                background: 'var(--color-warning)',
+                color: 'white',
+                borderRadius: '4px',
+                fontSize: '11px'
+              }}>
+                Manual Override
+              </span>
+            </label>
+            <input
+              type="number"
+              min="0"
+              step="0.01"
+              value={zenActualBilling}
+              onChange={(e) => setZenActualBilling(e.target.value)}
+              placeholder="e.g., 22.06"
+              style={{
+                width: '200px',
+                padding: '10px 12px',
+                fontSize: '16px',
+                border: '2px solid var(--color-border)',
+                borderRadius: '6px',
+                background: 'var(--color-bg-primary)',
+                color: 'var(--color-text-primary)',
+              }}
+            />
+            <p style={{ marginTop: '6px', fontSize: '13px', color: 'var(--color-text-secondary)' }}>
+              Enter your actual billing from the OpenCode Zen dashboard. Leave empty to use tracked usage.
             </p>
           </div>
 
