@@ -5,6 +5,7 @@
 
 import type { UsageTracker } from "../../features/usage-tracker"
 import type { BudgetOrchestrator } from "../../features/budget-orchestrator"
+import { getRoiComparison } from "../../features/budget-orchestrator/roi-calculator"
 
 export interface StatsRouteContext {
   usageTracker: UsageTracker | null
@@ -242,6 +243,40 @@ export function handleGetEnhancedStats(
     return Response.json({
       success: true,
       data: analytics,
+    })
+  } catch (error) {
+    return Response.json(
+      { success: false, error: String(error) },
+      { status: 500 }
+    )
+  }
+}
+
+/**
+ * GET /api/stats/roi-comparison
+ * Get ROI comparison data based on current usage
+ */
+export function handleGetStatsRoiComparison(ctx: StatsRouteContext): Response {
+  if (!ctx.usageTracker) {
+    return Response.json(
+      { success: false, error: "Usage tracking not enabled" },
+      { status: 503 }
+    )
+  }
+
+  try {
+    const summary = ctx.usageTracker.getWeeklySummary()
+    const currentModel = "claude-3-5-sonnet-20241022"
+    
+    const comparison = getRoiComparison(
+      currentModel,
+      summary.current.totalInputTokens,
+      summary.current.totalOutputTokens
+    )
+
+    return Response.json({
+      success: true,
+      data: comparison,
     })
   } catch (error) {
     return Response.json(

@@ -82,8 +82,10 @@ import {
   handleGetStatsSessions,
   handleGetStatsAllProviders,
   handleGetEnhancedStats,
+  handleGetStatsRoiComparison,
   type StatsRouteContext,
 } from "./routes/stats"
+
 
 import {
   handleGetAdaptiveSettings,
@@ -429,7 +431,11 @@ async function handleAPI(
     const period = url.searchParams.get("period") || "weekly"
     return handleGetEnhancedStats(period, ctx.statsCtx)
   }
+  if (pathname === "/stats/roi-comparison" && method === "GET") {
+    return handleGetStatsRoiComparison(ctx.statsCtx)
+  }
   if (pathname.startsWith("/stats/trends/") && method === "GET") {
+
     const provider = pathname.replace("/stats/trends/", "")
     const range = url.searchParams.get("range") || "7d"
     return handleGetStatsTrends(provider, range, ctx.statsCtx)
