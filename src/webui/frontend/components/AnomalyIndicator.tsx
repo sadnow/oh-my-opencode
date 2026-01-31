@@ -1,4 +1,4 @@
-import { AnomalyRecord } from '../../../features/budget-orchestrator/anomaly-detector'
+import type { AnomalyRecord } from '../../../features/budget-orchestrator/anomaly-detector'
 
 interface AnomalyIndicatorProps {
   anomalies: AnomalyRecord[]
