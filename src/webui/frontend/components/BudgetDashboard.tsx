@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useMemo } from 'react'
 
 // ============================================================================
 // Types
@@ -58,6 +58,7 @@ interface BudgetDashboardData {
 }
 
 interface ClaudeMaxUsage {
+  tier?: string
   currentSession: { percentUsed: number; resetDate: string }
   sonnetOnly: { percentUsed: number; resetDate: string } | null
   allModels: { percentUsed: number; resetDate: string }
@@ -65,6 +66,7 @@ interface ClaudeMaxUsage {
 }
 
 interface CopilotUsage {
+  tier?: string
   percentUsed: number
   premiumRequestsUsed: number
   premiumRequestsLimit: number
@@ -194,6 +196,59 @@ const calculateOverallTrend = (providers: ProviderDashboardData[]): { value: num
   allDailySpending.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
 
   return calculateTrend(allDailySpending)
+}
+
+const filterDataByPeriod = (dailySpending: Array<{ date: string; amount: number }>, timePeriod: TimePeriod): Array<{ date: string; amount: number }> => {
+  if (!dailySpending || dailySpending.length === 0) {
+    return []
+  }
+
+  const now = new Date()
+  const cutoffDate = new Date()
+
+  switch (timePeriod) {
+    case '1H':
+      // For daily data, 1H shows the most recent day's data
+      // If we had hourly data, we'd filter to last 1 hour
+      cutoffDate.setHours(now.getHours() - 1)
+      break
+    case '24H':
+      // Last 24 hours / 1 day
+      cutoffDate.setDate(now.getDate() - 1)
+      break
+    case '1W':
+      // Last 7 days
+      cutoffDate.setDate(now.getDate() - 7)
+      break
+    case '1M':
+      // Last 30 days
+      cutoffDate.setDate(now.getDate() - 30)
+      break
+    case 'ALL':
+    default:
+      // Return all data
+      return dailySpending
+  }
+
+  // Filter data based on cutoff date
+  return dailySpending.filter(d => {
+    const date = new Date(d.date)
+    return date >= cutoffDate
+  })
+}
+
+const formatResetCountdown = (resetDate: string): string => {
+  const now = new Date()
+  const reset = new Date(resetDate)
+  const diff = reset.getTime() - now.getTime()
+
+  if (diff <= 0) return 'Resetting now'
+
+  const days = Math.floor(diff / (1000 * 60 * 60 * 24))
+  const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60))
+
+  if (days > 0) return `Resets in ${days}d ${hours}h`
+  return `Resets in ${hours}h`
 }
 
 // ============================================================================
@@ -472,6 +527,16 @@ const ProviderCard = ({ provider, data, claudeMaxData, copilotData }: {
           borderTop: '1px solid var(--color-border, #333)',
           fontSize: '11px'
         }}>
+          {claudeMaxData.tier && (
+            <div style={{ fontSize: '13px', marginTop: '8px', marginBottom: '8px' }}>
+              <strong>Tier:</strong> {claudeMaxData.tier}
+            </div>
+          )}
+          {claudeMaxData.currentSession.resetDate && (
+            <div style={{ fontSize: '12px', color: 'var(--color-text-secondary, #999)', marginBottom: '8px' }}>
+              {formatResetCountdown(claudeMaxData.currentSession.resetDate)}
+            </div>
+          )}
           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
             <span style={{ color: 'var(--color-text-secondary, #888)' }}>Current Session</span>
             <span style={{ color: getUsageColor(claudeMaxData.currentSession.percentUsed), fontWeight: 600 }}>
@@ -497,6 +562,16 @@ const ProviderCard = ({ provider, data, claudeMaxData, copilotData }: {
           borderTop: '1px solid var(--color-border, #333)',
           fontSize: '11px'
         }}>
+          {copilotData.tier && (
+            <div style={{ fontSize: '13px', marginTop: '8px', marginBottom: '8px' }}>
+              <strong>Tier:</strong> {copilotData.tier}
+            </div>
+          )}
+          {copilotData.resetDate && (
+            <div style={{ fontSize: '12px', color: 'var(--color-text-secondary, #999)', marginBottom: '8px' }}>
+              {formatResetCountdown(copilotData.resetDate)}
+            </div>
+          )}
           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
             <span style={{ color: 'var(--color-text-secondary, #888)' }}>Premium Requests</span>
             <span style={{ color: 'var(--color-text-primary, #fff)', fontWeight: 600 }}>
@@ -767,6 +842,15 @@ export function BudgetDashboard() {
     return () => clearInterval(interval)
   }, [])
 
+  // Filter providers based on selected time period
+  const filteredProviders = useMemo(() => {
+    if (!data?.data?.providers) return []
+    return data.data.providers.map(provider => ({
+      ...provider,
+      dailySpending: filterDataByPeriod(provider.dailySpending, timePeriod)
+    }))
+  }, [data?.data?.providers, timePeriod])
+
   if (!loading && !error && data && !data.data.enabled) {
     return (
       <div>
@@ -781,20 +865,25 @@ export function BudgetDashboard() {
     )
   }
 
-  const totalSpent = data?.data.providers.reduce((acc, p) => acc + p.used, 0) || 0
+  // Calculate KPIs based on filtered data
+  const totalSpent = filteredProviders.reduce((acc, p) => {
+    return acc + p.dailySpending.reduce((sum, d) => sum + d.amount, 0)
+  }, 0)
+
   const totalBudget = data?.data.providers.reduce((acc, p) => acc + p.budget, 0) || 0
   const overallUsagePercentage = totalBudget > 0 ? (totalSpent / totalBudget) * 100 : 0
 
-  // Calculate KPIs
-  const avgDailySpend = data?.data.providers.reduce((acc, p) => {
-    const dailyAvg = p.daysElapsed > 0 ? p.used / p.daysElapsed : 0
-    return acc + dailyAvg
+  // Calculate average daily spend based on filtered data
+  const avgDailySpend = filteredProviders.reduce((acc, p) => {
+    const periodTotal = p.dailySpending.reduce((sum, d) => sum + d.amount, 0)
+    const periodDays = Math.max(p.dailySpending.length, 1)
+    return acc + (periodTotal / periodDays)
   }, 0) || 0
 
   const burnRate = avgDailySpend / 24 // per hour
   const daysRemainingAtCurrentRate = burnRate > 0 ? (totalBudget - totalSpent) / (burnRate * 24) : 0
-  const activeProviders = data?.data.providers.length || 0
-  const healthyProviders = data?.data.providers.filter(p => p.percentage < 70).length || 0
+  const activeProviders = filteredProviders.length || 0
+  const healthyProviders = filteredProviders.filter(p => p.percentage < 70).length || 0
 
   return (
     <div>
@@ -843,7 +932,22 @@ export function BudgetDashboard() {
       {!loading && !error && data && (
         <>
           {/* Live Ticker */}
-          <LiveTicker providers={data.data.providers} totalSpend={totalSpent} />
+          <LiveTicker providers={filteredProviders} totalSpend={totalSpent} />
+
+          {/* Global Override Banner */}
+          {data.data.override?.forcedTier && (
+            <div style={{
+              background: 'var(--color-warning, #ffc107)',
+              color: '#000',
+              padding: '12px 16px',
+              borderRadius: '6px',
+              marginBottom: '16px',
+              fontWeight: 600
+            }}>
+              ⚠️ Global Override Active: Tier forced to "{data.data.override.forcedTier}"
+              {data.data.override.expiresIn && ` (expires in ${data.data.override.expiresIn})`}
+            </div>
+          )}
 
           {/* Time Period Selector */}
           <TimePeriodSelector selected={timePeriod} onSelect={setTimePeriod} />
@@ -855,7 +959,7 @@ export function BudgetDashboard() {
               value={totalSpent}
               unit=""
               color={getUsageColor(overallUsagePercentage)}
-              trend={calculateOverallTrend(data.data.providers)}
+              trend={calculateOverallTrend(filteredProviders)}
             />
             <KPICard
               label="Burn Rate"
@@ -881,7 +985,7 @@ export function BudgetDashboard() {
             Provider Status
           </h3>
           <div className="responsive-grid" style={{ marginBottom: '24px' }}>
-            {data.data.providers.map(provider => (
+            {filteredProviders.map(provider => (
               <ProviderCard
                 key={provider.provider}
                 provider={provider.provider}
