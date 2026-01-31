@@ -5,6 +5,7 @@ import { RoutingLogsViewer } from '../components/RoutingLogsViewer'
 import { BudgetDashboard } from '../components/BudgetDashboard'
 import { ClaudeMaxUsage } from '../components/ClaudeMaxUsage'
 import { CopilotUsage } from '../components/CopilotUsage'
+import { QuotaMatrix } from '../components/QuotaMatrix'
 import { Settings } from '../components/Settings'
 import { StatsDashboard } from '../components/StatsDashboard'
 
@@ -104,6 +105,7 @@ return (
               Real-time Claude Max and Copilot usage
             </p>
             <div style={{ display: 'grid', gap: 'var(--spacing-4)' }}>
+              <QuotaMatrix />
               <ClaudeMaxUsage />
               <CopilotUsage />
             </div>
