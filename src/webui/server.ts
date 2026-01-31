@@ -556,7 +556,9 @@ function serveStatic(pathname: string): Response {
   const distPath = join(process.cwd(), "dist", "webui")
 
   if (existsSync(distPath)) {
-    const filePath = pathname === "/" ? join(distPath, "index.html") : join(distPath, pathname)
+    // Remove leading slash from pathname to prevent absolute path issues
+    const sanitizedPath = pathname.replace(/^\//, "")
+    const filePath = sanitizedPath === "" ? join(distPath, "index.html") : join(distPath, sanitizedPath)
 
     if (existsSync(filePath)) {
       const file = Bun.file(filePath)
