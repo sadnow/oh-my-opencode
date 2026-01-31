@@ -54,8 +54,15 @@ interface BudgetDashboardData {
   }
 }
 
+interface ClaudeMaxUsage {
+  currentSession: { percentUsed: number; resetDate: string }
+  sonnetOnly: { percentUsed: number; resetDate: string } | null
+  allModels: { percentUsed: number; resetDate: string }
+}
+
 export function BudgetDashboard() {
   const [data, setData] = useState<BudgetDashboardData | null>(null)
+  const [claudeMaxData, setClaudeMaxData] = useState<ClaudeMaxUsage | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -64,13 +71,26 @@ export function BudgetDashboard() {
     setError(null)
     
     try {
-      const res = await fetch('/api/budget/dashboard')
-      const dashboardData: BudgetDashboardData = await res.json()
+      const [dashboardRes, claudeMaxRes] = await Promise.all([
+        fetch('/api/budget/dashboard'),
+        fetch('/api/claude-max/usage')
+      ])
+      
+      const dashboardData: BudgetDashboardData = await dashboardRes.json()
+      const claudeData = await claudeMaxRes.json()
       
       if (dashboardData.success) {
         setData(dashboardData)
       } else {
         setError('Failed to fetch budget dashboard')
+      }
+      
+      if (claudeData.success && claudeData.data) {
+        setClaudeMaxData({
+          currentSession: claudeData.data.currentSession,
+          sonnetOnly: claudeData.data.sonnetOnly,
+          allModels: claudeData.data.allModels
+        })
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unknown error')
@@ -172,7 +192,7 @@ export function BudgetDashboard() {
             marginBottom: '30px',
             border: '2px solid ' + getUsageColor(overallUsagePercentage)
           }}>
-            <div className="responsive-grid grid-3col" style={{ display: 'grid', gap: '20px' }}>
+            <div className="grid-3col">
               <div>
                 <div style={{ fontSize: '14px', color: 'var(--color-text-secondary)', marginBottom: '5px' }}>Total Spent</div>
                 <div style={{ fontSize: '28px', fontWeight: 'bold', color: 'var(--color-text-primary)' }}>
@@ -261,6 +281,34 @@ export function BudgetDashboard() {
                         </div>
                       </div>
                     </div>
+                    
+                    {/* Claude Max additional details */}
+                    {status.provider === 'claude-max' && claudeMaxData && (
+                      <div style={{ 
+                        marginTop: '15px', 
+                        paddingTop: '15px', 
+                        borderTop: '1px solid var(--color-border, #333)',
+                        display: 'grid',
+                        gridTemplateColumns: 'repeat(2, 1fr)',
+                        gap: '10px',
+                        fontSize: '12px'
+                      }}>
+                        <div>
+                          <div style={{ color: 'var(--color-text-secondary)' }}>Current Session</div>
+                          <div style={{ fontWeight: 'bold', color: getUsageColor(claudeMaxData.currentSession.percentUsed), marginTop: '3px' }}>
+                            {claudeMaxData.currentSession.percentUsed}%
+                          </div>
+                        </div>
+                        {claudeMaxData.sonnetOnly && (
+                          <div>
+                            <div style={{ color: 'var(--color-text-secondary)' }}>Sonnet Usage</div>
+                            <div style={{ fontWeight: 'bold', color: getUsageColor(claudeMaxData.sonnetOnly.percentUsed), marginTop: '3px' }}>
+                              {claudeMaxData.sonnetOnly.percentUsed}%
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>
