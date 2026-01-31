@@ -11,7 +11,7 @@ import * as path from "path"
 export interface RoutingLogEntry {
   timestamp: string
   level: "info" | "warning" | "error" | "decision"
-  category: "tier_change" | "upgrade_scheduled" | "downgrade_scheduled" | "upgrade_executed" | "downgrade_executed" | "budget_alert" | "override" | "adaptive"
+  category: "tier_change" | "upgrade_scheduled" | "downgrade_scheduled" | "upgrade_executed" | "downgrade_executed" | "budget_alert" | "override" | "adaptive" | "weighted_selection"
   message: string
   metadata?: Record<string, any>
 }

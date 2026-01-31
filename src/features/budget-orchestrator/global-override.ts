@@ -15,6 +15,8 @@ import type { ModelTier } from "../../config/schema"
 import { join } from "path"
 import { homedir } from "os"
 import { getRoutingLogger } from "./routing-logger"
+import { getWeightCalculator } from "./provider-weight-calculator"
+import type { WeightCandidate } from "./provider-classification"
 
 // ============================================================================
 // Use-Case Specific Model Fallback Lists
@@ -528,11 +530,18 @@ export class GlobalOverrideManager {
   /**
    * Get the best available model for a use case, respecting global overrides.
    * 
+   * Uses Weighted Fair-Share balancing to distribute load across providers:
+   * - Subscription providers (Claude Max, Copilot) get 2.0x priority
+   * - API budget providers (OpenCode Zen) get 0.5x priority
+   * - Providers with lower usage get higher priority
+   * - Providers resetting soon get a 1.3x bonus
+   * 
    * @param useCase The use case (librarian, explorer, oracle, etc.)
    * @param preferredModel Optional preferred model to try first
    * @param availableProviders List of providers that are authenticated
    * @param usagePercentByProvider Map of provider -> current usage percentage (0-100)
    * @param quotaTargets Provider-specific quota targets from config
+   * @param daysUntilResetByProvider Optional map of provider -> days until quota resets
    * @returns The best available model string ("provider/model")
    */
   getBestAvailableModel(
@@ -540,7 +549,8 @@ export class GlobalOverrideManager {
     preferredModel?: string,
     availableProviders: string[] = [],
     usagePercentByProvider: Record<string, number> = {},
-    quotaTargets: Record<string, number> = {}
+    quotaTargets: Record<string, number> = {},
+    daysUntilResetByProvider?: Record<string, number>
   ): string {
     const fallbackList = USE_CASE_FALLBACKS[useCase]
     
@@ -564,21 +574,65 @@ export class GlobalOverrideManager {
       }
     }
     
-    // Go through fallback list
-    for (const model of fallbackList) {
-      if (this.isModelAllowedForUseCase(
+    // Filter to allowed models
+    const allowedModels = fallbackList.filter(model =>
+      this.isModelAllowedForUseCase(
         model,
         availableProviders,
         usagePercentByProvider,
         quotaTargets,
         shouldBlockPremium
-      )) {
-        return model
-      }
+      )
+    )
+    
+    // Edge case: no allowed models
+    if (allowedModels.length === 0) {
+      log("[global-override] No allowed models, falling back to big-pickle")
+      return "opencode/big-pickle"
     }
     
-    // Ultimate fallback - opencode/big-pickle is always available
-    return "opencode/big-pickle"
+    // Edge case: only one allowed model
+    if (allowedModels.length === 1) {
+      return allowedModels[0]
+    }
+    
+    // Use weighted selection for load balancing
+    const calculator = getWeightCalculator()
+    const candidates = calculator.buildCandidates(
+      allowedModels,
+      usagePercentByProvider,
+      daysUntilResetByProvider
+    )
+    
+    const selected = calculator.selectBestProvider(candidates)
+    
+    if (selected) {
+      // Log the routing decision with weights for debugging
+      const logger = getRoutingLogger()
+      const topCandidates = candidates
+        .sort((a, b) => b.weight - a.weight)
+        .slice(0, 3)
+        .map(c => `${c.model}(w=${c.weight.toFixed(2)},u=${c.usagePercent.toFixed(0)}%)`)
+      
+      logger.logInfo(
+        "weighted_selection",
+        `[${useCase}] Selected ${selected.model} (weight=${selected.weight.toFixed(2)})`,
+        {
+          useCase,
+          selected: selected.model,
+          weight: selected.weight,
+          usagePercent: selected.usagePercent,
+          topCandidates,
+          totalCandidates: candidates.length,
+        }
+      )
+      
+      return selected.model
+    }
+    
+    // Fallback if weighted selection fails (all weights 0)
+    log("[global-override] All weights 0, falling back to first allowed model")
+    return allowedModels[0]
   }
   
   /**
