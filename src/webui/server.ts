@@ -5,8 +5,9 @@
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type BunServer = any
-import { log } from "../shared"
+import { logger } from "../shared/logger"
 import type { HotConfigManager } from "../features/hot-config"
+
 import type { UsageTracker } from "../features/usage-tracker"
 import type { BudgetOrchestrator } from "../features/budget-orchestrator"
 
@@ -228,10 +229,11 @@ const configCtx: ConfigRouteContext = { configManager }
     },
   })
 
-  log("[webui] Server started:", { port, bind, url: `http://${bind}:${port}` })
+  logger.info("[webui] Server started", { port, bind, url: `http://${bind}:${port}` })
 
   return server
 }
+
 
 interface APIContexts {
   configCtx: ConfigRouteContext
@@ -585,5 +587,6 @@ function serveStatic(pathname: string): Response {
  */
 export function stopWebUI(server: BunServer): void {
   server.stop()
-  log("[webui] Server stopped")
+  logger.info("[webui] Server stopped")
 }
+

@@ -4,6 +4,7 @@
  */
 
 import pc from "picocolors"
+import { logger } from "../../shared/logger"
 import type { BudgetCommandOptions } from "./types"
 import type { ModelTier } from "../../config/schema"
 import { loadPluginConfig } from "../../plugin-config"
@@ -40,11 +41,10 @@ export async function budget(options: BudgetCommandOptions): Promise<number> {
   // Check if budget is enabled
   if (!pluginConfig.budget?.enabled) {
     if (options.json) {
-      console.log(JSON.stringify({ success: false, error: "Budget tracking is not enabled" }))
+      logger.error("Budget tracking is not enabled")
     } else {
-      console.log(pc.yellow("Budget tracking is not enabled."))
-      console.log(pc.dim("Enable it in your oh-my-opencode.json:"))
-      console.log(pc.dim('  "budget": { "enabled": true, "provider_budgets": { "anthropic": 20 } }'))
+      logger.warn("Budget tracking is not enabled.")
+      logger.info("Enable it in your oh-my-opencode.json: \"budget\": { \"enabled\": true, \"provider_budgets\": { \"anthropic\": 20 } }")
     }
     return 1
   }
@@ -69,9 +69,9 @@ export async function budget(options: BudgetCommandOptions): Promise<number> {
   if (options.unlockTier) {
     overrideManager.unlockTier()
     if (options.json) {
-      console.log(JSON.stringify({ success: true, message: "Tier unlocked" }))
+      logger.info("Tier unlocked")
     } else {
-      console.log(pc.green("✓ Tier unlocked"))
+      logger.info("✓ Tier unlocked")
     }
     return 0
   }
@@ -80,14 +80,10 @@ export async function budget(options: BudgetCommandOptions): Promise<number> {
     const durationMs = options.duration ? options.duration * 60 * 1000 : undefined
     overrideManager.lockTier({ durationMs, source: "cli" })
     if (options.json) {
-      console.log(JSON.stringify({
-        success: true,
-        message: "Tier locked",
-        duration: durationMs ? `${options.duration} minutes` : "indefinitely",
-      }))
+      logger.info("Tier locked", { duration: durationMs ? `${options.duration} minutes` : "indefinitely" })
     } else {
       const durationText = durationMs ? ` for ${options.duration} minutes` : ""
-      console.log(pc.green(`✓ Tier locked${durationText}`))
+      logger.info(`✓ Tier locked${durationText}`)
     }
     return 0
   }
@@ -95,13 +91,10 @@ export async function budget(options: BudgetCommandOptions): Promise<number> {
   if (options.forceTier) {
     if (!isValidTier(options.forceTier)) {
       if (options.json) {
-        console.log(JSON.stringify({
-          success: false,
-          error: `Invalid tier: ${options.forceTier}. Valid tiers: ${VALID_TIERS.join(", ")}`,
-        }))
+        logger.error("Invalid tier", { tier: options.forceTier, validTiers: VALID_TIERS })
       } else {
-        console.log(pc.red(`Invalid tier: ${options.forceTier}`))
-        console.log(pc.dim(`Valid tiers: ${VALID_TIERS.join(", ")}`))
+        logger.error(`Invalid tier: ${options.forceTier}`)
+        logger.info(`Valid tiers: ${VALID_TIERS.join(", ")}`)
       }
       return 1
     }
@@ -109,14 +102,10 @@ export async function budget(options: BudgetCommandOptions): Promise<number> {
     const durationMs = options.duration ? options.duration * 60 * 1000 : undefined
     overrideManager.forceTier(options.forceTier, { durationMs, source: "cli" })
     if (options.json) {
-      console.log(JSON.stringify({
-        success: true,
-        message: `Tier forced to ${options.forceTier}`,
-        duration: durationMs ? `${options.duration} minutes` : "indefinitely",
-      }))
+      logger.info(`Tier forced to ${options.forceTier}`, { duration: durationMs ? `${options.duration} minutes` : "indefinitely" })
     } else {
       const durationText = durationMs ? ` for ${options.duration} minutes` : ""
-      console.log(pc.green(`✓ Tier forced to ${formatTier(options.forceTier)}${durationText}`))
+      logger.info(`✓ Tier forced to ${formatTier(options.forceTier)}${durationText}`)
     }
     return 0
   }
@@ -125,13 +114,10 @@ export async function budget(options: BudgetCommandOptions): Promise<number> {
     const provider = typeof options.resetLearning === "string" ? options.resetLearning : undefined
     budgetOrchestrator.resetAdaptiveLearning(provider)
     if (options.json) {
-      console.log(JSON.stringify({
-        success: true,
-        message: provider ? `Reset learning for ${provider}` : "Reset all adaptive learning",
-      }))
+      logger.info(provider ? `Reset learning for ${provider}` : "Reset all adaptive learning")
     } else {
       const target = provider ? `for ${provider}` : "for all providers"
-      console.log(pc.green(`✓ Reset adaptive learning ${target}`))
+      logger.info(`✓ Reset adaptive learning ${target}`)
     }
     return 0
   }
@@ -144,12 +130,9 @@ export async function budget(options: BudgetCommandOptions): Promise<number> {
     displayData = filterByProvider(displayData, options.provider)
     if (displayData.providers.length === 0) {
       if (options.json) {
-        console.log(JSON.stringify({
-          success: false,
-          error: `No budget configured for provider: ${options.provider}`,
-        }))
+        logger.error("No budget configured for provider", { provider: options.provider })
       } else {
-        console.log(pc.yellow(`No budget configured for provider: ${options.provider}`))
+        logger.warn(`No budget configured for provider: ${options.provider}`)
       }
       return 1
     }
@@ -157,10 +140,7 @@ export async function budget(options: BudgetCommandOptions): Promise<number> {
 
   // Output
   if (options.json) {
-    console.log(JSON.stringify({
-      success: true,
-      data: displayData,
-    }, null, 2))
+    logger.info("Budget data", { data: displayData })
   } else {
     printBudgetDisplay(displayData)
   }
@@ -173,29 +153,29 @@ export async function budget(options: BudgetCommandOptions): Promise<number> {
 // ============================================================================
 
 function printBudgetDisplay(data: ReturnType<typeof buildBudgetDisplayData>): void {
-  console.log()
+  logger.info("")
 
   // Override status (if active)
   const overrideStatus = formatOverrideStatus(data.override)
   if (overrideStatus) {
-    console.log(overrideStatus)
-    console.log()
+    logger.info(overrideStatus)
+    logger.info("")
   }
 
   // Provider budgets
   if (data.providers.length === 0) {
-    console.log(pc.yellow("No providers configured with budgets."))
-    console.log()
+    logger.warn("No providers configured with budgets.")
+    logger.info("")
   } else {
     for (const provider of data.providers) {
-      console.log(formatProviderBudget(provider))
-      console.log()
+      logger.info(formatProviderBudget(provider))
+      logger.info("")
     }
   }
 
   // Global summary
-  console.log(formatGlobalSummary(data.globalTier, data.providers.length))
-  console.log()
+  logger.info(formatGlobalSummary(data.globalTier, data.providers.length))
+  logger.info("")
 }
 
 export default budget
