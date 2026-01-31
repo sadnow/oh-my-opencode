@@ -184,13 +184,24 @@ const configCtx: ConfigRouteContext = { configManager }
   const healthCheckCtx: HealthCheckRouteContext = { usageTracker }
   const anomalyCtx: AnomalyRouteContext = { budgetOrchestrator }
 
+  // WebSocket connections storage
+  const wsConnections = new Set<any>()
+
   const server = Bun.serve({
     port,
     hostname: bind,
-    async fetch(req) {
+    async fetch(req, server) {
       const url = new URL(req.url)
       const method = req.method
       const pathname = url.pathname
+
+      // Handle WebSocket upgrade
+      if (pathname === "/ws" && req.headers.get("upgrade") === "websocket") {
+        const success = server.upgrade(req)
+        if (success) {
+          return undefined // Return undefined for successful upgrade
+        }
+      }
 
       // CORS headers
       const corsHeaders = {
@@ -240,7 +251,50 @@ const configCtx: ConfigRouteContext = { configManager }
       // Static files
       return respond(serveStatic(pathname))
     },
+    websocket: {
+      open(ws) {
+        wsConnections.add(ws)
+        logger.info("[webui] WebSocket client connected", { totalClients: wsConnections.size })
+        
+        // Send welcome message
+        ws.send(JSON.stringify({
+          type: 'connected',
+          timestamp: Date.now(),
+          data: { message: 'WebSocket connection established' }
+        }))
+      },
+      message(ws, message) {
+        // Handle incoming messages if needed
+        try {
+          const data = JSON.parse(message.toString())
+          logger.debug("[webui] WebSocket message received", { data })
+        } catch (err) {
+          logger.error("[webui] Failed to parse WebSocket message", { error: err })
+        }
+      },
+      close(ws) {
+        wsConnections.delete(ws)
+        logger.info("[webui] WebSocket client disconnected", { totalClients: wsConnections.size })
+      },
+    },
   })
+
+  // Store WebSocket connections and broadcast function in server object
+  ;(server as any).wsConnections = wsConnections
+  ;(server as any).broadcast = (message: any) => {
+    const messageStr = JSON.stringify(message)
+    let sent = 0
+    for (const ws of wsConnections) {
+      try {
+        ws.send(messageStr)
+        sent++
+      } catch (err) {
+        logger.error("[webui] Failed to send WebSocket message", { error: err })
+        wsConnections.delete(ws)
+      }
+    }
+    logger.debug("[webui] WebSocket broadcast", { recipients: wsConnections.size, sent })
+  }
 
   logger.info("[webui] Server started", { port, bind, url: `http://${bind}:${port}` })
 
@@ -545,36 +599,29 @@ async function handleAPI(
   return Response.json(
     { success: false, error: `Not found: ${method} ${pathname}` },
     { status: 404 }
-  )
+)
+
+  logger.info("[webui] Server started", { port, bind, url: `http://${bind}:${port}` })
+
+  return server
+}
+
+// WebSocket message types
+export interface WSMessage {
+  type: 'budget_update' | 'tier_change' | 'alert' | 'usage_update' | 'connected'
+  timestamp: number
+  data: unknown
 }
 
 /**
- * Serve static files.
+ * Broadcast a message to all connected WebSocket clients
  */
-function serveStatic(pathname: string): Response {
-  // Try serving from dist/webui/ first (React build)
-  const distPath = join(process.cwd(), "dist", "webui")
-
-  if (existsSync(distPath)) {
-    // Remove leading slash from pathname to prevent absolute path issues
-    const sanitizedPath = pathname.replace(/^\//, "")
-    const filePath = sanitizedPath === "" ? join(distPath, "index.html") : join(distPath, sanitizedPath)
-
-    if (existsSync(filePath)) {
-      const file = Bun.file(filePath)
-      const contentType = filePath.endsWith(".js")
-        ? "application/javascript"
-        : filePath.endsWith(".css")
-          ? "text/css"
-          : filePath.endsWith(".html")
-            ? "text/html"
-            : "text/plain"
-
-      return new Response(file, {
-        headers: { "Content-Type": contentType },
-      })
-    }
+export function broadcastWS(server: BunServer, message: WSMessage): void {
+  const broadcastFn = (server as any).broadcast
+  if (broadcastFn) {
+    broadcastFn(message)
   }
+}
 
   if (pathname === "/" || pathname === "/index.html") {
     return new Response(INDEX_HTML, {
