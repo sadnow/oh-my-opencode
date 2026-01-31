@@ -87,10 +87,15 @@ export class AnomalyDetector {
 
   // Public method to detect and record anomalies
   public detectAndRecord(currentSpend: number): AnomalyRecord | null {
+    // MUST update baseline BEFORE detection so count increases
+    // Detection requires count >= 2 to have meaningful statistics
+    this.updateBaseline(currentSpend)
+    
     const anomaly = this.detectAnomaly(currentSpend)
     if (anomaly) {
       this.addAnomaly(anomaly)
+      return this.anomalies[this.anomalies.length - 1]
     }
-    return anomaly ? this.anomalies[this.anomalies.length - 1] : null
+    return null
   }
 }
