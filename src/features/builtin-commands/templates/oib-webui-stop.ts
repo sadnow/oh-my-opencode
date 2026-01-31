@@ -2,44 +2,47 @@ export const OIB_WEBUI_STOP_TEMPLATE = `You are stopping the oh-im-broke WebUI s
 
 ## WHAT TO DO
 
-1. **Detect the OS**:
-   - Use bash tool: \`uname -s\`
-   - MINGW/MSYS = Windows
-   - Darwin = macOS
-   - Linux = Linux
+Execute this single bash command (it handles everything):
 
-2. **Stop the server**:
-   - Windows: \`taskkill /F /IM bun.exe 2>/dev/null || echo "No bun processes found"\`
-   - macOS/Linux: \`pkill -f "bun run webui" || pkill -f "webui" || echo "No webui processes found"\`
+\`\`\`bash
+OS=$(uname -s 2>/dev/null || echo "Windows"); \
+if [[ "$OS" == MINGW* ]] || [[ "$OS" == MSYS* ]] || [[ "$OS" == "Windows" ]]; then \
+  PID=$(netstat -ano | grep :3847 | grep LISTENING | awk '{print $5}' | head -1); \
+  if [ -n "$PID" ] && [ "$PID" != "0" ]; then \
+    powershell.exe -Command "Stop-Process -Id $PID -Force" 2>/dev/null; \
+    sleep 1; \
+    curl -s http://localhost:3847 --max-time 1 >/dev/null 2>&1 && echo "FAILED" || echo "STOPPED:$PID"; \
+  else \
+    echo "NOT_RUNNING"; \
+  fi; \
+else \
+  PID=$(lsof -ti:3847 2>/dev/null | head -1); \
+  if [ -n "$PID" ]; then \
+    kill -9 $PID 2>/dev/null; \
+    sleep 1; \
+    curl -s http://localhost:3847 --max-time 1 >/dev/null 2>&1 && echo "FAILED" || echo "STOPPED:$PID"; \
+  else \
+    echo "NOT_RUNNING"; \
+  fi; \
+fi
+\`\`\`
 
-3. **Verify it stopped**:
-   - Check: \`curl -s http://localhost:3847 --max-time 2\`
-   - If it fails (connection refused), server is stopped successfully
+Parse the output and respond:
+- **"STOPPED:####"** → Success, show PID
+- **"NOT_RUNNING"** → Already stopped
+- **"FAILED"** → Error, process didn't die
 
-4. **Confirm to user**:
-   - Show success message
+## OUTPUT FORMAT
 
-## OUTPUT FORMAT (Success)
+If STOPPED:
+✅ **WebUI Server Stopped** (PID: ####)
+💡 Use \`/oib-webui\` to restart
 
-✅ WebUI Server Stopped
+If NOT_RUNNING:
+ℹ️ **Server Not Running**
+💡 Use \`/oib-webui\` to start
 
-🛑 **Status**: Server on port 3847 is no longer running
-
-The oh-im-broke WebUI dashboard has been stopped.
-
-💡 Use \`/oib-webui\` to start it again
-
-## OUTPUT FORMAT (Not Running)
-
-ℹ️ WebUI Server Not Running
-
-The server was not running (port 3847 is free).
-
-💡 Use \`/oib-webui\` to start the dashboard
-
-## IMPORTANT
-- Use bash tool to kill the process
-- Handle both Windows and Unix systems
-- Verify the port is free after stopping
-- Don't fail if already stopped
-`;
+If FAILED:
+❌ **Failed to Stop Server**
+Try manually: \`pkill -f webui\` or Task Manager
+`
