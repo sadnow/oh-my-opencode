@@ -119,6 +119,11 @@ import {
 } from "./routes/alerts"
 
 import {
+  handleGetAnomalies,
+  type AnomalyRouteContext,
+} from "./routes/anomaly"
+
+import {
   handleGetHealthCheck,
   type HealthCheckRouteContext,
 } from "./routes/health-check"
@@ -177,6 +182,7 @@ const configCtx: ConfigRouteContext = { configManager }
   const globalOverrideCtx: GlobalOverrideRouteContext = { budgetOrchestrator }
   const exportCtx: ExportRouteContext = { usageTracker, configManager, routingLogger: getRoutingLogger() }
   const healthCheckCtx: HealthCheckRouteContext = { usageTracker }
+  const anomalyCtx: AnomalyRouteContext = { budgetOrchestrator }
 
   const server = Bun.serve({
     port,
@@ -226,6 +232,7 @@ const configCtx: ConfigRouteContext = { configManager }
           globalOverrideCtx,
           exportCtx,
           healthCheckCtx,
+          anomalyCtx,
         })
         return respond(apiResponse)
       }
@@ -254,6 +261,7 @@ interface APIContexts {
   globalOverrideCtx: GlobalOverrideRouteContext
   exportCtx: ExportRouteContext
   healthCheckCtx: HealthCheckRouteContext
+  anomalyCtx: AnomalyRouteContext
 }
 
 /**
@@ -490,6 +498,11 @@ async function handleAPI(
   // Alerts routes
   if (pathname === "/alerts" && method === "GET") {
     return handleGetAlerts(req)
+  }
+
+  // Anomaly routes
+  if (pathname === "/anomalies" && method === "GET") {
+    return handleGetAnomalies(req, ctx.anomalyCtx)
   }
 
   // Global override routes
