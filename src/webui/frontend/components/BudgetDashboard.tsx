@@ -155,7 +155,46 @@ const formatTimeRemaining = (resetDate: string): string => {
   }
 }
 
+const calculateTrend = (dailySpending: Array<{ date: string; amount: number }>): { value: number; direction: 'up' | 'down' } => {
+  if (!dailySpending || dailySpending.length < 2) {
+    return { value: 0, direction: 'up' }
+  }
+  // Compare last 3 days vs previous 3 days (or available data)
+  const recent = dailySpending.slice(-3)
+  const older = dailySpending.slice(-6, -3)
+  if (older.length === 0) return { value: 0, direction: 'up' }
 
+  const recentAvg = recent.reduce((sum, d) => sum + d.amount, 0) / recent.length
+  const olderAvg = older.reduce((sum, d) => sum + d.amount, 0) / older.length
+
+  if (olderAvg === 0) return { value: 0, direction: 'up' }
+  const change = ((recentAvg - olderAvg) / olderAvg) * 100
+  return { value: Math.abs(change), direction: change >= 0 ? 'up' : 'down' }
+}
+
+const calculateOverallTrend = (providers: ProviderDashboardData[]): { value: number; direction: 'up' | 'down' } => {
+  if (!providers || providers.length === 0) {
+    return { value: 0, direction: 'up' }
+  }
+
+  // Aggregate all daily spending across providers
+  const allDailySpending: Array<{ date: string; amount: number }> = []
+  providers.forEach(provider => {
+    provider.dailySpending.forEach(spending => {
+      const existing = allDailySpending.find(d => d.date === spending.date)
+      if (existing) {
+        existing.amount += spending.amount
+      } else {
+        allDailySpending.push({ date: spending.date, amount: spending.amount })
+      }
+    })
+  })
+
+  // Sort by date
+  allDailySpending.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
+
+  return calculateTrend(allDailySpending)
+}
 
 // ============================================================================
 // Components
@@ -190,7 +229,7 @@ const LiveTicker = ({ providers, totalSpend }: { providers: ProviderDashboardDat
     name: getProviderDisplayName(p.provider),
     value: formatCurrency(p.used),
     color: getUsageColor(p.percentage),
-    trend: { value: Math.random() * 10, direction: Math.random() > 0.5 ? 'up' as const : 'down' as const }
+    trend: calculateTrend(p.dailySpending)
   }))
 
   return (
@@ -816,7 +855,7 @@ export function BudgetDashboard() {
               value={totalSpent}
               unit=""
               color={getUsageColor(overallUsagePercentage)}
-              trend={{ value: Math.random() * 15, direction: Math.random() > 0.5 ? 'up' : 'down' }}
+              trend={calculateOverallTrend(data.data.providers)}
             />
             <KPICard
               label="Burn Rate"
