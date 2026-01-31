@@ -1,4 +1,9 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
+import { LoggedAlertsPanel } from './LoggedAlertsPanel'
+import { ForecastWidget } from './ForecastWidget'
+import { ROIComparison } from './ROIComparison'
+import { AnomalyIndicator } from './AnomalyIndicator'
+import { AnomalyRecord } from '../../../features/budget-orchestrator/anomaly-detector'
 
 // ============================================================================
 // Types
@@ -782,29 +787,42 @@ export function BudgetDashboard() {
   const [copilotData, setCopilotData] = useState<CopilotUsage | null>(null)
   const [usageData, setUsageData] = useState<UsageData | null>(null)
   const [trendsData, setTrendsData] = useState<{ trends: TrendDataPoint[]; providers: string[] } | null>(null)
+  const [anomalies, setAnomalies] = useState<AnomalyRecord[]>([])
+  const [roiComparison, setRoiComparison] = useState<{
+    currentModel: string
+    currentCost: number
+    alternatives: Array<{ model: string; tier: string; estimatedCost: number; savings: number; savingsPercent: number }>
+    inputTokens: number
+    outputTokens: number
+  } | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [timePeriod, setTimePeriod] = useState<TimePeriod>('24H')
+  const [isROIExpanded, setIsROIExpanded] = useState(false)
 
   const fetchDashboard = useCallback(async () => {
     setLoading(true)
     setError(null)
 
     try {
-      const [dashboardRes, claudeMaxRes, copilotRes, usageRes, trendsRes] = await Promise.all([
+      const [dashboardRes, claudeMaxRes, copilotRes, usageRes, trendsRes, anomaliesRes, roiRes] = await Promise.all([
         fetch('/api/budget/dashboard'),
         fetch('/api/claude-max/usage'),
         fetch('/api/copilot/usage'),
         fetch('/api/usage'),
-        fetch('/api/budget/trends')
+        fetch('/api/budget/trends'),
+        fetch('/api/anomalies'),
+        fetch('/api/stats/roi-comparison')
       ])
 
-      const [dashboardData, claudeData, copilotResult, usageResult, trendsResult] = await Promise.all([
+      const [dashboardData, claudeData, copilotResult, usageResult, trendsResult, anomaliesResult, roiResult] = await Promise.all([
         dashboardRes.json(),
         claudeMaxRes.json(),
         copilotRes.json(),
         usageRes.json(),
-        trendsRes.json()
+        trendsRes.json(),
+        anomaliesRes.json(),
+        roiRes.json()
       ])
 
       if (dashboardData.success) {
@@ -827,6 +845,14 @@ export function BudgetDashboard() {
 
       if (trendsResult.success && trendsResult.data) {
         setTrendsData(trendsResult.data)
+      }
+
+      if (anomaliesResult.success && anomaliesResult.data) {
+        setAnomalies(anomaliesResult.data)
+      }
+
+      if (roiResult.success && roiResult.data) {
+        setRoiComparison(roiResult.data)
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unknown error')
@@ -968,6 +994,14 @@ export function BudgetDashboard() {
             </div>
           )}
 
+          {/* Anomaly Indicator */}
+          <AnomalyIndicator
+            anomalies={anomalies}
+            onDismiss={(id) => {
+              setAnomalies(prev => prev.map(a => a.id === id ? { ...a, dismissed: true } : a))
+            }}
+          />
+
           {/* Time Period Selector */}
           <TimePeriodSelector selected={timePeriod} onSelect={handlePeriodChange} />
 
@@ -997,6 +1031,21 @@ export function BudgetDashboard() {
               value={`${kpiData.healthyProviders}/${kpiData.activeProviders}`}
               color={kpiData.healthyProviders === kpiData.activeProviders ? 'var(--color-success, #28a745)' : 'var(--color-warning, #ffc107)'}
             />
+            {/* Forecast Widget */}
+            {filteredProviders.length > 0 && filteredProviders[0].adaptive && (
+              <ForecastWidget
+                predicted24h={filteredProviders[0].adaptive.spendingVelocity * 24}
+                predicted7d={filteredProviders[0].adaptive.spendingVelocity * 24 * 7}
+                predicted30d={filteredProviders[0].adaptive.spendingVelocity * 24 * 30}
+                predictionAccuracy={filteredProviders[0].adaptive.predictionAccuracy}
+                learningProgress={filteredProviders[0].adaptive.learningProgress}
+                spendingVelocity={filteredProviders[0].adaptive.spendingVelocity}
+                hourlyAllowance={filteredProviders[0].adaptive.hourlyAllowance}
+                budget={filteredProviders[0].budget}
+                used={filteredProviders[0].used}
+                daysRemaining={filteredProviders[0].daysRemaining}
+              />
+            )}
           </div>
 
           {/* Provider Cards Grid */}
@@ -1078,6 +1127,54 @@ export function BudgetDashboard() {
               </div>
             </div>
           )}
+
+          {/* ROI Comparison - Collapsible Section */}
+          {roiComparison && (
+            <div className="card" style={{ padding: '20px', marginBottom: '24px' }}>
+              <button
+                onClick={() => setIsROIExpanded(!isROIExpanded)}
+                style={{
+                  width: '100%',
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  background: 'transparent',
+                  border: 'none',
+                  padding: 0,
+                  cursor: 'pointer',
+                  fontSize: '16px',
+                  fontWeight: 600,
+                  color: 'var(--color-text-primary, #fff)'
+                }}
+              >
+                <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span style={{ fontSize: '20px' }}>💰</span>
+                  ROI Comparison
+                </span>
+                <span style={{ fontSize: '20px' }}>{isROIExpanded ? '▼' : '▶'}</span>
+              </button>
+              {isROIExpanded && (
+                <div style={{ marginTop: '20px' }}>
+                  <ROIComparison
+                    currentModel={roiComparison.currentModel}
+                    currentCost={roiComparison.currentCost}
+                    alternatives={roiComparison.alternatives}
+                    inputTokens={roiComparison.inputTokens}
+                    outputTokens={roiComparison.outputTokens}
+                  />
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Logged Alerts Panel */}
+          <div className="card" style={{ padding: '20px', marginBottom: '24px' }}>
+            <h3 style={{ fontSize: '16px', fontWeight: 600, marginBottom: '16px', color: 'var(--color-text-primary, #fff)' }}>
+              <span style={{ fontSize: '20px', marginRight: '8px' }}>📋</span>
+              Logged Alerts
+            </h3>
+            <LoggedAlertsPanel />
+          </div>
         </>
       )}
     </div>
