@@ -30,8 +30,9 @@ describe("token-estimator", () => {
       
       // #then: Should detect as code and use ~3.5 chars/token
       // 38 chars / 3.5 ≈ 10.9 tokens
+      // ai-tokenizer (o200k_base) gives 13 tokens for this string
       expect(tokens).toBeGreaterThanOrEqual(9)
-      expect(tokens).toBeLessThanOrEqual(12)
+      expect(tokens).toBeLessThanOrEqual(13)
     })
 
     test("estimates tokens for JSON structure", () => {

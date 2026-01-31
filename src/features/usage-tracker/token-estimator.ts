@@ -15,39 +15,25 @@
  * These are conservative estimates to avoid underestimating costs.
  */
 
+import { TokenizerAdapter } from '../../shared/tokenizer-adapter'
+
+const tokenizerAdapter = new TokenizerAdapter()
+
 /**
  * Estimate token count from text content.
  * This is a ROUGH approximation and will deviate from actual token counts.
  */
-export function estimateTokens(text: string): number {
+export function estimateTokens(text: string, provider: string = 'unknown', model: string = 'unknown'): number {
   if (!text) return 0
 
-  // Remove excessive whitespace but preserve newlines (they're tokens)
-  const normalized = text.replace(/[ \t]+/g, ' ')
-  const charCount = normalized.length
-
-  // Heuristic: detect if content is mostly code or structured data
-  const codeIndicators = ['{', '}', '[', ']', '(', ')', ';', ':', '=', '<', '>']
-  const codeChars = codeIndicators.reduce((count, char) => 
-    count + (normalized.match(new RegExp(`\\${char}`, 'g'))?.length ?? 0), 0
-  )
-  const codeRatio = codeChars / Math.max(charCount, 1)
-
-  // Use different ratios based on content type
-  if (codeRatio > 0.1) {
-    // Looks like code or structured data: ~3.5 chars/token
-    return Math.ceil(charCount / 3.5)
-  } else {
-    // Natural language: ~4 chars/token
-    return Math.ceil(charCount / 4)
-  }
+  return tokenizerAdapter.countTokens(provider, model, text)
 }
 
 /**
  * Estimate token count from message parts.
  * Handles text, tool_use, and tool_result parts.
  */
-export function estimateTokensFromParts(parts: unknown[]): number {
+export function estimateTokensFromParts(parts: unknown[], provider: string = 'unknown', model: string = 'unknown'): number {
   if (!Array.isArray(parts)) return 0
 
   let totalTokens = 0
@@ -58,17 +44,17 @@ export function estimateTokensFromParts(parts: unknown[]): number {
     const p = part as { type?: string; text?: string; input?: unknown; output?: unknown; content?: unknown }
 
     if (p.type === 'text' && typeof p.text === 'string') {
-      totalTokens += estimateTokens(p.text)
+      totalTokens += estimateTokens(p.text, provider, model)
     } else if (p.type === 'tool_use' && p.input) {
       // Tool input is structured data
       const inputStr = typeof p.input === 'string' ? p.input : JSON.stringify(p.input)
-      totalTokens += estimateTokens(inputStr)
+      totalTokens += estimateTokens(inputStr, provider, model)
     } else if (p.type === 'tool_result') {
       // Tool output can be text or structured
       const output = p.output ?? p.content
       if (output) {
         const outputStr = typeof output === 'string' ? output : JSON.stringify(output)
-        totalTokens += estimateTokens(outputStr)
+        totalTokens += estimateTokens(outputStr, provider, model)
       }
     }
   }
@@ -115,7 +101,12 @@ export function extractProvider(modelStr: string): string {
   // 1. Handle explicit provider prefixes (e.g., "github-copilot/claude-sonnet-4.5")
   if (lower.includes('/')) {
     const prefix = lower.split('/')[0]
-    if (prefix === 'github-copilot') return 'github-copilot'
+    if (prefix === 'github-copilot') {
+      // For github-copilot, we need to check the model name to find the actual provider
+      if (lower.includes('gpt')) return 'openai'
+      if (lower.includes('claude')) return 'anthropic'
+      return 'github-copilot'
+    }
     if (prefix === 'anthropic') return 'anthropic'
     if (prefix === 'openai') return 'openai'
     if (prefix === 'google') return 'google'
