@@ -6,8 +6,9 @@ import { BudgetDashboard } from '../components/BudgetDashboard'
 import { ClaudeMaxUsage } from '../components/ClaudeMaxUsage'
 import { CopilotUsage } from '../components/CopilotUsage'
 import { Settings } from '../components/Settings'
+import { StatsDashboard } from '../components/StatsDashboard'
 
-type TabType = 'presets' | 'routing' | 'budget' | 'usage' | 'settings' | 'export'
+type TabType = 'presets' | 'routing' | 'budget' | 'usage' | 'settings' | 'export' | 'stats'
 
 function App() {
   const [activeTab, setActiveTab] = useState<TabType>('budget')
@@ -56,6 +57,12 @@ function App() {
         >
           Export
         </button>
+        <button
+          className={activeTab === 'stats' ? 'active' : ''}
+          onClick={() => setActiveTab('stats')}
+        >
+          📊 Stats
+        </button>
       </nav>
 
       <main>
@@ -100,7 +107,7 @@ function App() {
           <Settings />
         )}
 
-        {activeTab === 'export' && (
+{activeTab === 'export' && (
           <div>
             <h2 style={{ fontSize: 'var(--font-size-xl)', fontWeight: 'var(--font-weight-bold)', marginBottom: 'var(--space-sm)' }}>
               Export Data
@@ -131,6 +138,10 @@ function App() {
               />
             </div>
           </div>
+        )}
+
+        {activeTab === 'stats' && (
+          <StatsDashboard />
         )}
       </main>
     </div>
