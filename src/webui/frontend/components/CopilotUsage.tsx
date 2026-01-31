@@ -60,18 +60,18 @@ export function CopilotUsage() {
 
   return (
     <div style={{
-      padding: '20px',
+      padding: 'var(--spacing-3)',
       background: 'var(--color-bg-primary)',
-      borderRadius: '8px',
-      border: '1px solid var(--color-border)',
-      boxShadow: '0 1px 3px var(--color-shadow)'
+      borderRadius: 'var(--radius-md)',
+      border: '1px solid var(--color-border-subtle)',
+      boxShadow: 'var(--shadow-sm)'
     }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', marginBottom: '15px' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', marginBottom: 'var(--spacing-3)' }}>
         <div>
-          <h3 style={{ margin: 0, fontSize: '20px', fontWeight: 'bold', color: 'var(--color-text-primary)' }}>
+          <h3 style={{ margin: 0, fontSize: 'var(--font-size-md)', fontWeight: 'bold', color: 'var(--color-text-primary)' }}>
             GitHub Copilot Monthly Usage
           </h3>
-          <div style={{ fontSize: '12px', color: 'var(--color-text-secondary)', fontStyle: 'italic', marginTop: '5px' }}>
+          <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-text-secondary)', fontStyle: 'italic', marginTop: 'var(--spacing-1)' }}>
             Real-time from GitHub API
           </div>
         </div>
@@ -79,14 +79,14 @@ export function CopilotUsage() {
           onClick={fetchUsage}
           disabled={loading}
           style={{
-            padding: '6px 12px',
-            background: 'var(--color-accent)',
+            padding: 'var(--spacing-1) var(--spacing-2)',
+            background: 'var(--color-accent-primary)',
             color: 'white',
             border: 'none',
-            borderRadius: '4px',
+            borderRadius: 'var(--radius-sm)',
             cursor: loading ? 'not-allowed' : 'pointer',
             fontWeight: 'bold',
-            fontSize: '14px',
+            fontSize: 'var(--font-size-sm)',
             opacity: loading ? 0.6 : 1
           }}
         >
@@ -94,30 +94,30 @@ export function CopilotUsage() {
         </button>
       </div>
 
-      {loading && <p style={{ color: 'var(--color-text-secondary)' }}>Loading Copilot usage...</p>}
+      {loading && <p style={{ color: 'var(--color-text-secondary)', fontSize: 'var(--font-size-sm)' }}>Loading Copilot usage...</p>}
 
       {error && (
         <div style={{
-          padding: '20px',
+          padding: 'var(--spacing-3)',
           background: 'var(--color-bg-tertiary)',
-          border: '2px solid var(--color-info)',
-          borderRadius: 'var(--border-radius-md)',
-          marginBottom: '15px'
+          border: '1px solid var(--color-status-info)',
+          borderRadius: 'var(--radius-md)',
+          marginBottom: 'var(--spacing-3)'
         }}>
-          <div style={{ display: 'flex', alignItems: 'start', gap: '12px' }}>
-            <span style={{ fontSize: '24px' }}>ℹ️</span>
+          <div style={{ display: 'flex', alignItems: 'start', gap: 'var(--spacing-2)' }}>
+            <span style={{ fontSize: 'var(--font-size-lg)' }}>ℹ️</span>
             <div>
-              <h4 style={{ margin: '0 0 8px 0', color: 'var(--color-text-primary)' }}>
+              <h4 style={{ margin: '0 0 var(--spacing-1) 0', color: 'var(--color-text-primary)', fontSize: 'var(--font-size-base)' }}>
                 Copilot Tracking Not Available
               </h4>
-              <p style={{ margin: '0 0 12px 0', color: 'var(--color-text-secondary)', fontSize: '14px' }}>
+              <p style={{ margin: '0 0 var(--spacing-2) 0', color: 'var(--color-text-secondary)', fontSize: 'var(--font-size-sm)' }}>
                 {error}
               </p>
-              <details style={{ fontSize: '13px', color: 'var(--color-text-secondary)' }}>
-                <summary style={{ cursor: 'pointer', marginBottom: '8px', fontWeight: '500' }}>
+              <details style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-text-secondary)' }}>
+                <summary style={{ cursor: 'pointer', marginBottom: 'var(--spacing-1)', fontWeight: '500' }}>
                   How to enable
                 </summary>
-                <ol style={{ margin: '8px 0 0 0', paddingLeft: '20px', lineHeight: '1.6' }}>
+                <ol style={{ margin: 'var(--spacing-1) 0 0 0', paddingLeft: 'var(--spacing-4)', lineHeight: 'var(--line-height-normal)' }}>
                   <li>Run: <code>gh auth login</code></li>
                   <li>Ensure you have GitHub Copilot Pro subscription</li>
                   <li>Restart the WebUI server</li>
@@ -130,14 +130,14 @@ export function CopilotUsage() {
 
       {!loading && !error && data && (
         <>
-          <div style={{ marginBottom: '20px' }}>
-            <div style={{ fontSize: '13px', color: 'var(--color-text-secondary)', marginBottom: '8px' }}>
+          <div style={{ marginBottom: 'var(--spacing-3)' }}>
+            <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-text-secondary)', marginBottom: 'var(--spacing-1)' }}>
               Premium Requests • Resets {data.data.formatted.resetDate} ({data.data.daysUntilReset} days)
             </div>
             <div style={{
-              height: '8px',
+              height: '6px',
               background: 'var(--color-bg-tertiary)',
-              borderRadius: '4px',
+              borderRadius: 'var(--radius-sm)',
               overflow: 'hidden'
             }}>
               <div style={{
@@ -147,27 +147,27 @@ export function CopilotUsage() {
                 transition: 'width 0.3s ease'
               }} />
             </div>
-            <div style={{ fontSize: '18px', fontWeight: 'bold', color: getUsageColor(data.data.percentUsed), marginTop: '8px' }}>
+            <div style={{ fontSize: 'var(--font-size-md)', fontWeight: 'bold', color: getUsageColor(data.data.percentUsed), marginTop: 'var(--spacing-1)' }}>
               {data.data.percentUsed.toFixed(1)}% used
             </div>
           </div>
 
-          <div className="grid-2col" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '15px', fontSize: '14px' }}>
+          <div className="grid-2col" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 'var(--spacing-3)', fontSize: 'var(--font-size-sm)' }}>
             <div>
               <div style={{ color: 'var(--color-text-secondary)' }}>Premium Requests Used</div>
-              <div style={{ fontWeight: 'bold', color: 'var(--color-text-primary)', marginTop: '3px' }}>
+              <div style={{ fontWeight: 'bold', color: 'var(--color-text-primary)', marginTop: 'var(--spacing-1)' }}>
                 {data.data.premiumRequestsUsed.toLocaleString()}
               </div>
             </div>
             <div>
               <div style={{ color: 'var(--color-text-secondary)' }}>Monthly Limit</div>
-              <div style={{ fontWeight: 'bold', color: 'var(--color-text-primary)', marginTop: '3px' }}>
+              <div style={{ fontWeight: 'bold', color: 'var(--color-text-primary)', marginTop: 'var(--spacing-1)' }}>
                 {data.data.premiumRequestsLimit.toLocaleString()}
               </div>
             </div>
             <div>
               <div style={{ color: 'var(--color-text-secondary)' }}>Plan</div>
-              <div style={{ fontWeight: 'bold', color: 'var(--color-text-primary)', marginTop: '3px', textTransform: 'uppercase' }}>
+              <div style={{ fontWeight: 'bold', color: 'var(--color-text-primary)', marginTop: 'var(--spacing-1)', textTransform: 'uppercase' }}>
                 {data.data.plan}
               </div>
             </div>
@@ -175,15 +175,15 @@ export function CopilotUsage() {
               <div style={{ color: 'var(--color-text-secondary)' }}>Status</div>
               <div style={{ 
                 fontWeight: 'bold', 
-                color: data.data.isOverLimit ? '#dc3545' : '#28a745', 
-                marginTop: '3px' 
+                color: data.data.isOverLimit ? 'var(--color-status-error)' : 'var(--color-status-success)', 
+                marginTop: 'var(--spacing-1)' 
               }}>
                 {data.data.isOverLimit ? 'OVER LIMIT' : 'OK'}
               </div>
             </div>
           </div>
 
-          <div style={{ fontSize: '11px', color: 'var(--color-text-secondary)', marginTop: '12px' }}>
+          <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-text-secondary)', marginTop: 'var(--spacing-2)' }}>
             Last updated: {new Date(data.data.lastUpdated).toLocaleTimeString()} • Method: {data.data.fetchMethod}
           </div>
         </>

@@ -75,18 +75,18 @@ export function ClaudeMaxUsage() {
 
   return (
     <div style={{
-      padding: '20px',
+      padding: 'var(--spacing-3)',
       background: 'var(--color-bg-primary)',
-      borderRadius: '8px',
-      border: '1px solid var(--color-border)',
-      boxShadow: '0 1px 3px var(--color-shadow)'
+      borderRadius: 'var(--radius-md)',
+      border: '1px solid var(--color-border-subtle)',
+      boxShadow: 'var(--shadow-sm)'
     }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', marginBottom: '15px' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', marginBottom: 'var(--spacing-3)' }}>
         <div>
-          <h3 style={{ margin: 0, fontSize: '20px', fontWeight: 'bold', color: 'var(--color-text-primary)' }}>
+          <h3 style={{ margin: 0, fontSize: 'var(--font-size-md)', fontWeight: 'bold', color: 'var(--color-text-primary)' }}>
             Claude Max Weekly Usage
           </h3>
-          <div style={{ fontSize: '12px', color: 'var(--color-text-secondary)', fontStyle: 'italic', marginTop: '5px' }}>
+          <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-text-secondary)', fontStyle: 'italic', marginTop: 'var(--spacing-1)' }}>
             Real-time from Anthropic API
           </div>
         </div>
@@ -94,14 +94,14 @@ export function ClaudeMaxUsage() {
           onClick={fetchUsage}
           disabled={loading}
           style={{
-            padding: '6px 12px',
-            background: 'var(--color-accent)',
+            padding: 'var(--spacing-1) var(--spacing-2)',
+            background: 'var(--color-accent-primary)',
             color: 'white',
             border: 'none',
-            borderRadius: '4px',
+            borderRadius: 'var(--radius-sm)',
             cursor: loading ? 'not-allowed' : 'pointer',
             fontWeight: 'bold',
-            fontSize: '14px',
+            fontSize: 'var(--font-size-sm)',
             opacity: loading ? 0.6 : 1
           }}
         >
@@ -109,30 +109,30 @@ export function ClaudeMaxUsage() {
         </button>
       </div>
 
-      {loading && <p style={{ color: 'var(--color-text-secondary)' }}>Loading Claude Max usage...</p>}
+      {loading && <p style={{ color: 'var(--color-text-secondary)', fontSize: 'var(--font-size-sm)' }}>Loading Claude Max usage...</p>}
 
       {error && (
         <div style={{
-          padding: '20px',
+          padding: 'var(--spacing-3)',
           background: 'var(--color-bg-tertiary)',
-          border: '2px solid var(--color-info)',
-          borderRadius: 'var(--border-radius-md)',
-          marginBottom: '15px'
+          border: '1px solid var(--color-status-info)',
+          borderRadius: 'var(--radius-md)',
+          marginBottom: 'var(--spacing-3)'
         }}>
-          <div style={{ display: 'flex', alignItems: 'start', gap: '12px' }}>
-            <span style={{ fontSize: '24px' }}>ℹ️</span>
+          <div style={{ display: 'flex', alignItems: 'start', gap: 'var(--spacing-2)' }}>
+            <span style={{ fontSize: 'var(--font-size-lg)' }}>ℹ️</span>
             <div>
-              <h4 style={{ margin: '0 0 8px 0', color: 'var(--color-text-primary)' }}>
+              <h4 style={{ margin: '0 0 var(--spacing-1) 0', color: 'var(--color-text-primary)', fontSize: 'var(--font-size-base)' }}>
                 Claude Max Tracking Not Available
               </h4>
-              <p style={{ margin: '0 0 12px 0', color: 'var(--color-text-secondary)', fontSize: '14px' }}>
+              <p style={{ margin: '0 0 var(--spacing-2) 0', color: 'var(--color-text-secondary)', fontSize: 'var(--font-size-sm)' }}>
                 {error}
               </p>
-              <details style={{ fontSize: '13px', color: 'var(--color-text-secondary)' }}>
-                <summary style={{ cursor: 'pointer', marginBottom: '8px', fontWeight: '500' }}>
+              <details style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-text-secondary)' }}>
+                <summary style={{ cursor: 'pointer', marginBottom: 'var(--spacing-1)', fontWeight: '500' }}>
                   How to enable
                 </summary>
-                <ol style={{ margin: '8px 0 0 0', paddingLeft: '20px', lineHeight: '1.6' }}>
+                <ol style={{ margin: 'var(--spacing-1) 0 0 0', paddingLeft: 'var(--spacing-4)', lineHeight: 'var(--line-height-normal)' }}>
                   <li>Ensure you have Claude Max subscription</li>
                   <li>OAuth credentials are stored in ~/.claude/.credentials.json</li>
                   <li>This is the same token Claude Code uses</li>
@@ -146,14 +146,14 @@ export function ClaudeMaxUsage() {
       {!loading && !error && data && (
         <>
           {/* Current Session */}
-          <div style={{ marginBottom: '20px' }}>
-            <div style={{ fontSize: '13px', color: 'var(--color-text-secondary)', marginBottom: '8px' }}>
+          <div style={{ marginBottom: 'var(--spacing-3)' }}>
+            <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-text-secondary)', marginBottom: 'var(--spacing-1)' }}>
               Current Session (5 hours) • Resets {data.data.formatted.currentSessionReset}
             </div>
             <div style={{
-              height: '8px',
+              height: '6px',
               background: 'var(--color-bg-tertiary)',
-              borderRadius: '4px',
+              borderRadius: 'var(--radius-sm)',
               overflow: 'hidden'
             }}>
               <div style={{
@@ -163,20 +163,20 @@ export function ClaudeMaxUsage() {
                 transition: 'width 0.3s ease'
               }} />
             </div>
-            <div style={{ fontSize: '18px', fontWeight: 'bold', color: getUsageColor(data.data.currentSession.percentUsed), marginTop: '8px' }}>
+            <div style={{ fontSize: 'var(--font-size-md)', fontWeight: 'bold', color: getUsageColor(data.data.currentSession.percentUsed), marginTop: 'var(--spacing-1)' }}>
               {data.data.currentSession.percentUsed.toFixed(1)}% used
             </div>
           </div>
 
           {/* Weekly All Models */}
-          <div style={{ marginBottom: '20px' }}>
-            <div style={{ fontSize: '13px', color: 'var(--color-text-secondary)', marginBottom: '8px' }}>
+          <div style={{ marginBottom: 'var(--spacing-3)' }}>
+            <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-text-secondary)', marginBottom: 'var(--spacing-1)' }}>
               Current Week (All Models) • Resets {data.data.formatted.allModelsReset}
             </div>
             <div style={{
-              height: '8px',
+              height: '6px',
               background: 'var(--color-bg-tertiary)',
-              borderRadius: '4px',
+              borderRadius: 'var(--radius-sm)',
               overflow: 'hidden'
             }}>
               <div style={{
@@ -186,20 +186,20 @@ export function ClaudeMaxUsage() {
                 transition: 'width 0.3s ease'
               }} />
             </div>
-            <div style={{ fontSize: '18px', fontWeight: 'bold', color: getUsageColor(data.data.allModels.percentUsed), marginTop: '8px' }}>
+            <div style={{ fontSize: 'var(--font-size-md)', fontWeight: 'bold', color: getUsageColor(data.data.allModels.percentUsed), marginTop: 'var(--spacing-1)' }}>
               {data.data.allModels.percentUsed.toFixed(1)}% used
             </div>
           </div>
 
           {/* Sonnet Only */}
-          <div style={{ marginBottom: '20px' }}>
-            <div style={{ fontSize: '13px', color: 'var(--color-text-secondary)', marginBottom: '8px' }}>
+          <div style={{ marginBottom: 'var(--spacing-3)' }}>
+            <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-text-secondary)', marginBottom: 'var(--spacing-1)' }}>
               Current Week (Sonnet Only) • Resets {data.data.formatted.sonnetOnlyReset}
             </div>
             <div style={{
-              height: '8px',
+              height: '6px',
               background: 'var(--color-bg-tertiary)',
-              borderRadius: '4px',
+              borderRadius: 'var(--radius-sm)',
               overflow: 'hidden'
             }}>
               <div style={{
@@ -209,12 +209,12 @@ export function ClaudeMaxUsage() {
                 transition: 'width 0.3s ease'
               }} />
             </div>
-            <div style={{ fontSize: '18px', fontWeight: 'bold', color: getUsageColor(data.data.sonnetOnly.percentUsed), marginTop: '8px' }}>
+            <div style={{ fontSize: 'var(--font-size-md)', fontWeight: 'bold', color: getUsageColor(data.data.sonnetOnly.percentUsed), marginTop: 'var(--spacing-1)' }}>
               {data.data.sonnetOnly.percentUsed.toFixed(1)}% used
             </div>
           </div>
 
-          <div style={{ fontSize: '11px', color: 'var(--color-text-secondary)', marginTop: '12px' }}>
+          <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-text-secondary)', marginTop: 'var(--spacing-2)' }}>
             Last updated: {new Date(data.data.lastUpdated).toLocaleTimeString()}
           </div>
         </>

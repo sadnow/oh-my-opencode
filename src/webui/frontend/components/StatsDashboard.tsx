@@ -130,25 +130,25 @@ const KPICard = ({ label, value, trend, color, unit }: {
   <div className="kpi-card" style={{
     background: 'var(--color-bg-primary, #1a1a1a)',
     border: '1px solid var(--color-border, #333)',
-    borderRadius: '8px',
-    padding: '20px',
+    borderRadius: 'var(--radius-lg, 8px)',
+    padding: 'var(--spacing-4, 16px)',
     position: 'relative',
     overflow: 'hidden'
   }}>
-    <div style={{ fontSize: '12px', color: 'var(--color-text-secondary, #888)', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+    <div style={{ fontSize: 'var(--font-size-xs, 11px)', color: 'var(--color-text-secondary, #888)', marginBottom: 'var(--spacing-2, 8px)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
       {label}
     </div>
-    <div style={{ fontSize: '28px', fontWeight: 700, color: color || 'var(--color-text-primary, #fff)' }}>
+    <div style={{ fontSize: 'var(--font-size-lg, 18px)', fontWeight: 700, color: color || 'var(--color-text-primary, #fff)' }}>
       {typeof value === 'number' ? value.toFixed(2) : value}{unit}
     </div>
     {trend && (
       <div style={{
-        fontSize: '12px',
+        fontSize: 'var(--font-size-xs, 11px)',
         color: getTrendColor(trend.direction),
-        marginTop: '4px',
+        marginTop: 'var(--spacing-1, 4px)',
         display: 'flex',
         alignItems: 'center',
-        gap: '4px'
+        gap: 'var(--spacing-1, 4px)'
       }}>
         {trend.direction === 'up' && '▲'}
         {trend.direction === 'down' && '▼'}
@@ -193,24 +193,24 @@ const CategoryBreakdownTable = ({ categories }: { categories: CategoryStats[] })
   }
 
   return (
-    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
+    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 'var(--font-size-sm, 12px)' }}>
       <thead>
         <tr style={{ borderBottom: '1px solid var(--color-border, #333)' }}>
-          <th style={{ textAlign: 'left', padding: '12px', color: 'var(--color-text-secondary, #888)', fontWeight: 600 }}>Category</th>
-          <th style={{ textAlign: 'right', padding: '12px', color: 'var(--color-text-secondary, #888)', fontWeight: 600 }}>Calls</th>
-          <th style={{ textAlign: 'right', padding: '12px', color: 'var(--color-text-secondary, #888)', fontWeight: 600 }}>Tokens</th>
-          <th style={{ textAlign: 'right', padding: '12px', color: 'var(--color-text-secondary, #888)', fontWeight: 600 }}>Cost</th>
-          <th style={{ textAlign: 'right', padding: '12px', color: 'var(--color-text-secondary, #888)', fontWeight: 600 }}>Share</th>
+          <th style={{ textAlign: 'left', padding: 'var(--spacing-2, 8px) var(--spacing-1, 4px)', color: 'var(--color-text-secondary, #888)', fontWeight: 600 }}>Category</th>
+          <th style={{ textAlign: 'right', padding: 'var(--spacing-2, 8px) var(--spacing-1, 4px)', color: 'var(--color-text-secondary, #888)', fontWeight: 600 }}>Calls</th>
+          <th style={{ textAlign: 'right', padding: 'var(--spacing-2, 8px) var(--spacing-1, 4px)', color: 'var(--color-text-secondary, #888)', fontWeight: 600 }}>Tokens</th>
+          <th style={{ textAlign: 'right', padding: 'var(--spacing-2, 8px) var(--spacing-1, 4px)', color: 'var(--color-text-secondary, #888)', fontWeight: 600 }}>Cost</th>
+          <th style={{ textAlign: 'right', padding: 'var(--spacing-2, 8px) var(--spacing-1, 4px)', color: 'var(--color-text-secondary, #888)', fontWeight: 600 }}>Share</th>
         </tr>
       </thead>
       <tbody>
         {categories.map((cat) => (
           <tr key={cat.category} style={{ borderBottom: '1px solid var(--color-border, #333)' }}>
-            <td style={{ padding: '12px', color: 'var(--color-text-primary, #fff)' }}>{cat.category}</td>
-            <td style={{ padding: '12px', textAlign: 'right', color: 'var(--color-text-primary, #fff)' }}>{formatNumber(cat.calls)}</td>
-            <td style={{ padding: '12px', textAlign: 'right', color: 'var(--color-text-primary, #fff)' }}>{formatNumber(cat.tokens)}</td>
-            <td style={{ padding: '12px', textAlign: 'right', color: 'var(--color-text-primary, #fff)' }}>{formatCurrency(cat.cost)}</td>
-            <td style={{ padding: '12px', textAlign: 'right', color: 'var(--color-text-primary, #fff)' }}>{cat.percentage.toFixed(1)}%</td>
+            <td style={{ padding: 'var(--spacing-2, 8px) var(--spacing-1, 4px)', color: 'var(--color-text-primary, #fff)' }}>{cat.category}</td>
+            <td style={{ padding: 'var(--spacing-2, 8px) var(--spacing-1, 4px)', textAlign: 'right', color: 'var(--color-text-primary, #fff)' }}>{formatNumber(cat.calls)}</td>
+            <td style={{ padding: 'var(--spacing-2, 8px) var(--spacing-1, 4px)', textAlign: 'right', color: 'var(--color-text-primary, #fff)' }}>{formatNumber(cat.tokens)}</td>
+            <td style={{ padding: 'var(--spacing-2, 8px) var(--spacing-1, 4px)', textAlign: 'right', color: 'var(--color-text-primary, #fff)' }}>{formatCurrency(cat.cost)}</td>
+            <td style={{ padding: 'var(--spacing-2, 8px) var(--spacing-1, 4px)', textAlign: 'right', color: 'var(--color-text-primary, #fff)' }}>{cat.percentage.toFixed(1)}%</td>
           </tr>
         ))}
       </tbody>
@@ -225,24 +225,24 @@ const EfficiencyMetricsTable = ({ efficiency }: { efficiency: EfficiencyStats[] 
   }
 
   return (
-    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
+    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 'var(--font-size-sm, 12px)' }}>
       <thead>
         <tr style={{ borderBottom: '1px solid var(--color-border, #333)' }}>
-          <th style={{ textAlign: 'left', padding: '12px', color: 'var(--color-text-secondary, #888)', fontWeight: 600 }}>Model</th>
-          <th style={{ textAlign: 'right', padding: '12px', color: 'var(--color-text-secondary, #888)', fontWeight: 600 }}>Tokens/$</th>
-          <th style={{ textAlign: 'right', padding: '12px', color: 'var(--color-text-secondary, #888)', fontWeight: 600 }}>Cost/Token</th>
-          <th style={{ textAlign: 'right', padding: '12px', color: 'var(--color-text-secondary, #888)', fontWeight: 600 }}>Avg/Call</th>
-          <th style={{ textAlign: 'right', padding: '12px', color: 'var(--color-text-secondary, #888)', fontWeight: 600 }}>Quality</th>
+          <th style={{ textAlign: 'left', padding: 'var(--spacing-2, 8px) var(--spacing-1, 4px)', color: 'var(--color-text-secondary, #888)', fontWeight: 600 }}>Model</th>
+          <th style={{ textAlign: 'right', padding: 'var(--spacing-2, 8px) var(--spacing-1, 4px)', color: 'var(--color-text-secondary, #888)', fontWeight: 600 }}>Tokens/$</th>
+          <th style={{ textAlign: 'right', padding: 'var(--spacing-2, 8px) var(--spacing-1, 4px)', color: 'var(--color-text-secondary, #888)', fontWeight: 600 }}>Cost/Token</th>
+          <th style={{ textAlign: 'right', padding: 'var(--spacing-2, 8px) var(--spacing-1, 4px)', color: 'var(--color-text-secondary, #888)', fontWeight: 600 }}>Avg/Call</th>
+          <th style={{ textAlign: 'right', padding: 'var(--spacing-2, 8px) var(--spacing-1, 4px)', color: 'var(--color-text-secondary, #888)', fontWeight: 600 }}>Quality</th>
         </tr>
       </thead>
       <tbody>
         {efficiency.map((eff) => (
           <tr key={eff.model} style={{ borderBottom: '1px solid var(--color-border, #333)' }}>
-            <td style={{ padding: '12px', color: 'var(--color-text-primary, #fff)' }}>{eff.model}</td>
-            <td style={{ padding: '12px', textAlign: 'right', color: 'var(--color-text-primary, #fff)' }}>{formatNumber(eff.tokensPerDollar)}</td>
-            <td style={{ padding: '12px', textAlign: 'right', color: 'var(--color-text-primary, #fff)' }}>${eff.costPerToken.toFixed(6)}</td>
-            <td style={{ padding: '12px', textAlign: 'right', color: 'var(--color-text-primary, #fff)' }}>{formatCurrency(eff.avgCostPerCall)}</td>
-            <td style={{ padding: '12px', textAlign: 'right', color: eff.qualityScore && eff.qualityScore >= 80 ? 'var(--color-success, #28a745)' : eff.qualityScore && eff.qualityScore >= 60 ? 'var(--color-warning, #ffc107)' : 'var(--color-text-secondary, #888)' }}>
+            <td style={{ padding: 'var(--spacing-2, 8px) var(--spacing-1, 4px)', color: 'var(--color-text-primary, #fff)' }}>{eff.model}</td>
+            <td style={{ padding: 'var(--spacing-2, 8px) var(--spacing-1, 4px)', textAlign: 'right', color: 'var(--color-text-primary, #fff)' }}>{formatNumber(eff.tokensPerDollar)}</td>
+            <td style={{ padding: 'var(--spacing-2, 8px) var(--spacing-1, 4px)', textAlign: 'right', color: 'var(--color-text-primary, #fff)' }}>${eff.costPerToken.toFixed(6)}</td>
+            <td style={{ padding: 'var(--spacing-2, 8px) var(--spacing-1, 4px)', textAlign: 'right', color: 'var(--color-text-primary, #fff)' }}>{formatCurrency(eff.avgCostPerCall)}</td>
+            <td style={{ padding: 'var(--spacing-2, 8px) var(--spacing-1, 4px)', textAlign: 'right', color: eff.qualityScore && eff.qualityScore >= 80 ? 'var(--color-success, #28a745)' : eff.qualityScore && eff.qualityScore >= 60 ? 'var(--color-warning, #ffc107)' : 'var(--color-text-secondary, #888)' }}>
               {eff.qualityScore ? `${eff.qualityScore.toFixed(0)}` : 'N/A'}
             </td>
           </tr>
@@ -262,8 +262,8 @@ const ProviderTrendCard = ({ trend }: { trend: ProviderTrend }) => {
     <div className="provider-trend-card" style={{
       background: 'var(--color-bg-primary, #1a1a1a)',
       border: `1px solid ${color}40`,
-      borderRadius: '8px',
-      padding: '16px',
+      borderRadius: 'var(--radius-lg, 8px)',
+      padding: 'var(--spacing-3, 12px)',
       position: 'relative',
       overflow: 'hidden'
     }}>
@@ -278,20 +278,20 @@ const ProviderTrendCard = ({ trend }: { trend: ProviderTrend }) => {
       }} />
 
       {/* Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <span style={{ fontSize: '20px' }}>{icon}</span>
-          <span style={{ fontSize: '14px', fontWeight: 600, color: 'var(--color-text-primary, #fff)' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--spacing-2, 8px)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--spacing-2, 8px)' }}>
+          <span style={{ fontSize: 'var(--font-size-md, 16px)' }}>{icon}</span>
+          <span style={{ fontSize: 'var(--font-size-sm, 12px)', fontWeight: 600, color: 'var(--color-text-primary, #fff)' }}>
             {displayName}
           </span>
         </div>
         <div style={{
-          fontSize: '12px',
+          fontSize: 'var(--font-size-xs, 11px)',
           color,
           fontWeight: 600,
           display: 'flex',
           alignItems: 'center',
-          gap: '4px'
+          gap: 'var(--spacing-1, 4px)'
         }}>
           {trend.changeDirection === 'up' && '▲'}
           {trend.changeDirection === 'down' && '▼'}
@@ -301,15 +301,15 @@ const ProviderTrendCard = ({ trend }: { trend: ProviderTrend }) => {
       </div>
 
       {/* Values */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '8px', fontSize: '12px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 'var(--spacing-2, 8px)', fontSize: 'var(--font-size-xs, 11px)' }}>
         <div>
-          <div style={{ color: 'var(--color-text-secondary, #888)', marginBottom: '2px' }}>Current</div>
+          <div style={{ color: 'var(--color-text-secondary, #888)', marginBottom: 'var(--spacing-1, 4px)' }}>Current</div>
           <div style={{ fontWeight: 600, color: 'var(--color-text-primary, #fff)' }}>
             {formatCurrency(trend.current)}
           </div>
         </div>
         <div>
-          <div style={{ color: 'var(--color-text-secondary, #888)', marginBottom: '2px' }}>Previous</div>
+          <div style={{ color: 'var(--color-text-secondary, #888)', marginBottom: 'var(--spacing-1, 4px)' }}>Previous</div>
           <div style={{ fontWeight: 600, color: 'var(--color-text-secondary, #888)' }}>
             {formatCurrency(trend.previous)}
           </div>
@@ -317,7 +317,7 @@ const ProviderTrendCard = ({ trend }: { trend: ProviderTrend }) => {
       </div>
 
       {/* Sparkline */}
-      <div style={{ height: '30px', marginTop: '12px' }}>
+      <div style={{ height: '24px', marginTop: 'var(--spacing-2, 8px)' }}>
         <Sparkline data={trend.trendData.map(d => d.value)} color={color} />
       </div>
     </div>
@@ -332,29 +332,29 @@ const SessionAnalyticsCard = ({ sessions }: { sessions: SessionStats }) => {
     <div className="session-analytics-card" style={{
       background: 'var(--color-bg-primary, #1a1a1a)',
       border: '1px solid var(--color-border, #333)',
-      borderRadius: '8px',
-      padding: '20px'
+      borderRadius: 'var(--radius-lg, 8px)',
+      padding: 'var(--spacing-4, 16px)'
     }}>
-      <h3 style={{ fontSize: '16px', fontWeight: 600, marginBottom: '16px', color: 'var(--color-text-primary, #fff)' }}>
+      <h3 style={{ fontSize: 'var(--font-size-md, 16px)', fontWeight: 600, marginBottom: 'var(--spacing-3, 12px)', color: 'var(--color-text-primary, #fff)' }}>
         Session Analytics
       </h3>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '16px', marginBottom: '16px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 'var(--spacing-3, 12px)', marginBottom: 'var(--spacing-3, 12px)' }}>
         <div>
-          <div style={{ fontSize: '12px', color: 'var(--color-text-secondary, #888)', marginBottom: '4px' }}>Total Sessions</div>
-          <div style={{ fontSize: '20px', fontWeight: 600, color: 'var(--color-text-primary, #fff)' }}>
+          <div style={{ fontSize: 'var(--font-size-xs, 11px)', color: 'var(--color-text-secondary, #888)', marginBottom: 'var(--spacing-1, 4px)' }}>Total Sessions</div>
+          <div style={{ fontSize: 'var(--font-size-md, 16px)', fontWeight: 600, color: 'var(--color-text-primary, #fff)' }}>
             {formatNumber(sessions.totalSessions)}
           </div>
         </div>
         <div>
-          <div style={{ fontSize: '12px', color: 'var(--color-text-secondary, #888)', marginBottom: '4px' }}>Avg Duration</div>
-          <div style={{ fontSize: '20px', fontWeight: 600, color: 'var(--color-text-primary, #fff)' }}>
+          <div style={{ fontSize: 'var(--font-size-xs, 11px)', color: 'var(--color-text-secondary, #888)', marginBottom: 'var(--spacing-1, 4px)' }}>Avg Duration</div>
+          <div style={{ fontSize: 'var(--font-size-md, 16px)', fontWeight: 600, color: 'var(--color-text-primary, #fff)' }}>
             {formatDuration(sessions.avgDuration)}
           </div>
         </div>
         <div>
-          <div style={{ fontSize: '12px', color: 'var(--color-text-secondary, #888)', marginBottom: '4px' }}>Avg Cost/Session</div>
-          <div style={{ fontSize: '20px', fontWeight: 600, color: 'var(--color-text-primary, #fff)' }}>
+          <div style={{ fontSize: 'var(--font-size-xs, 11px)', color: 'var(--color-text-secondary, #888)', marginBottom: 'var(--spacing-1, 4px)' }}>Avg Cost/Session</div>
+          <div style={{ fontSize: 'var(--font-size-md, 16px)', fontWeight: 600, color: 'var(--color-text-primary, #fff)' }}>
             {formatCurrency(sessions.avgCostPerSession)}
           </div>
         </div>
@@ -362,10 +362,10 @@ const SessionAnalyticsCard = ({ sessions }: { sessions: SessionStats }) => {
 
       {/* Cost Distribution */}
       <div>
-        <div style={{ fontSize: '12px', color: 'var(--color-text-secondary, #888)', marginBottom: '8px' }}>
+        <div style={{ fontSize: 'var(--font-size-xs, 11px)', color: 'var(--color-text-secondary, #888)', marginBottom: 'var(--spacing-2, 8px)' }}>
           Cost Distribution
         </div>
-        <div style={{ display: 'flex', height: '24px', borderRadius: '4px', overflow: 'hidden' }}>
+        <div style={{ display: 'flex', height: '20px', borderRadius: 'var(--radius-sm, 4px)', overflow: 'hidden' }}>
           <div
             style={{
               width: `${(sessions.costDistribution.low / total) * 100}%`,
@@ -373,7 +373,7 @@ const SessionAnalyticsCard = ({ sessions }: { sessions: SessionStats }) => {
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              fontSize: '10px',
+              fontSize: 'var(--font-size-xs, 11px)',
               color: '#fff'
             }}
           >
@@ -386,7 +386,7 @@ const SessionAnalyticsCard = ({ sessions }: { sessions: SessionStats }) => {
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              fontSize: '10px',
+              fontSize: 'var(--font-size-xs, 11px)',
               color: '#000'
             }}
           >
@@ -399,14 +399,14 @@ const SessionAnalyticsCard = ({ sessions }: { sessions: SessionStats }) => {
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              fontSize: '10px',
+              fontSize: 'var(--font-size-xs, 11px)',
               color: '#fff'
             }}
           >
             {total > 0 && `${((sessions.costDistribution.high / total) * 100).toFixed(0)}%`}
           </div>
         </div>
-        <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '8px', fontSize: '11px', color: 'var(--color-text-secondary, #888)' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 'var(--spacing-2, 8px)', fontSize: 'var(--font-size-xs, 11px)', color: 'var(--color-text-secondary, #888)' }}>
           <span>Low (&lt;$0.10)</span>
           <span>Medium ($0.10-$1.00)</span>
           <span>High (&gt;$1.00)</span>
@@ -476,27 +476,27 @@ export function StatsDashboard() {
   return (
     <div>
       {/* Header */}
-      <div style={{ marginBottom: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      <div style={{ marginBottom: 'var(--spacing-4, 16px)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div>
-          <h2 style={{ margin: 0, fontSize: '24px', fontWeight: 700, color: 'var(--color-text-primary, #fff)' }}>
+          <h2 style={{ margin: 0, fontSize: 'var(--font-size-lg, 18px)', fontWeight: 700, color: 'var(--color-text-primary, #fff)' }}>
             Stats Dashboard
           </h2>
-          <p style={{ color: 'var(--color-text-secondary, #888)', marginTop: '4px', fontSize: '14px' }}>
+          <p style={{ color: 'var(--color-text-secondary, #888)', marginTop: 'var(--spacing-1, 4px)', fontSize: 'var(--font-size-sm, 12px)' }}>
             Comprehensive analytics and performance metrics
           </p>
         </div>
-        <div style={{ display: 'flex', gap: '8px' }}>
+        <div style={{ display: 'flex', gap: 'var(--spacing-2, 8px)' }}>
           <select
             value={period}
             onChange={(e) => setPeriod(e.target.value as 'weekly' | 'monthly')}
             style={{
-              padding: '8px 12px',
-              borderRadius: '6px',
+              padding: 'var(--spacing-2, 8px) var(--spacing-3, 12px)',
+              borderRadius: 'var(--radius-md, 6px)',
               border: '1px solid var(--color-border, #333)',
               background: 'var(--color-bg-secondary, #2a2a2a)',
               color: 'var(--color-text-primary, #fff)',
               cursor: 'pointer',
-              fontSize: '13px'
+              fontSize: 'var(--font-size-sm, 12px)'
             }}
           >
             <option value="weekly">Weekly</option>
@@ -506,13 +506,13 @@ export function StatsDashboard() {
             value={range}
             onChange={(e) => setRange(e.target.value as '7d' | '30d')}
             style={{
-              padding: '8px 12px',
-              borderRadius: '6px',
+              padding: 'var(--spacing-2, 8px) var(--spacing-3, 12px)',
+              borderRadius: 'var(--radius-md, 6px)',
               border: '1px solid var(--color-border, #333)',
               background: 'var(--color-bg-secondary, #2a2a2a)',
               color: 'var(--color-text-primary, #fff)',
               cursor: 'pointer',
-              fontSize: '13px'
+              fontSize: 'var(--font-size-sm, 12px)'
             }}
           >
             <option value="7d">7 Days</option>
@@ -521,13 +521,13 @@ export function StatsDashboard() {
           <button
             onClick={fetchStats}
             style={{
-              padding: '8px 16px',
-              borderRadius: '6px',
+              padding: 'var(--spacing-2, 8px) var(--spacing-4, 16px)',
+              borderRadius: 'var(--radius-md, 6px)',
               border: '1px solid var(--color-border, #333)',
               background: 'var(--color-bg-secondary, #2a2a2a)',
               color: 'var(--color-text-primary, #fff)',
               cursor: 'pointer',
-              fontSize: '13px'
+              fontSize: 'var(--font-size-sm, 12px)'
             }}
           >
             ⟳ Refresh
@@ -535,16 +535,16 @@ export function StatsDashboard() {
         </div>
       </div>
 
-      {loading && <div style={{ color: 'var(--color-text-secondary, #888)', padding: '40px', textAlign: 'center' }}>Loading stats data...</div>}
+      {loading && <div style={{ color: 'var(--color-text-secondary, #888)', padding: 'var(--spacing-4, 16px)', textAlign: 'center' }}>Loading stats data...</div>}
 
       {error && (
         <div style={{
-          padding: '15px',
+          padding: 'var(--spacing-3, 12px)',
           background: 'var(--color-danger, #dc3545)20',
           border: '1px solid var(--color-danger, #dc3545)',
           color: 'var(--color-danger, #dc3545)',
-          marginBottom: '20px',
-          borderRadius: '8px'
+          marginBottom: 'var(--spacing-4, 16px)',
+          borderRadius: 'var(--radius-lg, 8px)'
         }}>
           <strong>Error:</strong> {error}
         </div>
@@ -553,10 +553,10 @@ export function StatsDashboard() {
       {!loading && !error && data && (
         <>
           {/* Summary Cards */}
-          <h3 style={{ fontSize: '18px', fontWeight: 600, marginBottom: '16px', color: 'var(--color-text-primary, #fff)' }}>
+          <h3 style={{ fontSize: 'var(--font-size-md, 16px)', fontWeight: 600, marginBottom: 'var(--spacing-3, 12px)', color: 'var(--color-text-primary, #fff)' }}>
             Summary
           </h3>
-          <div className="responsive-grid" style={{ marginBottom: '24px' }}>
+          <div className="responsive-grid" style={{ marginBottom: 'var(--spacing-4, 16px)' }}>
             <KPICard
               label="Total Cost"
               value={data.summary.totalCost}
@@ -585,33 +585,33 @@ export function StatsDashboard() {
           </div>
 
           {/* Category Breakdown */}
-          <h3 style={{ fontSize: '18px', fontWeight: 600, marginBottom: '16px', color: 'var(--color-text-primary, #fff)' }}>
+          <h3 style={{ fontSize: 'var(--font-size-md, 16px)', fontWeight: 600, marginBottom: 'var(--spacing-3, 12px)', color: 'var(--color-text-primary, #fff)' }}>
             Category Breakdown
           </h3>
-          <div className="card" style={{ marginBottom: '24px', padding: '20px' }}>
+          <div className="card" style={{ marginBottom: 'var(--spacing-4, 16px)', padding: 'var(--spacing-4, 16px)' }}>
             <CategoryBreakdownTable categories={data.categories} />
           </div>
 
           {/* Efficiency Metrics */}
-          <h3 style={{ fontSize: '18px', fontWeight: 600, marginBottom: '16px', color: 'var(--color-text-primary, #fff)' }}>
+          <h3 style={{ fontSize: 'var(--font-size-md, 16px)', fontWeight: 600, marginBottom: 'var(--spacing-3, 12px)', color: 'var(--color-text-primary, #fff)' }}>
             Efficiency Metrics
           </h3>
-          <div className="card" style={{ marginBottom: '24px', padding: '20px' }}>
+          <div className="card" style={{ marginBottom: 'var(--spacing-4, 16px)', padding: 'var(--spacing-4, 16px)' }}>
             <EfficiencyMetricsTable efficiency={data.efficiency} />
           </div>
 
           {/* Provider Trends */}
-          <h3 style={{ fontSize: '18px', fontWeight: 600, marginBottom: '16px', color: 'var(--color-text-primary, #fff)' }}>
+          <h3 style={{ fontSize: 'var(--font-size-md, 16px)', fontWeight: 600, marginBottom: 'var(--spacing-3, 12px)', color: 'var(--color-text-primary, #fff)' }}>
             Provider Trends
           </h3>
-          <div className="responsive-grid" style={{ marginBottom: '24px' }}>
+          <div className="responsive-grid" style={{ marginBottom: 'var(--spacing-4, 16px)' }}>
             {data.providerTrends.map((trend) => (
               <ProviderTrendCard key={trend.provider} trend={trend} />
             ))}
           </div>
 
           {/* Session Analytics */}
-          <h3 style={{ fontSize: '18px', fontWeight: 600, marginBottom: '16px', color: 'var(--color-text-primary, #fff)' }}>
+          <h3 style={{ fontSize: 'var(--font-size-md, 16px)', fontWeight: 600, marginBottom: 'var(--spacing-3, 12px)', color: 'var(--color-text-primary, #fff)' }}>
             Session Analytics
           </h3>
           <SessionAnalyticsCard sessions={data.sessions} />
