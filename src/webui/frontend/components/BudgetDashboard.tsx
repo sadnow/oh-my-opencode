@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo } from 'react'
+import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 
 // ============================================================================
 // Types
@@ -280,12 +280,12 @@ const LiveTicker = ({ providers, totalSpend }: { providers: ProviderDashboardDat
     return () => clearInterval(interval)
   }, [])
 
-  const tickerItems = providers.map(p => ({
+  const tickerItems = useMemo(() => providers.map(p => ({
     name: getProviderDisplayName(p.provider),
     value: formatCurrency(p.used),
     color: getUsageColor(p.percentage),
     trend: calculateTrend(p.dailySpending)
-  }))
+  })), [providers])
 
   return (
     <div className="ticker-strip" style={{
@@ -786,7 +786,7 @@ export function BudgetDashboard() {
   const [error, setError] = useState<string | null>(null)
   const [timePeriod, setTimePeriod] = useState<TimePeriod>('24H')
 
-  const fetchDashboard = async () => {
+  const fetchDashboard = useCallback(async () => {
     setLoading(true)
     setError(null)
 
@@ -833,7 +833,7 @@ export function BudgetDashboard() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [])
 
   useEffect(() => {
     fetchDashboard()
@@ -851,6 +851,12 @@ export function BudgetDashboard() {
     }))
   }, [data?.data?.providers, timePeriod])
 
+  const handlePeriodChange = useCallback((period: TimePeriod) => {
+    setTimePeriod(period)
+  }, [])
+
+  const overallTrend = useMemo(() => calculateOverallTrend(filteredProviders), [filteredProviders])
+
   if (!loading && !error && data && !data.data.enabled) {
     return (
       <div>
@@ -866,24 +872,37 @@ export function BudgetDashboard() {
   }
 
   // Calculate KPIs based on filtered data
-  const totalSpent = filteredProviders.reduce((acc, p) => {
-    return acc + p.dailySpending.reduce((sum, d) => sum + d.amount, 0)
-  }, 0)
+  const kpiData = useMemo(() => {
+    const totalSpent = filteredProviders.reduce((acc, p) => {
+      return acc + p.dailySpending.reduce((sum, d) => sum + d.amount, 0)
+    }, 0)
 
-  const totalBudget = data?.data.providers.reduce((acc, p) => acc + p.budget, 0) || 0
-  const overallUsagePercentage = totalBudget > 0 ? (totalSpent / totalBudget) * 100 : 0
+    const totalBudget = data?.data.providers.reduce((acc, p) => acc + p.budget, 0) || 0
+    const overallUsagePercentage = totalBudget > 0 ? (totalSpent / totalBudget) * 100 : 0
 
-  // Calculate average daily spend based on filtered data
-  const avgDailySpend = filteredProviders.reduce((acc, p) => {
-    const periodTotal = p.dailySpending.reduce((sum, d) => sum + d.amount, 0)
-    const periodDays = Math.max(p.dailySpending.length, 1)
-    return acc + (periodTotal / periodDays)
-  }, 0) || 0
+    // Calculate average daily spend based on filtered data
+    const avgDailySpend = filteredProviders.reduce((acc, p) => {
+      const periodTotal = p.dailySpending.reduce((sum, d) => sum + d.amount, 0)
+      const periodDays = Math.max(p.dailySpending.length, 1)
+      return acc + (periodTotal / periodDays)
+    }, 0) || 0
 
-  const burnRate = avgDailySpend / 24 // per hour
-  const daysRemainingAtCurrentRate = burnRate > 0 ? (totalBudget - totalSpent) / (burnRate * 24) : 0
-  const activeProviders = filteredProviders.length || 0
-  const healthyProviders = filteredProviders.filter(p => p.percentage < 70).length || 0
+    const burnRate = avgDailySpend / 24 // per hour
+    const daysRemainingAtCurrentRate = burnRate > 0 ? (totalBudget - totalSpent) / (burnRate * 24) : 0
+    const activeProviders = filteredProviders.length || 0
+    const healthyProviders = filteredProviders.filter(p => p.percentage < 70).length || 0
+
+    return {
+      totalSpent,
+      totalBudget,
+      overallUsagePercentage,
+      avgDailySpend,
+      burnRate,
+      daysRemainingAtCurrentRate,
+      activeProviders,
+      healthyProviders
+    }
+  }, [filteredProviders, data?.data?.providers])
 
   return (
     <div>
@@ -932,7 +951,7 @@ export function BudgetDashboard() {
       {!loading && !error && data && (
         <>
           {/* Live Ticker */}
-          <LiveTicker providers={filteredProviders} totalSpend={totalSpent} />
+          <LiveTicker providers={filteredProviders} totalSpend={kpiData.totalSpent} />
 
           {/* Global Override Banner */}
           {data.data.override?.forcedTier && (
@@ -950,33 +969,33 @@ export function BudgetDashboard() {
           )}
 
           {/* Time Period Selector */}
-          <TimePeriodSelector selected={timePeriod} onSelect={setTimePeriod} />
+          <TimePeriodSelector selected={timePeriod} onSelect={handlePeriodChange} />
 
           {/* KPI Cards */}
           <div className="responsive-grid" style={{ marginBottom: '24px' }}>
             <KPICard
               label="Total Spend"
-              value={totalSpent}
+              value={kpiData.totalSpent}
               unit=""
-              color={getUsageColor(overallUsagePercentage)}
-              trend={calculateOverallTrend(filteredProviders)}
+              color={getUsageColor(kpiData.overallUsagePercentage)}
+              trend={overallTrend}
             />
             <KPICard
               label="Burn Rate"
-              value={burnRate}
+              value={kpiData.burnRate}
               unit="/hr"
-              color={burnRate > 1 ? 'var(--color-warning, #ffc107)' : 'var(--color-success, #28a745)'}
+              color={kpiData.burnRate > 1 ? 'var(--color-warning, #ffc107)' : 'var(--color-success, #28a745)'}
             />
             <KPICard
               label="Budget Remaining"
-              value={daysRemainingAtCurrentRate}
+              value={kpiData.daysRemainingAtCurrentRate}
               unit=" days"
-              color={daysRemainingAtCurrentRate < 7 ? 'var(--color-danger, #dc3545)' : daysRemainingAtCurrentRate < 14 ? 'var(--color-warning, #ffc107)' : 'var(--color-success, #28a745)'}
+              color={kpiData.daysRemainingAtCurrentRate < 7 ? 'var(--color-danger, #dc3545)' : kpiData.daysRemainingAtCurrentRate < 14 ? 'var(--color-warning, #ffc107)' : 'var(--color-success, #28a745)'}
             />
             <KPICard
               label="Active Providers"
-              value={`${healthyProviders}/${activeProviders}`}
-              color={healthyProviders === activeProviders ? 'var(--color-success, #28a745)' : 'var(--color-warning, #ffc107)'}
+              value={`${kpiData.healthyProviders}/${kpiData.activeProviders}`}
+              color={kpiData.healthyProviders === kpiData.activeProviders ? 'var(--color-success, #28a745)' : 'var(--color-warning, #ffc107)'}
             />
           </div>
 
