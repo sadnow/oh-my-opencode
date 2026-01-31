@@ -40,6 +40,9 @@ interface ProviderDashboardData {
     spendingVelocity: number
     learningProgress: number
     predictionAccuracy: number
+    predicted24h: number
+    predicted7d: number
+    predicted30d: number
     canAffordUpgrade: boolean
     shouldDowngrade: boolean
   } | null
@@ -139,6 +142,7 @@ export function handleGetDashboard(ctx: BudgetDashboardContext): Response {
 
   for (const [provider, state] of Object.entries(budgetStates)) {
     const adaptiveSummary = budgetOrchestrator.getAdaptiveSummary(provider)
+    const adaptiveManager = (budgetOrchestrator as any).adaptiveManagers?.get(provider)
     const dailySpending = generateDailySpending(provider, usageTracker, state.daysElapsed)
 
     providers.push({
@@ -157,6 +161,9 @@ export function handleGetDashboard(ctx: BudgetDashboardContext): Response {
         spendingVelocity: adaptiveSummary.spendingVelocity,
         learningProgress: adaptiveSummary.learningProgress,
         predictionAccuracy: adaptiveSummary.predictionAccuracy,
+        predicted24h: typeof adaptiveManager?.predictFutureSpend === "function" ? adaptiveManager.predictFutureSpend(24) : 0,
+        predicted7d: typeof adaptiveManager?.predictFutureSpend === "function" ? adaptiveManager.predictFutureSpend(168) : 0,
+        predicted30d: typeof adaptiveManager?.predictFutureSpend === "function" ? adaptiveManager.predictFutureSpend(720) : 0,
         canAffordUpgrade: adaptiveSummary.canAffordUpgrade,
         shouldDowngrade: adaptiveSummary.shouldDowngrade,
       } : null,
