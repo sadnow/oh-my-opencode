@@ -600,10 +600,6 @@ async function handleAPI(
     { success: false, error: `Not found: ${method} ${pathname}` },
     { status: 404 }
 )
-
-  logger.info("[webui] Server started", { port, bind, url: `http://${bind}:${port}` })
-
-  return server
 }
 
 // WebSocket message types
@@ -623,6 +619,10 @@ export function broadcastWS(server: BunServer, message: WSMessage): void {
   }
 }
 
+/**
+ * Serve static files for the WebUI.
+ */
+function serveStatic(pathname: string): Response {
   if (pathname === "/" || pathname === "/index.html") {
     return new Response(INDEX_HTML, {
       headers: { "Content-Type": "text/html" },
