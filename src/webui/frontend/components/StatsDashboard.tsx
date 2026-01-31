@@ -1,4 +1,5 @@
-import { useState, useEffect, useMemo, useCallback } from 'react'
+import { useState, useEffect, useCallback } from 'react'
+import { ModelLeaderboard } from './ModelLeaderboard'
 
 // ============================================================================
 // Types
@@ -598,6 +599,11 @@ export function StatsDashboard() {
           </h3>
           <div className="card" style={{ marginBottom: 'var(--spacing-4, 16px)', padding: 'var(--spacing-4, 16px)' }}>
             <EfficiencyMetricsTable efficiency={data.efficiency} />
+          </div>
+
+          {/* Model Leaderboard */}
+          <div style={{ marginBottom: 'var(--spacing-4, 16px)' }}>
+            <ModelLeaderboard />
           </div>
 
           {/* Provider Trends */}
