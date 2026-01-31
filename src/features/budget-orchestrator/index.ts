@@ -126,7 +126,8 @@ export class BudgetOrchestrator {
 
     this.apiManager = new APIBudgetManager(
       usageTracker,
-      migratedConfig.apis
+      migratedConfig.apis,
+      migratedConfig.quota_targets
     )
 
     // Initialize adaptive budget managers for each provider
@@ -1045,6 +1046,8 @@ export class BudgetOrchestrator {
    */
   setQuotaTargets(targets: QuotaTargets): void {
     this.quotaTargets = { ...this.quotaTargets, ...targets }
+    // Also update API manager with new targets
+    this.apiManager.setQuotaTargets(this.quotaTargets)
     log("[budget-orchestrator] Quota targets updated:", this.quotaTargets)
   }
 
