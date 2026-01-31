@@ -94,7 +94,7 @@ function generateDailySpending(
       const summary = usageTracker.getProviderSummary(provider)
       // Estimate daily average
       if (daysElapsed > 0) {
-        amount = summary.totalCost / Math.max(1, daysElapsed) * (0.8 + Math.random() * 0.4)
+        amount = summary.totalCost / Math.max(1, daysElapsed)
       }
     }
 
@@ -219,7 +219,7 @@ export function handleGetTrends(ctx: BudgetDashboardContext): Response {
       if (state && state.daysElapsed > 0) {
         // Estimate daily spending
         const dailyAvg = state.used / state.daysElapsed
-        point[provider] = dailyAvg * (0.7 + Math.random() * 0.6)
+        point[provider] = dailyAvg
       } else {
         point[provider] = 0
       }
