@@ -10,7 +10,7 @@ import { Settings } from '../components/Settings'
 type TabType = 'presets' | 'routing' | 'budget' | 'usage' | 'settings' | 'export'
 
 function App() {
-  const [activeTab, setActiveTab] = useState<TabType>('presets')
+  const [activeTab, setActiveTab] = useState<TabType>('budget')
 
   return (
     <div style={{ padding: '20px', fontFamily: 'var(--font-family)', minHeight: '100vh', background: 'var(--color-bg-secondary)' }}>
