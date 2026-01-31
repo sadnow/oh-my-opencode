@@ -130,7 +130,7 @@ export function ForecastWidget({
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px', fontSize: '12px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           <span style={{ color: 'var(--color-text-secondary, #6c757d)' }}>Confidence</span>
-          <span style={{ color: confidenceColor, fontWeight: 600 }}>{confidencePercent}%</span>
+          <span data-testid="confidence-value" data-confidence-color={confidenceColor} style={{ color: confidenceColor, fontWeight: 600 }}>{confidencePercent}%</span>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
           {trendDirection === 'up' && <span style={{ color: trendColor }}>▲</span>}
