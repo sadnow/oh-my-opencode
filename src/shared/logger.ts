@@ -9,7 +9,7 @@ export interface LogEntry {
 }
 
 export class Logger {
-  private logLevel: 'debug' | 'info' | 'warn' | 'error' = 'info'
+  private logLevel: 'debug' | 'info' | 'warn' | 'error' = 'error'  // Changed from 'info' to suppress verbose logs in TUI
 
   setLevel(level: 'debug' | 'info' | 'warn' | 'error'): void {
     this.logLevel = level
