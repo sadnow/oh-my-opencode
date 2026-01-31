@@ -164,6 +164,11 @@ If refresh fails:
 3. Manual refresh: `curl -X POST "https://api.anthropic.com/v1/oauth/token" -H "Content-Type: application/x-www-form-urlencoded" -d "grant_type=refresh_token&refresh_token=YOUR_REFRESH_TOKEN&client_id=9d1c250a-e61b-44d9-88ed-5944d1962f5e"`
 4. Update credentials file with new `accessToken`, `refreshToken`, and `expiresAt` (Date.now() + expires_in * 1000)
 
+## OpenCode Zen Manual Usage
+
+- Zen = `opencode` + `google` + `openai` costs. Manual override: `budget.quota_targets.zen_manual_usage_dollars`
+- API: `/api/budget/zen-usage`. Test: use `opencode/glm-4.7` models (visual-engineering category)
+
 ## Reference Documentation
 
 - **API Details**: @docs/claude-max-api.md, @docs/copilot-api.md
