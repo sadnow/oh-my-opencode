@@ -128,7 +128,21 @@ export function createUsageTrackingHook(
         const sessionId = input.sessionID
         const messageId = input.messageID
         const role = output.message?.role as string | undefined
-        const modelInfo = input.model || { providerID: "unknown-provider", modelID: "unknown-model" }
+        
+        // Improved provider detection when model info is missing
+        let modelInfo = input.model
+        if (!modelInfo) {
+          // Try to extract provider from agent name
+          const provider = input.agent ? extractProvider(input.agent) : 'unknown-provider'
+          const model = input.agent || 'unknown-model'
+          modelInfo = { providerID: provider, modelID: model }
+          
+          log("[usage-tracking] ⚠️ Model info unavailable, inferred from agent:", {
+            agent: input.agent,
+            inferred: modelInfo,
+            sessionID: sessionId
+          })
+        }
 
         // Only capture USER messages here
         if (role === "user") {
