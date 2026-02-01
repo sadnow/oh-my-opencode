@@ -37,6 +37,7 @@ import {
   createSisyphusJuniorNotepadHook,
   createQuestionLabelTruncatorHook,
   createSubagentQuestionBlockerHook,
+  createOibAutoselectHook,
 } from "./hooks";
 import {
   contextCollector,
@@ -304,6 +305,11 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
   
   log("[oh-my-opencode] Usage tracking hook", { created: !!usageTracking });
 
+  // Create oib-autoselect hook (enabled if budgetOrchestrator exists and hook not disabled)
+  const oibAutoselect = isHookEnabled("oib-autoselect")
+    ? createOibAutoselectHook(ctx, budgetOrchestrator)
+    : null;
+
   const tmuxSessionManager = new TmuxSessionManager(ctx, tmuxConfig);
 
   const backgroundManager = new BackgroundManager(ctx, pluginConfig.background_task, {
@@ -482,6 +488,9 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
           applyAgentVariant(pluginConfig, input.agent, message)
         }
       }
+
+      // OIB Autoselect must run first to substitute the virtual model
+      await oibAutoselect?.["chat.message"]?.(input, output);
 
       await keywordDetector?.["chat.message"]?.(input, output);
       await claudeCodeHooks["chat.message"]?.(input, output);
