@@ -46,7 +46,7 @@ export function extractChannel(version: string | null): string {
 }
 
 export function createAutoUpdateCheckerHook(ctx: PluginInput, options: AutoUpdateCheckerOptions = {}) {
-  const { showStartupToast = true, isSisyphusEnabled = false, autoUpdate = true } = options
+	const { showStartupToast = true, isSisyphusEnabled = false, autoUpdate = true, budgetEnabled = false } = options
 
   const getToastMessage = (isUpdate: boolean, latestVersion?: string): string => {
     if (isSisyphusEnabled) {
@@ -76,9 +76,9 @@ export function createAutoUpdateCheckerHook(ctx: PluginInput, options: AutoUpdat
         const localDevVersion = getLocalDevVersion(ctx.directory)
         const displayVersion = localDevVersion ?? cachedVersion
 
-        await showConfigErrorsIfAny(ctx)
-        await showModelCacheWarningIfNeeded(ctx)
-        await updateAndShowConnectedProvidersCacheStatus(ctx)
+		await showConfigErrorsIfAny(ctx)
+		await showModelCacheWarningIfNeeded(ctx)
+		await updateAndShowConnectedProvidersCacheStatus(ctx, budgetEnabled)
 
         if (localDevVersion) {
           if (showStartupToast) {
@@ -188,27 +188,27 @@ async function showModelCacheWarningIfNeeded(ctx: PluginInput): Promise<void> {
   log("[auto-update-checker] Model cache warning shown")
 }
 
-async function updateAndShowConnectedProvidersCacheStatus(ctx: PluginInput): Promise<void> {
-  const hadCache = hasConnectedProvidersCache()
+async function updateAndShowConnectedProvidersCacheStatus(ctx: PluginInput, budgetEnabled: boolean): Promise<void> {
+	const hadCache = hasConnectedProvidersCache()
 
-  updateConnectedProvidersCache(ctx.client).catch(() => {})
+	updateConnectedProvidersCache(ctx.client, { budgetEnabled }).catch(() => {})
 
-  if (!hadCache) {
-    await ctx.client.tui
-      .showToast({
-        body: {
-          title: "Connected Providers Cache",
-          message: "Building provider cache for first time. Restart OpenCode for full model filtering.",
-          variant: "info" as const,
-          duration: 8000,
-        },
-      })
-      .catch(() => {})
+	if (!hadCache) {
+		await ctx.client.tui
+			.showToast({
+				body: {
+					title: "Connected Providers Cache",
+					message: "Building provider cache for first time. Restart OpenCode for full model filtering.",
+					variant: "info" as const,
+					duration: 8000,
+				},
+			})
+			.catch(() => {})
 
-    log("[auto-update-checker] Connected providers cache toast shown (first run)")
-  } else {
-    log("[auto-update-checker] Connected providers cache exists, updating in background")
-  }
+		log("[auto-update-checker] Connected providers cache toast shown (first run)")
+	} else {
+		log("[auto-update-checker] Connected providers cache exists, updating in background")
+	}
 }
 
 async function showConfigErrorsIfAny(ctx: PluginInput): Promise<void> {

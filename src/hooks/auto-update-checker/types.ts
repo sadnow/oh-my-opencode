@@ -23,7 +23,9 @@ export interface UpdateCheckResult {
 }
 
 export interface AutoUpdateCheckerOptions {
-  showStartupToast?: boolean
-  isSisyphusEnabled?: boolean
-  autoUpdate?: boolean
+	showStartupToast?: boolean
+	isSisyphusEnabled?: boolean
+	autoUpdate?: boolean
+	budgetEnabled?: boolean
 }
+

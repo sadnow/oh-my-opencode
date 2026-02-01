@@ -2,6 +2,7 @@ import { existsSync, readFileSync, writeFileSync, mkdirSync } from "fs"
 import { join } from "path"
 import { log } from "./logger"
 import { getOmoOpenCodeCacheDir } from "./data-path"
+import { injectVirtualProvider } from "../features/virtual-provider"
 
 const CONNECTED_PROVIDERS_CACHE_FILE = "connected-providers.json"
 const PROVIDER_MODELS_CACHE_FILE = "provider-models.json"
@@ -162,15 +163,24 @@ function withTimeout<T>(promise: Promise<T>, ms: number, operation: string): Pro
 /**
  * Update the connected providers cache by fetching from the client.
  * Also updates the provider-models cache with model lists per provider.
+ * 
+ * @param client - The OpenCode client with provider and model list methods
+ * @param options - Optional configuration
+ * @param options.budgetEnabled - Whether budget orchestration is enabled (injects virtual provider if true)
  */
-export async function updateConnectedProvidersCache(client: {
-	provider?: {
-		list?: () => Promise<{ data?: { connected?: string[] } }>
+export async function updateConnectedProvidersCache(
+	client: {
+		provider?: {
+			list?: () => Promise<{ data?: { connected?: string[] } }>
+		}
+		model?: {
+			list?: () => Promise<{ data?: Array<{ id: string; provider: string }> }>
+		}
+	},
+	options?: {
+		budgetEnabled?: boolean
 	}
-	model?: {
-		list?: () => Promise<{ data?: Array<{ id: string; provider: string }> }>
-	}
-}): Promise<void> {
+): Promise<void> {
 	if (!client?.provider?.list) {
 		log("[connected-providers-cache] client.provider.list not available")
 		return
@@ -197,13 +207,30 @@ export async function updateConnectedProvidersCache(client: {
 					modelsByProvider[model.provider].push(model.id)
 				}
 
-				writeProviderModelsCache({
+				let cacheData = {
 					models: modelsByProvider,
 					connected,
-				})
+				}
+
+				// Inject virtual provider if budget orchestration is enabled
+				if (options?.budgetEnabled) {
+					const injectedCache = injectVirtualProvider({
+						...cacheData,
+						updatedAt: new Date().toISOString(),
+					})
+					cacheData = {
+						models: injectedCache.models,
+						connected: injectedCache.connected,
+					}
+					log("[connected-providers-cache] Virtual provider injected", {
+						budgetEnabled: options.budgetEnabled,
+					})
+				}
+
+				writeProviderModelsCache(cacheData)
 
 				log("[connected-providers-cache] Provider-models cache updated", {
-					providerCount: Object.keys(modelsByProvider).length,
+					providerCount: Object.keys(cacheData.models).length,
 					totalModels: models.length,
 				})
 			} catch (modelErr) {

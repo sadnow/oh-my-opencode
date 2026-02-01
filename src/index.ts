@@ -202,6 +202,7 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
         showStartupToast: isHookEnabled("startup-toast"),
         isSisyphusEnabled: pluginConfig.sisyphus_agent?.disabled !== true,
         autoUpdate: pluginConfig.auto_update ?? true,
+        budgetEnabled: pluginConfig.budget?.enabled ?? false,
       })
     : null;
   const keywordDetector = isHookEnabled("keyword-detector")
