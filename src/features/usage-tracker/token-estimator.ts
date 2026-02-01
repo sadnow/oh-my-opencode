@@ -16,6 +16,7 @@
  */
 
 import { TokenizerAdapter } from '../../shared/tokenizer-adapter'
+import { normalizeModelID } from '../../shared/model-normalizer'
 
 const tokenizerAdapter = new TokenizerAdapter()
 
@@ -89,7 +90,7 @@ export function extractModelName(modelStr: string): string {
   
   // Remove provider prefix if present
   const parts = modelStr.split('/')
-  return parts[parts.length - 1]
+  return normalizeModelID(parts[parts.length - 1])
 }
 
 /**

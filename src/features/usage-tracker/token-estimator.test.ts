@@ -242,7 +242,7 @@ describe("token-estimator", () => {
       const model = extractModelName(modelStr)
       
       // #then: Should extract full model name
-      expect(model).toBe("gpt-5.2-codex")
+      expect(model).toBe("gpt-5-2-codex")
     })
 
     test("handles model name without provider", () => {

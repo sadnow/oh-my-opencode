@@ -70,6 +70,7 @@
     "zod": "^4.1.8"
   },
   "devDependencies": {
+    "@playwright/test": "^1.58.1",
     "@types/js-yaml": "^4.0.9",
     "@types/picomatch": "^3.0.2",
     "bun-types": "latest",

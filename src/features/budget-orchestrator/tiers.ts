@@ -5,6 +5,7 @@
 
 import type { ModelTier } from "../../config/schema"
 import type { TierConfig, ModelRef } from "./types"
+import { normalizeModelID } from "../../shared/model-normalizer"
 
 /**
  * Model tiers with models ordered by preference within each tier.
@@ -334,10 +335,10 @@ export function getModelsAtOrBelowTier(minTier: ModelTier): string[] {
 export function parseModelRef(model: string): ModelRef {
   const parts = model.split("/")
   if (parts.length === 2) {
-    return { providerID: parts[0], modelID: parts[1] }
+    return { providerID: parts[0], modelID: normalizeModelID(parts[1]) }
   }
   // Assume opencode provider if no prefix
-  return { providerID: "opencode", modelID: model }
+  return { providerID: "opencode", modelID: normalizeModelID(model) }
 }
 
 /**
