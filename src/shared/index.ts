@@ -33,3 +33,5 @@ export * from "./case-insensitive"
 export * from "./session-utils"
 export * from "./tmux"
 export * from "./platform-detection"
+export * from "./model-normalizer"
+
