@@ -21,8 +21,16 @@ export type ModelResolutionResult = {
 	variant?: string
 }
 
+type AvailableMatch = {
+	fullModel: string
+	provider: string
+	model: string
+	variant?: string
+}
+
 export type ExtendedModelResolutionInput = {
 	userModel?: string
+	preferredModel?: string
 	fallbackChain?: FallbackEntry[]
 	availableModels: Set<string>
 	systemDefaultModel?: string
@@ -31,6 +39,30 @@ export type ExtendedModelResolutionInput = {
 function normalizeModel(model?: string): string | undefined {
 	const trimmed = model?.trim()
 	return trimmed || undefined
+}
+
+function collectAvailableMatches(
+	chain: FallbackEntry[],
+	availableModels: Set<string>,
+): AvailableMatch[] {
+	const availableMatches: AvailableMatch[] = []
+
+	for (const entry of chain) {
+		for (const provider of entry.providers) {
+			const fullModel = `${provider}/${entry.model}`
+			const match = fuzzyMatchModel(fullModel, availableModels, [provider])
+			if (match) {
+				availableMatches.push({
+					fullModel: match,
+					provider,
+					model: entry.model,
+					variant: entry.variant,
+				})
+			}
+		}
+	}
+
+	return availableMatches
 }
 
 export function resolveModel(input: ModelResolutionInput): string | undefined {
@@ -44,13 +76,68 @@ export function resolveModel(input: ModelResolutionInput): string | undefined {
 export function resolveModelWithFallback(
 	input: ExtendedModelResolutionInput,
 ): ModelResolutionResult | undefined {
-	const { userModel, fallbackChain, availableModels, systemDefaultModel } = input
+	const { userModel, preferredModel, fallbackChain, availableModels, systemDefaultModel } = input
 
 	// Step 1: Override
 	const normalizedUserModel = normalizeModel(userModel)
 	if (normalizedUserModel) {
 		log("Model resolved via override", { model: normalizedUserModel })
 		return { model: normalizedUserModel, source: "override" }
+	}
+
+	// Step 1.5: Preference-based routing (tier/capability hint)
+	const normalizedPreferredModel = normalizeModel(preferredModel)
+	if (normalizedPreferredModel && availableModels.size > 0) {
+		const preferredParts = normalizedPreferredModel.split("/")
+		const preferredModelId = preferredParts.length > 1
+			? preferredParts.slice(1).join("/")
+			: preferredParts[0]
+		const providerSet = new Set<string>()
+		for (const model of availableModels) {
+			const [provider] = model.split("/")
+			if (provider) providerSet.add(provider)
+		}
+		const preferredMatches: AvailableMatch[] = []
+		for (const provider of providerSet) {
+			const match = fuzzyMatchModel(preferredModelId, availableModels, [provider])
+			if (match) {
+				const variant = fallbackChain?.find(
+					entry => entry.model === preferredModelId && entry.providers.includes(provider),
+				)?.variant
+				preferredMatches.push({
+					fullModel: match,
+					provider,
+					model: preferredModelId,
+					variant,
+				})
+			}
+		}
+
+		if (preferredMatches.length > 1) {
+			try {
+				const calculator = getWeightCalculator()
+				const candidates = calculator.buildCandidates(
+					preferredMatches.map(match => match.fullModel),
+					{},
+					undefined,
+				)
+				const selected = calculator.selectBestProvider(candidates)
+				if (selected) {
+					log("Model resolved via preference weighted selection", {
+						preferredModel: normalizedPreferredModel,
+						selectedModel: selected.model,
+						totalCandidates: preferredMatches.length,
+					})
+					return { model: selected.model, source: "provider-fallback" }
+				}
+			} catch (error) {
+				log("Preference weighted selection failed, falling through to fallback chain", { error: String(error) })
+			}
+		}
+		if (preferredMatches.length === 1) {
+			const selected = preferredMatches[0]
+			return { model: selected.fullModel, source: "provider-fallback", variant: selected.variant }
+		}
 	}
 
 	// Step 2: Provider fallback chain (with availability check + weighted selection)
@@ -62,23 +149,7 @@ export function resolveModelWithFallback(
 			log("No model cache available, skipping fallback chain to use system default")
 		}
 
-		// Collect ALL available models from fallback chain
-		const availableMatches: Array<{ fullModel: string; provider: string; model: string; variant?: string }> = []
-		
-		for (const entry of fallbackChain) {
-			for (const provider of entry.providers) {
-				const fullModel = `${provider}/${entry.model}`
-				const match = fuzzyMatchModel(fullModel, availableModels, [provider])
-				if (match) {
-					availableMatches.push({
-						fullModel: match,
-						provider,
-						model: entry.model,
-						variant: entry.variant,
-					})
-				}
-			}
-		}
+		const availableMatches = collectAvailableMatches(fallbackChain, availableModels)
 
 		if (availableMatches.length > 0) {
 			// If only one match, use it immediately
@@ -101,14 +172,14 @@ export function resolveModelWithFallback(
 				// Note: We don't have usage data here, so weights will be based on provider classification only
 				// This still helps by prioritizing subscriptions over API budgets
 				const candidates = calculator.buildCandidates(
-					availableMatches.map(m => m.fullModel),
+					availableMatches.map(match => match.fullModel),
 					{}, // No usage data available at this level
 					undefined // No reset time data
 				)
 
 				const selected = calculator.selectBestProvider(candidates)
 				if (selected) {
-					const match = availableMatches.find(m => m.fullModel === selected.model)
+					const match = availableMatches.find(match => match.fullModel === selected.model)
 					if (match) {
 						log("Model resolved via weighted selection", {
 							provider: match.provider,
