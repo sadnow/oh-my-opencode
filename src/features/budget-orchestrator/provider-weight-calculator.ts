@@ -7,6 +7,7 @@
  * Based on gRPC, Temporal, and Envoy load balancing patterns.
  */
 
+import { getRoutingLogger } from './routing-logger'
 import {
   type ProviderType,
   type WeightCandidate,
@@ -161,6 +162,20 @@ export class ProviderWeightCalculator {
       const key = `${selected.provider}/${selected.model}`
       const newWeight = (this.currentWeights.get(key) ?? 0) - totalWeight
       this.currentWeights.set(key, newWeight)
+
+      // Log the routing decision
+      getRoutingLogger().logDebug(
+        "routing_decision",
+        `[SmoothWRR] Selected ${selected.model} (weight=${selected.weight.toFixed(2)})`,
+        {
+          timestamp: new Date().toISOString(),
+          use_case: "weighted_selection",
+          candidates: validCandidates.map(c => c.model),
+          weights: Object.fromEntries(validCandidates.map(c => [c.model, c.weight])),
+          selected: selected.model,
+          reason: "smooth weighted round-robin",
+        }
+      )
     }
     
     return selected

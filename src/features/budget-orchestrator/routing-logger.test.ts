@@ -77,4 +77,23 @@ describe("RoutingLogger Persistence", () => {
     expect(fileContent[0].message).toBe("Log 5") // File is not reversed
     expect(fileContent[999].message).toBe("Log 1004")
   }, 30000) // Increase timeout for 1000 writes
+
+  test("should log debug messages with correct format", async () => {
+    const metadata = {
+      timestamp: new Date().toISOString(),
+      use_case: "chat",
+      candidates: ["anthropic", "copilot"],
+      weights: { "anthropic": 0.5, "copilot": 1.3 },
+      selected: "copilot",
+      reason: "highest weight"
+    }
+    
+    logger.logDebug("routing_decision", "Selected copilot", metadata)
+    
+    const logs = logger.getLogs()
+    expect(logs.length).toBe(1)
+    expect(logs[0].level).toBe("debug")
+    expect(logs[0].category).toBe("routing_decision")
+    expect(logs[0].metadata).toEqual(metadata)
+  })
 })

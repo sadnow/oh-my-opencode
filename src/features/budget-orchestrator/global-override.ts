@@ -614,13 +614,16 @@ export class GlobalOverrideManager {
         .slice(0, 3)
         .map(c => `${c.model}(w=${c.weight.toFixed(2)},u=${c.usagePercent.toFixed(0)}%)`)
       
-      logger.logInfo(
+      logger.logDebug(
         "weighted_selection",
         `[${useCase}] Selected ${selected.model} (weight=${selected.weight.toFixed(2)})`,
         {
-          useCase,
+          timestamp: new Date().toISOString(),
+          use_case: useCase,
+          candidates: candidates.map(c => c.model),
+          weights: Object.fromEntries(candidates.map(c => [c.model, c.weight])),
           selected: selected.model,
-          weight: selected.weight,
+          reason: "highest weight",
           usagePercent: selected.usagePercent,
           topCandidates,
           totalCandidates: candidates.length,

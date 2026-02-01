@@ -10,8 +10,8 @@ import * as path from "path"
 
 export interface RoutingLogEntry {
   timestamp: string
-  level: "info" | "warning" | "error" | "decision"
-  category: "tier_change" | "upgrade_scheduled" | "downgrade_scheduled" | "upgrade_executed" | "downgrade_executed" | "budget_alert" | "override" | "adaptive" | "weighted_selection"
+  level: "info" | "warning" | "error" | "decision" | "debug"
+  category: "tier_change" | "upgrade_scheduled" | "downgrade_scheduled" | "upgrade_executed" | "downgrade_executed" | "budget_alert" | "override" | "adaptive" | "weighted_selection" | "routing_decision"
   message: string
   metadata?: Record<string, any>
 }
@@ -199,6 +199,18 @@ export class RoutingLogger {
   logError(category: RoutingLogEntry["category"], message: string, metadata?: Record<string, any>) {
     this.addLog({
       level: "error",
+      category,
+      message,
+      metadata,
+    })
+  }
+
+  /**
+   * Log a debug message
+   */
+  logDebug(category: RoutingLogEntry["category"], message: string, metadata?: Record<string, any>) {
+    this.addLog({
+      level: "debug",
       category,
       message,
       metadata,

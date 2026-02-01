@@ -1,4 +1,5 @@
 import { log } from "./logger"
+import { getRoutingLogger } from "../features/budget-orchestrator/routing-logger"
 import { fuzzyMatchModel } from "./model-availability"
 import type { FallbackEntry } from "./model-requirements"
 import { readConnectedProvidersCache } from "./connected-providers-cache"
@@ -123,6 +124,18 @@ export function resolveModelWithFallback(
 				)
 				const selected = calculator.selectBestProvider(candidates)
 				if (selected) {
+					getRoutingLogger().logDebug(
+						"routing_decision",
+						`[model-resolver] Selected ${selected.model} from fallback chain`,
+						{
+							timestamp: new Date().toISOString(),
+							use_case: "fallback_chain",
+							candidates: candidates.map(c => c.model),
+							weights: Object.fromEntries(candidates.map(c => [c.model, c.weight])),
+							selected: selected.model,
+							reason: "fallback chain weighted selection",
+						}
+					)
 					log("Model resolved via preference weighted selection", {
 						preferredModel: normalizedPreferredModel,
 						selectedModel: selected.model,
