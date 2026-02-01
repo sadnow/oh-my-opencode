@@ -1,7 +1,8 @@
-import { describe, expect, test, spyOn, beforeEach, afterEach, mock } from "bun:test"
+import { describe, expect, test, it, spyOn, beforeEach, afterEach, mock } from "bun:test"
 import { resolveModel, resolveModelWithFallback, type ModelResolutionInput, type ExtendedModelResolutionInput, type ModelResolutionResult, type ModelSource } from "./model-resolver"
 import * as logger from "./logger"
 import * as connectedProvidersCache from "./connected-providers-cache"
+import { resetWeightCalculator } from "../features/budget-orchestrator/provider-weight-calculator"
 
 describe("resolveModel", () => {
   describe("priority chain", () => {
@@ -188,6 +189,151 @@ describe("resolveModelWithFallback", () => {
       // #then
       expect(result!.source).not.toBe("override")
     })
+
+    test("override takes priority even when preferredModel is provided", () => {
+      // #given
+      const input: ExtendedModelResolutionInput = {
+        userModel: "anthropic/claude-opus-4-5",
+        preferredModel: "anthropic/claude-sonnet-4-5",
+        fallbackChain: [
+          { providers: ["anthropic", "github-copilot"], model: "claude-sonnet-4-5" },
+        ],
+        availableModels: new Set(["anthropic/claude-opus-4-5", "github-copilot/claude-sonnet-4-5"]),
+        systemDefaultModel: "google/gemini-3-pro",
+      }
+
+      // #when
+      const result = resolveModelWithFallback(input)
+
+      // #then
+      expect(result!.model).toBe("anthropic/claude-opus-4-5")
+      expect(result!.source).toBe("override")
+    })
+  })
+
+  describe("Preference-based routing", () => {
+    test("uses weighted selection among providers that match preferred model tier", () => {
+      // #given
+      resetWeightCalculator()
+      const input: ExtendedModelResolutionInput = {
+        preferredModel: "anthropic/claude-sonnet-4-5",
+        fallbackChain: [
+          { providers: ["anthropic", "github-copilot"], model: "claude-sonnet-4-5" },
+        ],
+        availableModels: new Set([
+          "anthropic/claude-sonnet-4-5",
+          "github-copilot/claude-sonnet-4-5",
+        ]),
+        systemDefaultModel: "google/gemini-3-pro",
+      }
+
+      // #when
+      const first = resolveModelWithFallback(input)
+      const second = resolveModelWithFallback(input)
+
+      // #then
+      expect(first).toBeDefined()
+      expect(second).toBeDefined()
+      expect(first!.model).toBe("anthropic/claude-sonnet-4-5")
+      expect(second!.model).toBe("github-copilot/claude-sonnet-4-5")
+      expect(logSpy).toHaveBeenCalledWith("Model resolved via preference weighted selection", {
+        preferredModel: "anthropic/claude-sonnet-4-5",
+        selectedModel: "anthropic/claude-sonnet-4-5",
+        totalCandidates: 2,
+      })
+    })
+
+    test("returns single provider match when only one provider serves preferred model", () => {
+      // #given
+      const input: ExtendedModelResolutionInput = {
+        preferredModel: "anthropic/claude-sonnet-4-5",
+        fallbackChain: [
+          { providers: ["anthropic", "github-copilot"], model: "claude-sonnet-4-5" },
+        ],
+        availableModels: new Set(["anthropic/claude-sonnet-4-5"]),
+        systemDefaultModel: "google/gemini-3-pro",
+      }
+
+      // #when
+      const result = resolveModelWithFallback(input)
+
+      // #then
+      expect(result).toBeDefined()
+      expect(result!.model).toBe("anthropic/claude-sonnet-4-5")
+      expect(result!.source).toBe("provider-fallback")
+    })
+  })
+
+  describe("preference-based routing", () => {
+    it("should use weighted selection when multiple providers match preference", () => {
+      //#given
+      resetWeightCalculator()
+      const input: ExtendedModelResolutionInput = {
+        preferredModel: "anthropic/claude-sonnet-4-5",
+        fallbackChain: [
+          { providers: ["anthropic", "github-copilot"], model: "claude-sonnet-4-5" },
+        ],
+        availableModels: new Set([
+          "anthropic/claude-sonnet-4-5",
+          "github-copilot/claude-sonnet-4-5",
+        ]),
+        systemDefaultModel: "google/gemini-3-pro",
+      }
+
+      //#when
+      const first = resolveModelWithFallback(input)
+      const second = resolveModelWithFallback(input)
+
+      //#then
+      expect(first).toBeDefined()
+      expect(second).toBeDefined()
+      expect([first!.model, second!.model]).toContain("github-copilot/claude-sonnet-4-5")
+    })
+
+    it("should respect hard override when userModel explicitly set", () => {
+      //#given
+      const input: ExtendedModelResolutionInput = {
+        userModel: "anthropic/claude-opus-4-5",
+        preferredModel: "anthropic/claude-sonnet-4-5",
+        fallbackChain: [
+          { providers: ["anthropic", "github-copilot"], model: "claude-sonnet-4-5" },
+        ],
+        availableModels: new Set([
+          "anthropic/claude-opus-4-5",
+          "anthropic/claude-sonnet-4-5",
+          "github-copilot/claude-sonnet-4-5",
+        ]),
+        systemDefaultModel: "google/gemini-3-pro",
+      }
+
+      //#when
+      const result = resolveModelWithFallback(input)
+
+      //#then
+      expect(result!.model).toBe("anthropic/claude-opus-4-5")
+      expect(result!.source).toBe("override")
+      expect(logSpy).not.toHaveBeenCalledWith("Model resolved via preference weighted selection", expect.anything())
+    })
+
+    it("should be backward compatible with single provider", () => {
+      //#given
+      const input: ExtendedModelResolutionInput = {
+        preferredModel: "anthropic/claude-sonnet-4-5",
+        fallbackChain: [
+          { providers: ["anthropic", "github-copilot"], model: "claude-sonnet-4-5" },
+        ],
+        availableModels: new Set(["anthropic/claude-sonnet-4-5"]),
+        systemDefaultModel: "google/gemini-3-pro",
+      }
+
+      //#when
+      const result = resolveModelWithFallback(input)
+
+      //#then
+      expect(result).toBeDefined()
+      expect(result!.model).toBe("anthropic/claude-sonnet-4-5")
+      expect(result!.source).toBe("provider-fallback")
+    })
   })
 
   describe("Step 2: Provider fallback chain", () => {
@@ -207,10 +353,10 @@ describe("resolveModelWithFallback", () => {
       // #then
       expect(result!.model).toBe("github-copilot/claude-opus-4-5-preview")
       expect(result!.source).toBe("provider-fallback")
-      expect(logSpy).toHaveBeenCalledWith("Model resolved via fallback chain (availability confirmed)", {
+      expect(logSpy).toHaveBeenCalledWith("Model resolved via fallback chain (single match)", {
         provider: "github-copilot",
         model: "claude-opus-4-5",
-        match: "github-copilot/claude-opus-4-5-preview",
+        fullModel: "github-copilot/claude-opus-4-5-preview",
         variant: undefined,
       })
     })
