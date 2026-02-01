@@ -11,7 +11,7 @@ interface ConnectedProvidersCache {
 	updatedAt: string
 }
 
-interface ProviderModelsCache {
+export interface ProviderModelsCache {
 	models: Record<string, string[]>
 	connected: string[]
 	updatedAt: string
