@@ -35,3 +35,4 @@ export { createDelegateTaskRetryHook } from "./delegate-task-retry";
 export { createQuestionLabelTruncatorHook } from "./question-label-truncator";
 export { createBudgetNotificationHook, type BudgetNotificationConfig } from "./budget-notification";
 export { createSubagentQuestionBlockerHook } from "./subagent-question-blocker";
+export { createOibAutoselectHook, type BudgetOrchestrator } from "./oib-autoselect";
