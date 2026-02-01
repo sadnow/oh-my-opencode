@@ -19,6 +19,7 @@ interface CopilotData {
     }
     recommendation: string
     shouldReduceUsage: boolean
+    history?: { date: string; usage: number }[]
   }
 }
 
@@ -26,10 +27,12 @@ export function CopilotUsage() {
   const [data, setData] = useState<CopilotData | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [isUnauthenticated, setIsUnauthenticated] = useState(false)
 
   const fetchUsage = async () => {
     setLoading(true)
     setError(null)
+    setIsUnauthenticated(false)
 
     try {
       const res = await fetch('/api/copilot/usage')
@@ -38,6 +41,9 @@ export function CopilotUsage() {
       if (usageData.success) {
         setData(usageData)
       } else {
+        if (res.status === 401 || usageData.error?.toLowerCase().includes('auth') || usageData.error?.toLowerCase().includes('login')) {
+          setIsUnauthenticated(true)
+        }
         setError(usageData.error || 'Failed to fetch Copilot usage')
       }
     } catch (err) {
@@ -45,6 +51,10 @@ export function CopilotUsage() {
     } finally {
       setLoading(false)
     }
+  }
+
+  const handleOAuthFlow = () => {
+    window.open('/api/auth/github', '_blank')
   }
 
   useEffect(() => {
@@ -100,29 +110,53 @@ export function CopilotUsage() {
         <div style={{
           padding: 'var(--spacing-3)',
           background: 'var(--color-bg-tertiary)',
-          border: '1px solid var(--color-status-info)',
+          border: `1px solid ${isUnauthenticated ? 'var(--color-accent-primary)' : 'var(--color-status-info)'}`,
           borderRadius: 'var(--radius-md)',
           marginBottom: 'var(--spacing-3)'
         }}>
           <div style={{ display: 'flex', alignItems: 'start', gap: 'var(--spacing-2)' }}>
-            <span style={{ fontSize: 'var(--font-size-lg)' }}>ℹ️</span>
-            <div>
+            <span style={{ fontSize: 'var(--font-size-lg)' }}>{isUnauthenticated ? '🔑' : 'ℹ️'}</span>
+            <div style={{ flex: 1 }}>
               <h4 style={{ margin: '0 0 var(--spacing-1) 0', color: 'var(--color-text-primary)', fontSize: 'var(--font-size-base)' }}>
-                Copilot Tracking Not Available
+                {isUnauthenticated ? 'GitHub Connection Required' : 'Copilot Tracking Not Available'}
               </h4>
-              <p style={{ margin: '0 0 var(--spacing-2) 0', color: 'var(--color-text-secondary)', fontSize: 'var(--font-size-sm)' }}>
-                {error}
+              <p style={{ margin: '0 0 var(--spacing-2) 0', color: 'var(--color-text-secondary)', fontSize: 'var(--font-size-sm)', lineHeight: 'var(--line-height-normal)' }}>
+                {isUnauthenticated 
+                  ? 'Connect your GitHub account to track your Copilot usage and quota in real-time.' 
+                  : error.includes('rate limit') 
+                    ? 'GitHub API rate limit reached. Please try again in a few minutes.'
+                    : 'We encountered an issue fetching your usage data. Please ensure your subscription is active.'}
               </p>
-              <details style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-text-secondary)' }}>
-                <summary style={{ cursor: 'pointer', marginBottom: 'var(--spacing-1)', fontWeight: '500' }}>
-                  How to enable
-                </summary>
-                <ol style={{ margin: 'var(--spacing-1) 0 0 0', paddingLeft: 'var(--spacing-4)', lineHeight: 'var(--line-height-normal)' }}>
-                  <li>Run: <code>gh auth login</code></li>
-                  <li>Ensure you have GitHub Copilot Pro subscription</li>
-                  <li>Restart the WebUI server</li>
-                </ol>
-              </details>
+              
+              {isUnauthenticated ? (
+                <button
+                  onClick={handleOAuthFlow}
+                  style={{
+                    padding: 'var(--spacing-2) var(--spacing-3)',
+                    background: 'var(--color-accent-primary)',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: 'var(--radius-sm)',
+                    cursor: 'pointer',
+                    fontWeight: 'bold',
+                    fontSize: 'var(--font-size-sm)',
+                    marginTop: 'var(--spacing-1)'
+                  }}
+                >
+                  Connect GitHub Copilot
+                </button>
+              ) : (
+                <details style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-text-secondary)' }}>
+                  <summary style={{ cursor: 'pointer', marginBottom: 'var(--spacing-1)', fontWeight: '500' }}>
+                    Troubleshooting
+                  </summary>
+                  <ol style={{ margin: 'var(--spacing-1) 0 0 0', paddingLeft: 'var(--spacing-4)', lineHeight: 'var(--line-height-normal)' }}>
+                    <li>Run: <code>gh auth login</code></li>
+                    <li>Ensure you have GitHub Copilot Pro subscription</li>
+                    <li>Check your internet connection</li>
+                  </ol>
+                </details>
+              )}
             </div>
           </div>
         </div>
@@ -151,6 +185,57 @@ export function CopilotUsage() {
               {data.data.percentUsed.toFixed(1)}% used
             </div>
           </div>
+
+          {data.data.history && data.data.history.length > 0 && (
+            <div style={{ marginBottom: 'var(--spacing-4)' }}>
+              <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-text-secondary)', marginBottom: 'var(--spacing-2)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                Usage History (Last {data.data.history.length} days)
+              </div>
+              <div style={{ height: '60px', width: '100%', position: 'relative' }}>
+                <svg width="100%" height="100%" viewBox="0 0 100 100" preserveAspectRatio="none">
+                  {/* Grid lines */}
+                  <line x1="0" y1="25" x2="100" y2="25" stroke="var(--color-border-subtle)" strokeWidth="0.5" strokeDasharray="2,2" />
+                  <line x1="0" y1="50" x2="100" y2="50" stroke="var(--color-border-subtle)" strokeWidth="0.5" strokeDasharray="2,2" />
+                  <line x1="0" y1="75" x2="100" y2="75" stroke="var(--color-border-subtle)" strokeWidth="0.5" strokeDasharray="2,2" />
+                  
+                  {/* Area under the curve */}
+                  <path
+                    d={`M 0 100 ${data.data.history.map((h, i) => 
+                      `L ${(i / (data.data.history!.length - 1)) * 100} ${100 - h.usage}`
+                    ).join(' ')} L 100 100 Z`}
+                    fill="var(--color-accent-primary)"
+                    fillOpacity="0.1"
+                  />
+                  
+                  {/* Line chart */}
+                  <path
+                    d={data.data.history.map((h, i) => 
+                      `${i === 0 ? 'M' : 'L'} ${(i / (data.data.history!.length - 1)) * 100} ${100 - h.usage}`
+                    ).join(' ')}
+                    fill="none"
+                    stroke="var(--color-accent-primary)"
+                    strokeWidth="2"
+                    vectorEffect="non-scaling-stroke"
+                  />
+                  
+                  {/* Data points */}
+                  {data.data.history.map((h, i) => (
+                    <circle
+                      key={i}
+                      cx={(i / (data.data.history!.length - 1)) * 100}
+                      cy={100 - h.usage}
+                      r="1.5"
+                      fill="var(--color-accent-primary)"
+                    />
+                  ))}
+                </svg>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 'var(--spacing-1)', fontSize: '9px', color: 'var(--color-text-muted)' }}>
+                  <span>{data.data.history[0].date}</span>
+                  <span>{data.data.history[data.data.history.length - 1].date}</span>
+                </div>
+              </div>
+            </div>
+          )}
 
           <div className="grid-2col" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 'var(--spacing-3)', fontSize: 'var(--font-size-sm)' }}>
             <div>
