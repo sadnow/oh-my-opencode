@@ -85,6 +85,57 @@ See [Tmux Integration](configurations.md#tmux-integration) for full configuratio
 
 Customize agent models, prompts, and permissions in `oh-my-opencode.json`. See [Configuration](configurations.md#agents).
 
+### Budget-Aware Auto-Selection (oib-autoselect)
+
+**oh-im-broke** includes a virtual model `oh-im-broke/oib-autoselect` that automatically selects the best available model based on your current budget status.
+
+#### How It Works
+
+1. **Enable Budget Orchestration** in your config:
+   ```jsonc
+   {
+     "budget": {
+       "enabled": true,
+       "quota_targets": {
+         "claude_max_weekly_percent": 90,
+         "copilot_monthly_percent": 90,
+         "zen_monthly_dollars": 20
+       }
+     }
+   }
+   ```
+
+2. **Select the Model**: In OpenCode's model selection TUI, choose `oh-im-broke/oib-autoselect`
+
+3. **Automatic Routing**: The system automatically:
+   - Checks subscription quotas (Claude Max, GitHub Copilot)
+   - Checks API budget usage (OpenCode Zen)
+   - Applies weighted selection with provider priority:
+     - Subscription providers: 2.0x weight (use what you're paying for)
+     - API providers: 0.5x weight (conserve budget)
+   - Considers reset bonuses (1.3x for providers resetting soon)
+   - Selects the best available model
+
+#### Use Cases
+
+- **Budget-Conscious Development**: Automatically use subscription models when available, fall back to API models when needed
+- **Multi-Provider Optimization**: Leverage multiple subscriptions efficiently without manual switching
+- **Cost Control**: Prevent overspending on API providers while maximizing subscription value
+- **Reset Timing**: Automatically prioritize providers nearing quota reset
+
+#### Example Routing Decisions
+
+| Scenario | Selected Model | Reason |
+|----------|---------------|--------|
+| Claude Max quota available | `anthropic/claude-opus-4-5` | Subscription provider, high priority |
+| Copilot quota available | `github-copilot/gpt-4o` | Subscription provider, high priority |
+| Both subscriptions exhausted | `opencode/gpt-4o-mini` | Fallback to free/cheap API model |
+| Claude Max resets tomorrow | `anthropic/claude-opus-4-5` | Reset bonus (1.3x) makes it preferred |
+
+#### Configuration
+
+See [Budget Orchestration Configuration](configurations.md#budget-orchestration) for detailed quota target settings.
+
 ---
 
 ## Skills: Specialized Knowledge

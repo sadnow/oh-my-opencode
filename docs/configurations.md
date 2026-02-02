@@ -895,6 +895,164 @@ Opt-in experimental features that may change or be removed in future versions. U
 
 **Warning**: These features are experimental and may cause unexpected behavior. Enable only if you understand the implications.
 
+## Budget Orchestration
+
+**oh-im-broke** includes intelligent budget orchestration that automatically selects the best available model based on your subscription quotas and API budget limits.
+
+### Configuration
+
+```jsonc
+{
+  "budget": {
+    "enabled": true,
+    "quota_targets": {
+      "claude_max_weekly_percent": 90,
+      "copilot_monthly_percent": 90,
+      "zen_monthly_dollars": 20
+    }
+  }
+}
+```
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `budget.enabled` | `false` | Enable budget orchestration and the `oh-im-broke/oib-autoselect` virtual model |
+| `budget.quota_targets.claude_max_weekly_percent` | `90` | Target usage percentage for Claude Max weekly quota (0-100) |
+| `budget.quota_targets.copilot_monthly_percent` | `90` | Target usage percentage for GitHub Copilot monthly quota (0-100) |
+| `budget.quota_targets.zen_monthly_dollars` | `20` | Target monthly spending limit for OpenCode Zen API (in USD) |
+| `disabled_models` | `{}` | Manually disable specific models per provider (see below) |
+
+### Model Availability Detection (3-Tier System)
+
+The budget orchestrator automatically detects and skips unavailable models using a 3-tier system:
+
+#### Tier 1: Manual Disable List (Immediate)
+
+If you've disabled certain models in your provider settings, you can manually specify them:
+
+```jsonc
+{
+  "disabled_models": {
+    "github-copilot": ["claude-opus-4.5", "gpt-5.2-codex"],
+    "opencode-zen": ["gemini-3-pro"],
+    "anthropic": ["claude-opus-4"]
+  }
+}
+```
+
+#### Tier 2: Zen API Auto-Detection (Startup)
+
+For OpenCode Zen providers, the system automatically queries available models on startup:
+- Calls `GET https://opencode.ai/zen/v1/models` using your Zen API key
+- Caches results for 5 minutes
+- Models not in the list are automatically skipped
+
+**Requires:** `OPENCODE_ZEN_API_KEY` or `ZEN_API_KEY` environment variable
+
+#### Tier 3: Runtime Failure Detection (Automatic)
+
+When a model fails with an unavailability error, it's automatically disabled:
+- Detects errors like "model not supported", "model not available", "model disabled"
+- Auto-disables the model for 24 hours
+- Re-enables automatically after TTL expires
+- No configuration needed - works out of the box
+
+**Error patterns detected:**
+- "model not supported"
+- "model not available"
+- "model not enabled"
+- "model disabled"
+- "invalid model"
+- "not authorized for model"
+- "access denied"
+
+**How it works:**
+1. You select a model or budget orchestrator picks one
+2. If the API returns an unavailability error, the model is auto-disabled
+3. Next request automatically falls back to the next best model
+4. After 24 hours, the model is re-enabled and tried again
+
+**Example flow:**
+```
+1. Orchestrator selects: github-copilot/claude-opus-4.5
+2. API returns: "Model not supported for your account"
+3. Model auto-disabled for 24 hours
+4. Next request: Orchestrator selects github-copilot/gpt-5.1-codex
+5. After 24 hours: claude-opus-4.5 re-enabled, tried again
+```
+
+### How It Works
+
+When `budget.enabled` is `true`:
+
+1. **Virtual Model Available**: The model `oh-im-broke/oib-autoselect` appears in OpenCode's model selection TUI
+2. **Automatic Selection**: When you select this model, the system:
+   - Checks Claude Max weekly quota usage
+   - Checks GitHub Copilot monthly quota usage
+   - Checks OpenCode Zen API spending
+   - Applies weighted selection:
+     - **Subscription providers** (Claude Max, Copilot): 2.0x weight - prioritize what you're paying for
+     - **API providers** (OpenCode Zen): 0.5x weight - conserve budget
+   - **Reset bonus**: 1.3x multiplier for providers nearing quota reset
+3. **Model Substitution**: Automatically routes to the best available model (e.g., `anthropic/claude-opus-4-5`, `github-copilot/gpt-4o`, or `opencode/gpt-4o-mini`)
+
+### Quota Targets
+
+The `quota_targets` define when to stop using each provider:
+
+- **`claude_max_weekly_percent: 90`**: Stop using Claude Max when 90% of weekly quota is consumed
+- **`copilot_monthly_percent: 90`**: Stop using Copilot when 90% of monthly quota is consumed
+- **`zen_monthly_dollars: 20`**: Stop using OpenCode Zen when $20 monthly spending is reached
+
+**Why not 100%?** Leaving a 10% buffer prevents hitting hard limits and allows for emergency usage.
+
+### Provider Priority
+
+The orchestrator prioritizes providers in this order:
+
+1. **Subscription providers with available quota** (2.0x weight)
+   - Claude Max (if under weekly quota target)
+   - GitHub Copilot (if under monthly quota target)
+2. **Providers nearing reset** (1.3x bonus multiplier)
+   - Prioritizes providers that will reset soon to maximize value
+3. **API providers** (0.5x weight)
+   - OpenCode Zen (if under monthly spending target)
+4. **Fallback**: `opencode/gpt-4o-mini` (free/cheap model)
+
+### Example Scenarios
+
+| Claude Max | Copilot | Zen API | Selected Model | Reason |
+|------------|---------|---------|----------------|--------|
+| 50% used | 80% used | $5 spent | `anthropic/claude-opus-4-5` | Claude Max has most quota remaining |
+| 95% used | 30% used | $5 spent | `github-copilot/gpt-4o` | Claude Max exhausted, Copilot available |
+| 95% used | 95% used | $5 spent | `opencode/gpt-4o-mini` | Both subscriptions exhausted, use cheap API |
+| 95% used | 95% used | $25 spent | `opencode/gpt-4o-mini` | All providers exhausted, fallback to free model |
+| 85% used (resets tomorrow) | 50% used | $5 spent | `anthropic/claude-opus-4-5` | Reset bonus (1.3x) makes Claude Max preferred |
+
+### Usage
+
+1. **Enable budget orchestration** in your config (see above)
+2. **Configure quota targets** based on your subscription limits
+3. **Select `oh-im-broke/oib-autoselect`** from OpenCode's model selection TUI
+4. **Let the system route automatically** - it will choose the best model for each request
+
+### Monitoring
+
+Use the WebUI to monitor budget status:
+
+```bash
+bunx oh-my-opencode webui
+# Open http://localhost:3847/budget-dashboard
+```
+
+The dashboard shows:
+- Current quota usage for each provider
+- Remaining budget
+- Routing decisions and model selections
+- Cost attribution per task
+
+See [WebUI Guide](webui-guide.md) for detailed dashboard features.
+
 ## WebUI
 
 Configure the WebUI interface for budget management and cost tracking.
