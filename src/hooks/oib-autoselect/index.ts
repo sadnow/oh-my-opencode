@@ -53,18 +53,21 @@ export function createOibAutoselectHook(
         parts: unknown[]
       }
     ): Promise<void> => {
-      // Check if virtual model is being used
-      if (!input.model) {
+      // Check if session is tracked FIRST (before early return)
+      const isTrackedSession = oibSessionState.has(input.sessionID)
+
+      // Only return early if BOTH: no model AND not a tracked session
+      if (!input.model && !isTrackedSession) {
         return
       }
 
-      const modelStr = `${input.model.providerID}/${input.model.modelID}`
+      // Compute modelStr and isVirtualModel only if input.model exists
+      const modelStr = input.model ? `${input.model.providerID}/${input.model.modelID}` : null
       const isVirtualModel = modelStr === VIRTUAL_MODEL_ID
-      const isTrackedSession = oibSessionState.has(input.sessionID)
       
       log("[oib-autoselect] Intercepted message", {
         sessionID: input.sessionID,
-        currentModel: modelStr,
+        currentModel: modelStr ?? "(no model in input)",
         isVirtualModel,
         isTrackedSession,
         trackedSessions: Array.from(oibSessionState.keys())

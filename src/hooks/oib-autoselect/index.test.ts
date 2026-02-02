@@ -283,6 +283,47 @@ describe("oib-autoselect hook", () => {
     expect(mockOrchestrator.getBestModelForUseCase).not.toHaveBeenCalled()
   })
 
+  it("should continue budget routing for tracked session even when input.model is undefined", async () => {
+    //#given - Session was previously tracked (simulating second message without model)
+    const hook = createOibAutoselectHook(mockCtx, mockOrchestrator)
+    if (!hook) throw new Error("Hook should not be null")
+
+    // First message: establish tracking with virtual model
+    const output1 = {
+      message: { role: "user" } as Record<string, unknown>,
+      parts: [],
+    }
+    await hook["chat.message"](
+      {
+        sessionID: "test-session-no-model",
+        model: { providerID: "oh-im-broke", modelID: "oib-autoselect" },
+      },
+      output1
+    )
+
+    // Verify first message was processed
+    expect(mockOrchestrator.getBestModelForUseCase).toHaveBeenCalledTimes(1)
+
+    // Second message: NO model in input (simulates OpenCode not sending model)
+    const output2 = {
+      message: { role: "user" } as Record<string, unknown>,
+      parts: [],
+    }
+    
+    //#when - Second message has no input.model but session is tracked
+    await hook["chat.message"](
+      {
+        sessionID: "test-session-no-model",
+        // NOTE: No model property - this is the key scenario we're testing
+      },
+      output2
+    )
+
+    //#then - Should still substitute model via budget orchestrator
+    expect(mockOrchestrator.getBestModelForUseCase).toHaveBeenCalledTimes(2)
+    expect(output2.message.model).toEqual({ providerID: "opencode", modelID: "gpt-4o" })
+  })
+
   it("event handler should not throw", async () => {
     const hook = createOibAutoselectHook(mockCtx, mockOrchestrator)
     if (!hook) throw new Error("Hook should not be null")
