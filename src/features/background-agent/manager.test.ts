@@ -388,6 +388,15 @@ describe("BackgroundManager.getAllDescendantTasks", () => {
 })
 
 describe("BackgroundManager.notifyParentSession - release ordering", () => {
+  let hangResolve: (() => void) | undefined
+
+  afterEach(() => {
+    if (typeof hangResolve === "function") {
+      hangResolve()
+      hangResolve = undefined
+    }
+  })
+
   test("should unblock queued task even when prompt hangs", async () => {
     // #given - concurrency limit 1, task1 running, task2 waiting
     const { ConcurrencyManager } = await import("./concurrency")
@@ -409,7 +418,10 @@ describe("BackgroundManager.notifyParentSession - release ordering", () => {
       concurrencyManager.release("explore")
 
       promptStarted = true
-      await new Promise(() => {})
+      // Create controllable hang
+      await new Promise<void>((resolve) => { 
+        hangResolve = resolve 
+      })
     }
 
     simulateNotifyParentSession()
