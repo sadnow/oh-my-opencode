@@ -13,11 +13,11 @@ global.Node = window.Node
 describe('App', () => {
   test('renders heading', () => {
     const { getByText } = renderWithProviders(<App />)
-    expect(getByText(/Oh My OpenCode/i)).toBeDefined()
+    expect(getByText(/oh-im-broke Dashboard/i)).toBeDefined()
   })
   
-  test('renders React infrastructure message', () => {
+  test('renders budget tagline', () => {
     const { getByText } = renderWithProviders(<App />)
-    expect(getByText(/React infrastructure ready/i)).toBeDefined()
+    expect(getByText(/Budget-conscious AI orchestration/i)).toBeDefined()
   })
 })
