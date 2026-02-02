@@ -333,3 +333,105 @@ describe("oib-autoselect hook", () => {
     ).resolves.toBeUndefined()
   })
 })
+
+describe("oib-autoselect persistence", () => {
+  const mockCtx = {
+    client: {
+      session: {
+        messages: vi.fn(),
+      },
+    },
+  } as unknown as PluginInput
+
+  let mockOrchestrator: BudgetOrchestrator
+
+  beforeEach(() => {
+    mockOrchestrator = {
+      getBestModelForUseCase: vi.fn().mockReturnValue("opencode/gpt-4o"),
+      isEnabled: vi.fn().mockReturnValue(true),
+    } as unknown as BudgetOrchestrator
+  })
+
+  it("should persist tracked sessions across hook recreations (simulating restart)", async () => {
+    //#given - First hook instance tracks a session
+    const hook1 = createOibAutoselectHook(mockCtx, mockOrchestrator)
+    if (!hook1) throw new Error("Hook should not be null")
+
+    // First message with virtual model - establishes tracking
+    await hook1["chat.message"](
+      {
+        sessionID: "persist-test-session",
+        model: { providerID: "oh-im-broke", modelID: "oib-autoselect" },
+      },
+      { message: {}, parts: [] }
+    )
+
+    //#when - Create a NEW hook instance (simulating process restart)
+    // Note: _resetOibSessionStateForTesting is NOT called here to simulate restart
+    // We manually reset only the in-memory state, not the storage
+    const hook2 = createOibAutoselectHook(mockCtx, mockOrchestrator)
+    if (!hook2) throw new Error("Hook should not be null")
+
+    // Second message with different model but same session
+    const output = {
+      message: { role: "user" } as Record<string, unknown>,
+      parts: [],
+    }
+    mockOrchestrator.getBestModelForUseCase = vi.fn().mockReturnValue("anthropic/claude-opus-4.5")
+
+    await hook2["chat.message"](
+      {
+        sessionID: "persist-test-session",
+        model: { providerID: "opencode", modelID: "gpt-4o" },
+      },
+      output
+    )
+
+    //#then - Should still route through budget orchestrator because session was persisted
+    expect(mockOrchestrator.getBestModelForUseCase).toHaveBeenCalled()
+    expect(output.message.model).toEqual({ providerID: "anthropic", modelID: "claude-opus-4.5" })
+  })
+
+  it("should remove session from persistence when deleted", async () => {
+    const hook = createOibAutoselectHook(mockCtx, mockOrchestrator)
+    if (!hook) throw new Error("Hook should not be null")
+
+    //#given - Session is tracked
+    await hook["chat.message"](
+      {
+        sessionID: "delete-persist-session",
+        model: { providerID: "oh-im-broke", modelID: "oib-autoselect" },
+      },
+      { message: {}, parts: [] }
+    )
+
+    //#when - Session is deleted
+    await hook.event({
+      event: {
+        type: "session.deleted",
+        properties: { info: { id: "delete-persist-session" } }
+      }
+    })
+
+    //#then - New hook instance should NOT route this session
+    const hook2 = createOibAutoselectHook(mockCtx, mockOrchestrator)
+    if (!hook2) throw new Error("Hook should not be null")
+
+    const output = {
+      message: { role: "user", model: "original" } as Record<string, unknown>,
+      parts: [],
+    }
+    mockOrchestrator.getBestModelForUseCase = vi.fn()
+
+    await hook2["chat.message"](
+      {
+        sessionID: "delete-persist-session",
+        model: { providerID: "opencode", modelID: "gpt-4o" },
+      },
+      output
+    )
+
+    expect(mockOrchestrator.getBestModelForUseCase).not.toHaveBeenCalled()
+    expect(output.message.model).toBe("original")
+  })
+})

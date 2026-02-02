@@ -1,6 +1,14 @@
 import type { PluginInput } from "@opencode-ai/plugin"
 import { log } from "../../shared"
 import type { BudgetOrchestrator as ActualBudgetOrchestrator } from "../../features/budget-orchestrator"
+import {
+  loadTrackedSessions,
+  addTrackedSession,
+  removeTrackedSession,
+  isSessionTracked,
+  clearAllTrackedSessions,
+  _resetStorageForTesting,
+} from "./storage"
 
 /**
  * BudgetOrchestrator interface - compatible with actual implementation
@@ -11,10 +19,20 @@ const VIRTUAL_MODEL_ID = "oh-im-broke/oib-autoselect"
 const VIRTUAL_PROVIDER_ID = "oh-im-broke"
 const DEFAULT_FALLBACK_MODEL = "opencode/gpt-4o-mini"
 
-// Track sessions that should use budget routing
-// Key: sessionID, Value: true (session is using budget routing)
-// Once a session starts with oib-autoselect, it continues budget routing for all subsequent messages
-const oibSessionState = new Map<string, boolean>()
+// In-memory cache of tracked sessions (synced with file storage)
+// Loaded from disk on first access, persisted on changes
+let oibSessionState: Set<string> | null = null
+
+/**
+ * Get or initialize the session state from storage
+ */
+function getSessionState(): Set<string> {
+  if (oibSessionState === null) {
+    oibSessionState = loadTrackedSessions()
+    log("[oib-autoselect] Loaded tracked sessions from storage", { count: oibSessionState.size })
+  }
+  return oibSessionState
+}
 
 /**
  * OIB Autoselect Hook
@@ -54,10 +72,12 @@ export function createOibAutoselectHook(
       }
     ): Promise<void> => {
       // Check if session is tracked FIRST (before early return)
-      const isTrackedSession = oibSessionState.has(input.sessionID)
+      // Use storage function for persistence across restarts
+      const sessionState = getSessionState()
+      const isTrackedSessionValue = isSessionTracked(input.sessionID)
 
       // Only return early if BOTH: no model AND not a tracked session
-      if (!input.model && !isTrackedSession) {
+      if (!input.model && !isTrackedSessionValue) {
         return
       }
 
@@ -69,15 +89,16 @@ export function createOibAutoselectHook(
         sessionID: input.sessionID,
         currentModel: modelStr ?? "(no model in input)",
         isVirtualModel,
-        isTrackedSession,
-        trackedSessions: Array.from(oibSessionState.keys())
+        isTrackedSession: isTrackedSessionValue,
+        trackedSessions: Array.from(sessionState)
       })
       
       // Determine if this session should use budget routing
-      if (isVirtualModel || isTrackedSession) {
+      if (isVirtualModel || isTrackedSessionValue) {
         if (isVirtualModel) {
           // User explicitly selected oib-autoselect - enable budget routing for this session
-          oibSessionState.set(input.sessionID, true)
+          // Persist to storage so it survives restarts
+          addTrackedSession(input.sessionID)
           log("[oib-autoselect] Virtual model selected, enabling budget routing", { sessionID: input.sessionID })
         } else {
           log("[oib-autoselect] Continuing budget routing for tracked session", { sessionID: input.sessionID })
@@ -149,8 +170,8 @@ export function createOibAutoselectHook(
       if (input.event.type === "session.deleted") {
         const props = input.event.properties as { info?: { id?: string } } | undefined
         const sessionID = props?.info?.id
-        if (sessionID && oibSessionState.has(sessionID)) {
-          oibSessionState.delete(sessionID)
+        if (sessionID && isSessionTracked(sessionID)) {
+          removeTrackedSession(sessionID)
           log("[oib-autoselect] Session removed from budget routing (deleted)", { sessionID })
         }
       }
@@ -160,5 +181,6 @@ export function createOibAutoselectHook(
 
 /** @internal For testing only */
 export function _resetOibSessionStateForTesting(): void {
-  oibSessionState.clear()
+  oibSessionState = null
+  _resetStorageForTesting()
 }
