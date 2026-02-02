@@ -31,7 +31,8 @@ describe("Storage Utilities", () => {
     it("returns sisyphus path by default", () => {
       const config = { sisyphus: { tasks: { storage_path: ".sisyphus/tasks" } } }
       const result = getTaskDir("list-123", config as any)
-      expect(result).toContain(".sisyphus/tasks/list-123")
+      const normalized = result.replace(/\\/g, '/')
+      expect(normalized).toContain(".sisyphus/tasks/list-123")
     })
 
     //#given claude_code_compat enabled
@@ -47,7 +48,8 @@ describe("Storage Utilities", () => {
         },
       }
       const result = getTaskDir("list-123", config as any)
-      expect(result).toContain(".cache/claude-code/tasks/list-123")
+      const normalized = result.replace(/\\/g, '/')
+      expect(normalized).toContain(".cache/claude-code/tasks/list-123")
     })
   })
 
@@ -58,7 +60,8 @@ describe("Storage Utilities", () => {
     it("returns path to task JSON", () => {
       const config = { sisyphus: { tasks: { storage_path: ".sisyphus/tasks" } } }
       const result = getTaskPath("list-123", "1", config as any)
-      expect(result).toContain("list-123/1.json")
+      const normalized = result.replace(/\\/g, '/')
+      expect(normalized).toContain("list-123/1.json")
     })
   })
 
@@ -69,7 +72,8 @@ describe("Storage Utilities", () => {
     it("returns sisyphus team path", () => {
       const config = { sisyphus: { swarm: { storage_path: ".sisyphus/teams" } } }
       const result = getTeamDir("my-team", config as any)
-      expect(result).toContain(".sisyphus/teams/my-team")
+      const normalized = result.replace(/\\/g, '/')
+      expect(normalized).toContain(".sisyphus/teams/my-team")
     })
   })
 
@@ -80,7 +84,8 @@ describe("Storage Utilities", () => {
     it("returns path to inbox JSON", () => {
       const config = { sisyphus: { swarm: { storage_path: ".sisyphus/teams" } } }
       const result = getInboxPath("my-team", "agent-001", config as any)
-      expect(result).toContain("my-team/inboxes/agent-001.json")
+      const normalized = result.replace(/\\/g, '/')
+      expect(normalized).toContain("my-team/inboxes/agent-001.json")
     })
   })
 
