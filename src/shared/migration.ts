@@ -15,6 +15,7 @@ export const AGENT_NAME_MAP: Record<string, string> = {
   "Planner-Sisyphus": "prometheus",
   "planner-sisyphus": "prometheus",
   "Prometheus (Planner)": "prometheus",
+  "prometheus (planner)": "prometheus",
   prometheus: "prometheus",
 
   // Atlas variants → "atlas"
@@ -25,10 +26,12 @@ export const AGENT_NAME_MAP: Record<string, string> = {
   // Metis variants → "metis"
   "plan-consultant": "metis",
   "Metis (Plan Consultant)": "metis",
+  "metis (plan consultant)": "metis",
   metis: "metis",
 
   // Momus variants → "momus"
   "Momus (Plan Reviewer)": "momus",
+  "momus (plan reviewer)": "momus",
   momus: "momus",
 
   // Sisyphus-Junior → "sisyphus-junior"
@@ -95,7 +98,7 @@ export function migrateAgentNames(agents: Record<string, unknown>): { migrated: 
   let changed = false
 
   for (const [key, value] of Object.entries(agents)) {
-    const newKey = AGENT_NAME_MAP[key.toLowerCase()] ?? AGENT_NAME_MAP[key] ?? key
+    const newKey = AGENT_NAME_MAP[key] ?? AGENT_NAME_MAP[key.toLowerCase()] ?? key
     if (newKey !== key) {
       changed = true
     }
@@ -191,7 +194,7 @@ export function migrateConfigFile(configPath: string, rawConfig: Record<string, 
     const migrated: string[] = []
     let changed = false
     for (const agent of rawConfig.disabled_agents as string[]) {
-      const newAgent = AGENT_NAME_MAP[agent.toLowerCase()] ?? AGENT_NAME_MAP[agent] ?? agent
+      const newAgent = AGENT_NAME_MAP[agent] ?? AGENT_NAME_MAP[agent.toLowerCase()] ?? agent
       if (newAgent !== agent) {
         changed = true
       }

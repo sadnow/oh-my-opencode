@@ -108,6 +108,7 @@ describe("resolveModelWithFallback", () => {
 
   beforeEach(() => {
     logSpy = spyOn(logger, "log")
+    resetWeightCalculator()
   })
 
   afterEach(() => {
@@ -208,6 +209,29 @@ describe("resolveModelWithFallback", () => {
       // #then
       expect(result!.model).toBe("anthropic/claude-opus-4-5")
       expect(result!.source).toBe("override")
+    })
+
+    test("skips override when provider is disabled", () => {
+      // #given
+      const input: ExtendedModelResolutionInput = {
+        userModel: "opencode/glm-4.7",
+        fallbackChain: [
+          { providers: ["anthropic", "opencode"], model: "claude-sonnet-4-5" },
+        ],
+        availableModels: new Set([
+          "anthropic/claude-sonnet-4-5",
+          "opencode/glm-4.7",
+        ]),
+        systemDefaultModel: "google/gemini-3-pro",
+        disabledProviders: ["opencode"],
+      }
+
+      // #when
+      const result = resolveModelWithFallback(input)
+
+      // #then
+      expect(result!.model).toBe("anthropic/claude-sonnet-4-5")
+      expect(result!.source).toBe("provider-fallback")
     })
   })
 
@@ -581,6 +605,7 @@ describe("resolveModelWithFallback", () => {
       expect(result!.model).toBe("google/gemini-3-pro")
       expect(result!.source).toBe("system-default")
     })
+
   })
 
   describe("Multi-entry fallbackChain", () => {
@@ -637,6 +662,28 @@ describe("resolveModelWithFallback", () => {
         ],
         availableModels,
         systemDefaultModel: "system/default",
+      })
+
+      // #then
+      expect(result!.model).toBe("openai/gpt-5.2")
+      expect(result!.source).toBe("provider-fallback")
+    })
+
+    test("filters disabled providers from fallback matches", () => {
+      // #given
+      const availableModels = new Set([
+        "opencode/gpt-5.2",
+        "openai/gpt-5.2",
+      ])
+
+      // #when
+      const result = resolveModelWithFallback({
+        fallbackChain: [
+          { providers: ["opencode", "openai"], model: "gpt-5.2" },
+        ],
+        availableModels,
+        systemDefaultModel: "system/default",
+        disabledProviders: ["opencode"],
       })
 
       // #then
@@ -707,6 +754,21 @@ describe("resolveModelWithFallback", () => {
       const input: ExtendedModelResolutionInput = {
         availableModels: new Set(["openai/gpt-5.2"]),
         systemDefaultModel: undefined,
+      }
+
+      // #when
+      const result = resolveModelWithFallback(input)
+
+      // #then
+      expect(result).toBeUndefined()
+    })
+
+    test("returns undefined when only system default provider is disabled", () => {
+      // #given
+      const input: ExtendedModelResolutionInput = {
+        availableModels: new Set(["google/gemini-3-pro"]),
+        systemDefaultModel: "google/gemini-3-pro",
+        disabledProviders: ["google"],
       }
 
       // #when

@@ -12,8 +12,6 @@ import type { ToolContext } from "@opencode-ai/plugin/tool"
  * The mock includes all required properties with sensible defaults:
  * - sessionID, messageID, agent: test identifiers
  * - abort: fresh AbortController signal
- * - metadata: no-op function
- * - ask: no-op async function
  *
  * @param overrides - Optional partial overrides for any property
  * @returns A complete ToolContext suitable for testing
@@ -39,8 +37,6 @@ export function createMockToolContext(
     messageID: overrides?.messageID ?? "test-message",
     agent: overrides?.agent ?? "test-agent",
     abort: overrides?.abort ?? new AbortController().signal,
-    metadata: overrides?.metadata ?? (() => {}),
-    ask: overrides?.ask ?? (async () => {}),
   }
 }
 

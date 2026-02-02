@@ -11,12 +11,16 @@
  * @param modelID - The model ID to normalize (e.g., "claude-sonnet-4.5")
  * @returns The normalized model ID (e.g., "claude-sonnet-4-5")
  */
-export function normalizeModelID<T extends string | null | undefined>(modelID: T): T {
+export function normalizeModelID(modelID: string): string;
+export function normalizeModelID(modelID: null): null;
+export function normalizeModelID(modelID: undefined): undefined;
+export function normalizeModelID(modelID: string | null | undefined): string | null | undefined;
+export function normalizeModelID(modelID: string | null | undefined): string | null | undefined {
   if (!modelID) return modelID;
   
   // Normalize decimal version numbers to dashes
   // Match patterns like "4.5" or "5.2" but NOT "0905" (dates)
   // We use a regex that looks for a digit, a dot, and another digit.
   // This avoids matching longer numeric strings like dates.
-  return modelID.replace(/(\d)\.(\d)/g, '$1-$2').replace(/(\d)\.(\d)/g, '$1-$2') as T;
+  return modelID.replace(/(\d)\.(\d)/g, '$1-$2').replace(/(\d)\.(\d)/g, '$1-$2');
 }

@@ -37,7 +37,7 @@ export function resolveVariantForModel(
 ): string | undefined {
   const agentRequirement = AGENT_MODEL_REQUIREMENTS[agentName]
   if (agentRequirement) {
-    return findVariantInChain(agentRequirement.fallbackChain, currentModel.providerID)
+    return findVariantInChain(agentRequirement, currentModel)
   }
 
   const agentOverrides = config.agents as
@@ -48,7 +48,7 @@ export function resolveVariantForModel(
   if (categoryName) {
     const categoryRequirement = CATEGORY_MODEL_REQUIREMENTS[categoryName]
     if (categoryRequirement) {
-      return findVariantInChain(categoryRequirement.fallbackChain, currentModel.providerID)
+      return findVariantInChain(categoryRequirement, currentModel)
     }
   }
 
@@ -56,14 +56,21 @@ export function resolveVariantForModel(
 }
 
 function findVariantInChain(
-  fallbackChain: { providers: string[]; model: string; variant?: string }[],
-  providerID: string,
+  requirement: { fallbackChain: { providers: string[]; model: string; variant?: string }[]; variant?: string },
+  currentModel: { providerID: string; modelID: string },
 ): string | undefined {
-  for (const entry of fallbackChain) {
-    if (entry.providers.includes(providerID)) {
-      return entry.variant
+  for (const entry of requirement.fallbackChain) {
+    if (entry.providers.includes(currentModel.providerID) && entry.model === currentModel.modelID) {
+      return entry.variant ?? requirement.variant
     }
   }
+
+  for (const entry of requirement.fallbackChain) {
+    if (entry.providers.includes(currentModel.providerID)) {
+      return entry.variant ?? requirement.variant
+    }
+  }
+
   return undefined
 }
 

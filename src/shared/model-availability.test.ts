@@ -1,18 +1,31 @@
-import { describe, it, expect, beforeEach, afterEach } from "bun:test"
+import { describe, it, expect, beforeEach, afterEach, beforeAll } from "bun:test"
 import { mkdtempSync, writeFileSync, rmSync } from "fs"
 import { tmpdir } from "os"
 import { join } from "path"
-import { fetchAvailableModels, fuzzyMatchModel, getConnectedProviders, __resetModelCache } from "./model-availability"
+
+type ModelAvailabilityModule = typeof import("./model-availability")
+
+function createCacheBust(): string {
+	return `${Date.now()}-${Math.random()}`
+}
+
+async function loadModelAvailability(): Promise<ModelAvailabilityModule> {
+	return await import(`./model-availability?cacheBust=${createCacheBust()}`)
+}
 
 describe("fetchAvailableModels", () => {
   let tempDir: string
   let originalXdgCache: string | undefined
+  let modelAvailability: ModelAvailabilityModule
+  let fetchAvailableModels: ModelAvailabilityModule["fetchAvailableModels"]
 
-  beforeEach(() => {
-    __resetModelCache()
+  beforeEach(async () => {
     tempDir = mkdtempSync(join(tmpdir(), "opencode-test-"))
     originalXdgCache = process.env.XDG_CACHE_HOME
     process.env.XDG_CACHE_HOME = tempDir
+    modelAvailability = await loadModelAvailability()
+    modelAvailability.__resetModelCache()
+    fetchAvailableModels = modelAvailability.fetchAvailableModels
   })
 
   afterEach(() => {
@@ -109,6 +122,12 @@ describe("fetchAvailableModels", () => {
 })
 
 describe("fuzzyMatchModel", () => {
+	let fuzzyMatchModel: ModelAvailabilityModule["fuzzyMatchModel"]
+
+	beforeAll(async () => {
+		const modelAvailability = await loadModelAvailability()
+		fuzzyMatchModel = modelAvailability.fuzzyMatchModel
+	})
 	// #given available models from multiple providers
 	// #when searching for a substring match
 	// #then return the matching model
@@ -256,6 +275,12 @@ describe("fuzzyMatchModel", () => {
 })
 
 describe("getConnectedProviders", () => {
+	let getConnectedProviders: ModelAvailabilityModule["getConnectedProviders"]
+
+	beforeAll(async () => {
+		const modelAvailability = await loadModelAvailability()
+		getConnectedProviders = modelAvailability.getConnectedProviders
+	})
 	//#given SDK client with connected providers
 	//#when provider.list returns data
 	//#then returns connected array
@@ -342,12 +367,17 @@ describe("getConnectedProviders", () => {
 describe("fetchAvailableModels with connected providers filtering", () => {
 	let tempDir: string
 	let originalXdgCache: string | undefined
+	let fetchAvailableModels: ModelAvailabilityModule["fetchAvailableModels"]
+	let __resetModelCache: ModelAvailabilityModule["__resetModelCache"]
 
-	beforeEach(() => {
-		__resetModelCache()
+	beforeEach(async () => {
 		tempDir = mkdtempSync(join(tmpdir(), "opencode-test-"))
 		originalXdgCache = process.env.XDG_CACHE_HOME
 		process.env.XDG_CACHE_HOME = tempDir
+		const modelAvailability = await loadModelAvailability()
+		fetchAvailableModels = modelAvailability.fetchAvailableModels
+		__resetModelCache = modelAvailability.__resetModelCache
+		__resetModelCache()
 	})
 
 	afterEach(() => {
@@ -509,12 +539,17 @@ describe("fetchAvailableModels with connected providers filtering", () => {
 describe("fetchAvailableModels with provider-models cache (whitelist-filtered)", () => {
 	let tempDir: string
 	let originalXdgCache: string | undefined
+	let fetchAvailableModels: ModelAvailabilityModule["fetchAvailableModels"]
+	let __resetModelCache: ModelAvailabilityModule["__resetModelCache"]
 
-	beforeEach(() => {
-		__resetModelCache()
+	beforeEach(async () => {
 		tempDir = mkdtempSync(join(tmpdir(), "opencode-test-"))
 		originalXdgCache = process.env.XDG_CACHE_HOME
 		process.env.XDG_CACHE_HOME = tempDir
+		const modelAvailability = await loadModelAvailability()
+		fetchAvailableModels = modelAvailability.fetchAvailableModels
+		__resetModelCache = modelAvailability.__resetModelCache
+		__resetModelCache()
 	})
 
 	afterEach(() => {
