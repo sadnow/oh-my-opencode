@@ -28,6 +28,7 @@ import {
   getRecommendedModels,
   getBudgetStatusMessage,
 } from "./algorithm"
+import { toCanonicalProviderId } from "./provider-id-mapping"
 import { formatModelRef, parseModelRef, getModelTier, TIER_ORDER, findUpgradedModel, findDowngradedModel } from "./tiers"
 import { AdaptiveBudgetManager, type AdaptiveBudgetConfig } from "./adaptive-budget"
 import { SubscriptionBudgetManager } from "./subscription-manager"
@@ -53,6 +54,7 @@ export class BudgetOrchestrator {
   
   // Global override manager for provider-level control
   private globalOverrideManager: GlobalOverrideManager
+
 
   // Subscription and API budget managers
   private subscriptionManager: SubscriptionBudgetManager
@@ -1228,32 +1230,148 @@ export class BudgetOrchestrator {
       }
     }
     
+    // Build daysUntilResetByProvider map from subscription trackers
+    const daysUntilResetByProvider = this.calculateDaysUntilReset()
+    const velocityByProvider = this.calculateVelocityByProvider()
+    
     return this.globalOverrideManager.getBestAvailableModel(
       useCase,
       preferredModel,
       this.availableProviders,
       usagePercentByProvider,
-      filteredQuotaTargets
+      filteredQuotaTargets,
+      daysUntilResetByProvider,
+      velocityByProvider
     )
+  }
+  
+  /**
+   * Calculate days until reset for each provider from subscription trackers.
+   * Returns a map of canonical provider ID -> days until quota resets.
+   * Used for reset bonus (1.3x for providers resetting soon).
+   */
+  private calculateDaysUntilReset(): Record<string, number> {
+    const result: Record<string, number> = {}
+    
+    // Claude Max (Anthropic) - weekly reset
+    if (this.claudeMaxTracker) {
+      try {
+        const data = this.claudeMaxTracker.getData()
+        if (!data.error && data.allModels.resetDate) {
+          const resetDate = new Date(data.allModels.resetDate)
+          const now = new Date()
+          const msUntilReset = resetDate.getTime() - now.getTime()
+          const daysUntilReset = Math.max(0, Math.ceil(msUntilReset / (1000 * 60 * 60 * 24)))
+          result['anthropic'] = daysUntilReset
+        }
+      } catch (error) {
+        log(`[budget-orchestrator] Error getting Claude Max reset date: ${error}`)
+      }
+    }
+    
+    // Copilot (GitHub) - monthly reset
+    if (this.copilotTracker) {
+      try {
+        const data = this.copilotTracker.getData()
+        if (!data.error && data.daysUntilReset !== undefined) {
+          result['github-copilot'] = Math.max(0, data.daysUntilReset)
+        }
+      } catch (error) {
+        log(`[budget-orchestrator] Error getting Copilot reset date: ${error}`)
+      }
+    }
+    
+    return result
+  }
+
+  /**
+   * Calculate spending velocity for each provider from adaptive managers.
+   * Returns a map of canonical provider ID -> spending velocity in %/day.
+   * Used for velocity-based weight adjustment to balance exhaustion timing.
+   */
+  private calculateVelocityByProvider(): Record<string, number> {
+    const result: Record<string, number> = {}
+
+    for (const [provider, manager] of this.adaptiveManagers) {
+      const state = manager.getState()
+      const config = manager.getConfig()
+
+      if (state.velocitySampleCount >= config.minSamplesForPrediction) {
+        const budgetState = this.getBudgetState(provider)
+        if (!budgetState || budgetState.totalBudget <= 0) {
+          continue
+        }
+
+        const percentPerHour = (state.spendingVelocityPerHour / budgetState.totalBudget) * 100
+        const percentPerDay = percentPerHour * 24
+        const canonicalProvider = toCanonicalProviderId(provider)
+        result[canonicalProvider] = percentPerDay
+      }
+    }
+
+    return result
   }
   
   /**
    * Calculate usage percentages for all configured providers.
    * Returns a map of provider -> usage percentage (0-100).
+   * 
+   * Includes both:
+   * - API budget usage (from UsageTracker)
+   * - Subscription usage (from ClaudeMaxTracker, CopilotTracker)
    */
   private calculateUsagePercentages(): Record<string, number> {
     const result: Record<string, number> = {}
     
+    // Include API budget usage
     for (const provider of Object.keys(this.config.providerBudgets)) {
       const state = this.getBudgetState(provider)
       if (state && state.totalBudget > 0) {
-        result[provider] = (state.used / state.totalBudget) * 100
+        const canonicalProvider = toCanonicalProviderId(provider)
+        result[canonicalProvider] = (state.used / state.totalBudget) * 100
+      }
+    }
+    
+    // Include subscription tracker usage (Claude Max)
+    if (this.claudeMaxTracker) {
+      try {
+        const data = this.claudeMaxTracker.getData()
+        if (!data.error) {
+          // Use allModels.percentUsed for overall Claude Max usage
+          // This takes precedence over API budget tracking for anthropic
+          result['anthropic'] = data.allModels.percentUsed
+        }
+      } catch (error) {
+        log(`[budget-orchestrator] Error getting Claude Max usage: ${error}`)
+      }
+    }
+    
+    // Include subscription tracker usage (Copilot)
+    if (this.copilotTracker) {
+      try {
+        const data = this.copilotTracker.getData()
+        if (!data.error) {
+          // Use percentUsed for Copilot usage
+          // This takes precedence over API budget tracking for github-copilot
+          result['github-copilot'] = data.percentUsed
+        }
+      } catch (error) {
+        log(`[budget-orchestrator] Error getting Copilot usage: ${error}`)
       }
     }
     
     return result
   }
   
+/**
+   * Get usage percentages for all configured providers.
+   * Returns a map of canonical provider ID -> usage percentage (0-100).
+   * Useful for passing to resolveModelWithFallback for weighted selection.
+   */
+  getUsagePercentages(): Record<string, number> {
+    return this.calculateUsagePercentages()
+  }
+
   /**
    * Check quota and auto-disable provider if threshold exceeded.
    * Call this after updating usage.
@@ -1267,6 +1385,14 @@ export class BudgetOrchestrator {
    */
   getGlobalOverrideSummary(): ReturnType<GlobalOverrideManager["getSummary"]> {
     return this.globalOverrideManager.getSummary()
+  }
+
+  recordProviderSuccess(provider: string, latencyMs?: number): void {
+    this.globalOverrideManager.recordProviderSuccess(provider, latencyMs)
+  }
+
+  recordProviderFailure(provider: string, error?: unknown, latencyMs?: number): void {
+    this.globalOverrideManager.recordProviderFailure(provider, error, latencyMs)
   }
   
   /**
@@ -1336,6 +1462,12 @@ export {
   getBudgetStatusMessage,
   estimateRemainingDuration,
 } from "./algorithm"
+
+export {
+  toCanonicalProviderId,
+  fromCanonicalProviderId,
+  isLegacyProviderId,
+} from "./provider-id-mapping"
 
 export {
   AdaptiveBudgetManager,

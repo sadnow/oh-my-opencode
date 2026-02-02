@@ -29,8 +29,6 @@ export const MODEL_TIERS: Record<ModelTier, TierConfig> = {
       "anthropic/claude-opus-4-1",
       "anthropic/claude-opus-4-0",
       // OpenAI premium - o-series and GPT-5.2
-      "openai/o3",
-      "openai/o3-pro",
       "openai/o1-pro",
       "openai/gpt-5.2-codex",
       "openai/gpt-5.2-pro",
@@ -95,7 +93,6 @@ export const MODEL_TIERS: Record<ModelTier, TierConfig> = {
       // OpenAI budget
       "openai/gpt-4.1-mini",
       "openai/o4-mini",
-      "openai/o3-mini",
       // GitHub Copilot budget (included in Pro+ subscription)
       // 0x multiplier = FREE!
       "github-copilot/gpt-5-mini",

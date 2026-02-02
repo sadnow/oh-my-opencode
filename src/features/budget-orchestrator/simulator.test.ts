@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'bun:test'
 import { simulateRequests, type SimulationDistributionEntry } from './simulator'
+import { ProviderWeightCalculator } from './provider-weight-calculator'
 
 describe('Budget Orchestrator Simulator', () => {
   it('replays deterministically with a fixed seed', () => {
@@ -93,5 +94,62 @@ describe('Budget Orchestrator Simulator', () => {
 
     //#then fairness index is identical
     expect(first.fairnessIndex).toBeCloseTo(second.fairnessIndex, 10)
+  })
+
+  describe('Velocity-based exhaustion balancing', () => {
+    it('balances provider exhaustion timing with velocity adjustment', () => {
+      //#given two providers with same usage but different velocities
+      const calculator = new ProviderWeightCalculator()
+
+      // Provider A: fast (10%/day), Provider B: slow (2%/day)
+      const providerKeys = ['providerA', 'providerB'] as const
+      type ProviderKey = (typeof providerKeys)[number]
+      const models = ['providerA/model-a', 'providerB/model-b']
+      let usageA = 50
+      let usageB = 50
+      const velocityA = 10.0
+      const velocityB = 2.0
+
+      //#when simulating 30 days
+      const selections: Record<ProviderKey, number> = { providerA: 0, providerB: 0 }
+
+      for (let day = 0; day < 30; day++) {
+        for (let i = 0; i < 100; i++) {
+          const candidates = calculator.buildCandidates(
+            models,
+            { providerA: usageA, providerB: usageB },
+            { providerA: 30 - day, providerB: 30 - day },
+            { providerA: velocityA, providerB: velocityB }
+          )
+          const selected = calculator.selectBestProvider(candidates)
+          if (selected && providerKeys.includes(selected.provider as ProviderKey)) {
+            selections[selected.provider as ProviderKey]++
+          }
+        }
+
+        // Update usage based on load distribution
+        const loadA = selections.providerA / ((day + 1) * 100)
+        const loadB = selections.providerB / ((day + 1) * 100)
+        usageA = Math.min(100, usageA + velocityA * loadA)
+        usageB = Math.min(100, usageB + velocityB * loadB)
+      }
+
+      //#then calculate days to exhaustion
+      const daysA =
+        usageA >= 100
+          ? 30
+          : 30 + (100 - usageA) / (velocityA * selections.providerA / 3000)
+      const daysB =
+        usageB >= 100
+          ? 30
+          : 30 + (100 - usageB) / (velocityB * selections.providerB / 3000)
+
+      //#and coefficient of variation should be < 0.3
+      const mean = (daysA + daysB) / 2
+      const cv =
+        Math.sqrt((Math.pow(daysA - mean, 2) + Math.pow(daysB - mean, 2)) / 2) /
+        mean
+      expect(cv).toBeLessThan(0.3)
+    })
   })
 })

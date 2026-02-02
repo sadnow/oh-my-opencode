@@ -37,18 +37,33 @@ export interface WeightCandidate {
  * Subscription providers are free with subscription and should be prioritized.
  * API budget providers cost money per use and should be preserved.
  */
+// Canonical provider info definitions
+const ANTHROPIC_INFO: ProviderInfo = {
+  type: 'subscription',
+  displayName: 'Claude Max (Anthropic)',
+  resetPeriod: 'weekly',
+}
+
+const GITHUB_COPILOT_INFO: ProviderInfo = {
+  type: 'subscription',
+  displayName: 'GitHub Copilot',
+  resetPeriod: 'monthly',
+}
+
+const OPENCODE_INFO: ProviderInfo = {
+  type: 'api-budget',
+  displayName: 'OpenCode Zen',
+  resetPeriod: 'none', // Billing cycle but doesn't "reset" like subscriptions
+}
+
 export const PROVIDER_CLASSIFICATION: Record<string, ProviderInfo> = {
   // Subscription providers (free with subscription, reset periodically)
-  'anthropic': {
-    type: 'subscription',
-    displayName: 'Claude Max (Anthropic)',
-    resetPeriod: 'weekly',
-  },
-  'github-copilot': {
-    type: 'subscription',
-    displayName: 'GitHub Copilot',
-    resetPeriod: 'monthly',
-  },
+  'anthropic': ANTHROPIC_INFO,
+  'claude-max': ANTHROPIC_INFO,  // Alias used by subscription-manager
+  
+  'github-copilot': GITHUB_COPILOT_INFO,
+  'copilot': GITHUB_COPILOT_INFO,  // Alias used by subscription-manager
+  
   'google': {
     type: 'subscription',
     displayName: 'Google (OAuth/Antigrav)',
@@ -61,11 +76,9 @@ export const PROVIDER_CLASSIFICATION: Record<string, ProviderInfo> = {
   },
   
   // API budget providers (paid per use, no reset)
-  'opencode': {
-    type: 'api-budget',
-    displayName: 'OpenCode Zen',
-    resetPeriod: 'none', // Billing cycle but doesn't "reset" like subscriptions
-  },
+  'opencode': OPENCODE_INFO,
+  'opencode-zen': OPENCODE_INFO,  // Alias used by api-manager
+  'opencode_zen': OPENCODE_INFO,  // Alias used in config keys
 } as const
 
 /**
@@ -120,6 +133,11 @@ export const API_BUDGET_RESERVE_PERCENT = 20
  */
 export const RESET_BONUS_THRESHOLD_DAYS = 2
 export const RESET_BONUS_MULTIPLIER = 1.3
+
+// Velocity-based weight adjustment
+export const VELOCITY_PENALTY_MIN = 0.3  // Never fully block a provider
+export const VELOCITY_PENALTY_MAX = 1.5  // Don't over-boost slow providers
+export const VELOCITY_PENALTY_ENABLED = true  // Feature flag
 
 // ============================================================================
 // Reset Time Utilities

@@ -8,6 +8,7 @@
  */
 
 import { getRoutingLogger } from './routing-logger'
+import { toCanonicalProviderId } from './provider-id-mapping'
 import {
   type ProviderType,
   type WeightCandidate,
@@ -18,6 +19,9 @@ import {
   RESET_BONUS_THRESHOLD_DAYS,
   RESET_BONUS_MULTIPLIER,
   shouldApplyResetBonus,
+  VELOCITY_PENALTY_MIN,
+  VELOCITY_PENALTY_MAX,
+  VELOCITY_PENALTY_ENABLED,
 } from './provider-classification'
 
 // ============================================================================
@@ -72,46 +76,87 @@ export class ProviderWeightCalculator {
    * - remainingFraction = (100 - usagePercent) / 100
    * - priorityMultiplier = multiplier for provider type (subscription: 2.0, api: 0.5)
    * - resetBonus = 1.3 if resetting within threshold days, else 1.0
-   * - weight = remainingFraction * priorityMultiplier * resetBonus
+   * - velocityPenalty = max(0.3, min(1.5, 1 / velocityRatio)) if velocity data available
+   * - weight = remainingFraction * priorityMultiplier * resetBonus * velocityPenalty
    * 
    * For API budget providers, returns 0 if usage exceeds (100 - reserve)%
    * 
    * @param provider Provider ID (e.g., 'anthropic', 'opencode')
    * @param usagePercent Current usage percentage (0-100)
    * @param daysUntilReset Optional days until quota resets
-   * @returns Effective weight (0 to ~2.6 typically)
+   * @param velocityPerDay Optional actual spending velocity in %/day
+   * @returns Effective weight (0 to ~3.9 typically with velocity adjustment)
    */
   calculateWeight(
     provider: string,
     usagePercent: number,
-    daysUntilReset?: number | null
+    daysUntilReset?: number | null,
+    velocityPerDay?: number
   ): number {
+    const usage = Number.isFinite(usagePercent) ? Math.min(100, Math.max(0, usagePercent)) : 0
     const providerType = getProviderType(provider)
     
     // Check API budget reserve
     if (providerType === 'api-budget') {
       const reserveThreshold = 100 - this.apiReservePercent
-      if (usagePercent >= reserveThreshold) {
+      if (usage >= reserveThreshold) {
         // Reserve exceeded, weight = 0 (block this provider)
         return 0
       }
     }
     
     // Base: remaining fraction (1.0 = empty, 0.0 = full)
-    const remainingFraction = Math.max(0, (100 - usagePercent) / 100)
+    const remainingFraction = Math.max(0, (100 - usage) / 100)
     
     // Priority multiplier based on provider type
     const priorityMultiplier = this.priorityMultipliers[providerType] ?? 1.0
     
     // Reset bonus for providers resetting soon
+    const hasResetDays = Number.isFinite(daysUntilReset)
     const resetBonus = (
-      daysUntilReset !== null && 
-      daysUntilReset !== undefined && 
-      daysUntilReset >= 0 && 
-      daysUntilReset <= this.resetBonusThresholdDays
+      hasResetDays && 
+      daysUntilReset! >= 0 && 
+      daysUntilReset! <= this.resetBonusThresholdDays
     ) ? this.resetBonusMultiplier : 1.0
     
-    return remainingFraction * priorityMultiplier * resetBonus
+    // Velocity penalty: penalize providers burning budget faster than expected
+    let velocityPenalty = 1.0 // default (no effect)
+    
+    if (VELOCITY_PENALTY_ENABLED && velocityPerDay !== undefined) {
+      // Expected velocity: remaining budget should last until reset
+      // If daysUntilReset not provided, assume remaining budget should last as many days as usage percent
+      // (e.g., 50% used → assume 50 days remaining, so expectedVelocity = 50% / 50 days = 1.0%/day)
+      const daysRemaining = (hasResetDays && daysUntilReset! >= 0) ? daysUntilReset! : (100 - usage)
+      
+      if (daysRemaining > 0) {
+        const expectedVelocity = (100 - usage) / daysRemaining
+        
+        if (expectedVelocity > 0) {
+          // Velocity ratio: actual / expected
+          // > 1.0 = burning too fast (penalize)
+          // < 1.0 = burning slowly (boost)
+          const velocityRatio = velocityPerDay / expectedVelocity
+          
+          // Inverse ratio: high velocity → low penalty (< 1.0), low velocity → high penalty (> 1.0)
+          let rawPenalty: number
+          if (velocityPerDay === 0) {
+            rawPenalty = VELOCITY_PENALTY_MAX
+          } else if (velocityPerDay < 0) {
+            rawPenalty = VELOCITY_PENALTY_MIN
+          } else {
+            rawPenalty = 1 / velocityRatio
+          }
+          
+          // Clamp to safety bounds [0.3, 1.5]
+          velocityPenalty = Math.max(
+            VELOCITY_PENALTY_MIN,
+            Math.min(VELOCITY_PENALTY_MAX, rawPenalty)
+          )
+        }
+      }
+    }
+    
+    return remainingFraction * priorityMultiplier * resetBonus * velocityPenalty
   }
 
   /**
@@ -172,6 +217,7 @@ export class ProviderWeightCalculator {
           use_case: "weighted_selection",
           candidates: validCandidates.map(c => c.model),
           weights: Object.fromEntries(validCandidates.map(c => [c.model, c.weight])),
+          velocities: Object.fromEntries(validCandidates.map(c => [c.model, (c as any).velocityPerDay ?? null])),
           selected: selected.model,
           reason: "smooth weighted round-robin",
         }
@@ -187,18 +233,22 @@ export class ProviderWeightCalculator {
    * @param models Array of model strings (e.g., ['anthropic/claude-sonnet-4-5', 'opencode/glm-4.7'])
    * @param usagePercentByProvider Map of provider -> usage percentage
    * @param daysUntilResetByProvider Optional map of provider -> days until reset
+   * @param velocityByProvider Optional map of provider -> spending velocity in %/day
    * @returns Array of candidates with weights
    */
   buildCandidates(
     models: string[],
     usagePercentByProvider: Record<string, number>,
-    daysUntilResetByProvider?: Record<string, number>
+    daysUntilResetByProvider?: Record<string, number>,
+    velocityByProvider?: Record<string, number>
   ): WeightCandidate[] {
     return models.map(model => {
       const [provider] = model.split('/')
-      const usagePercent = usagePercentByProvider[provider] ?? 0
-      const daysUntilReset = daysUntilResetByProvider?.[provider]
-      const weight = this.calculateWeight(provider, usagePercent, daysUntilReset)
+      const canonical = toCanonicalProviderId(provider)
+      const usagePercent = usagePercentByProvider[provider] ?? usagePercentByProvider[canonical] ?? 0
+      const daysUntilReset = daysUntilResetByProvider?.[provider] ?? daysUntilResetByProvider?.[canonical]
+      const velocityPerDay = velocityByProvider?.[provider] ?? velocityByProvider?.[canonical]
+      const weight = this.calculateWeight(provider, usagePercent, daysUntilReset, velocityPerDay)
       
       return {
         model,
@@ -216,18 +266,20 @@ export class ProviderWeightCalculator {
    * @param models Array of model strings
    * @param usagePercentByProvider Map of provider -> usage percentage
    * @param daysUntilResetByProvider Optional map of provider -> days until reset
+   * @param velocityByProvider Optional map of provider -> spending velocity in %/day
    * @returns Selected model string, or first model if all weights are 0
    */
   selectBestModel(
     models: string[],
     usagePercentByProvider: Record<string, number>,
-    daysUntilResetByProvider?: Record<string, number>
+    daysUntilResetByProvider?: Record<string, number>,
+    velocityByProvider?: Record<string, number>
   ): string {
     if (models.length === 0) {
       throw new Error('No models provided to selectBestModel')
     }
     
-    const candidates = this.buildCandidates(models, usagePercentByProvider, daysUntilResetByProvider)
+    const candidates = this.buildCandidates(models, usagePercentByProvider, daysUntilResetByProvider, velocityByProvider)
     const selected = this.selectBestProvider(candidates)
     
     // Fallback to first model if no valid selection (all weights 0)

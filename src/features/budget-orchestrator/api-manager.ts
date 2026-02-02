@@ -44,12 +44,9 @@ export class APIBudgetManager {
    */
   getTrackedZenUsage(): number {
     if (!this.usageTracker) return 0
-    
+
     const opencodeUsage = this.usageTracker.getProviderSummary('opencode')
-    const googleUsage = this.usageTracker.getProviderSummary('google')
-    const openaiUsage = this.usageTracker.getProviderSummary('openai')
-    
-    return opencodeUsage.totalCost + googleUsage.totalCost + openaiUsage.totalCost
+    return opencodeUsage.totalCost
   }
 
   /**
@@ -61,29 +58,45 @@ export class APIBudgetManager {
 
   getStatuses(): BudgetStatus[] {
     const statuses: BudgetStatus[] = []
+
+    if (!this.usageTracker) return statuses
     
     // Priority: quota_targets.zen_monthly_dollars > apis.opencode_zen.weekly_limit
     const monthlyLimit = this.quotaTargets?.zen_monthly_dollars
     const weeklyLimit = this.apiConfig?.opencode_zen?.weekly_limit
     
-    // Use monthly limit from quota_targets, or fallback to weekly * 4
-    const effectiveMonthlyLimit = monthlyLimit ?? (weeklyLimit ? weeklyLimit * 4 : undefined)
-    
-    if (effectiveMonthlyLimit) {
+    if (monthlyLimit === undefined && weeklyLimit === undefined) {
+      return statuses
+    }
+
+    const usageSummary = this.usageTracker.getProviderSummary('opencode')
+    const resetType = usageSummary.resetType
+    const isWeekly = resetType === 'weekly'
+    const hasWeeklyLimit = typeof weeklyLimit === 'number'
+    const hasMonthlyLimit = typeof monthlyLimit === 'number'
+
+    const effectiveTotal = isWeekly
+      ? (hasWeeklyLimit ? weeklyLimit : hasMonthlyLimit ? monthlyLimit / 4 : undefined)
+      : (hasMonthlyLimit ? monthlyLimit : hasWeeklyLimit ? weeklyLimit * 4 : undefined)
+
+    if (effectiveTotal) {
       const totalZenUsage = this.getEffectiveZenUsage()
-      const percentUsed = (totalZenUsage / effectiveMonthlyLimit) * 100
+      const percentUsed = (totalZenUsage / effectiveTotal) * 100
       const isManual = this.manualZenUsage !== null
-      
+      const labelPeriod = resetType === 'weekly' ? 'weekly' : 'monthly'
+      const isEstimated = isWeekly ? !hasWeeklyLimit && hasMonthlyLimit : !hasMonthlyLimit && hasWeeklyLimit
+      const labelSuffix = isEstimated ? ` (${labelPeriod}, estimated)` : ` (${labelPeriod})`
+
       statuses.push({
         provider: 'opencode-zen',
         type: 'api',
-        metric_label: isManual ? '$ used (monthly, manual)' : '$ used (monthly)',
+        metric_label: isManual ? `$ used${labelSuffix}, manual` : `$ used${labelSuffix}`,
         remaining_pct: Math.max(0, 100 - percentUsed),
         severity: this.getSeverity(percentUsed),
         recommendation: this.getRecommendation(percentUsed),
         details: {
           used: totalZenUsage,
-          total: effectiveMonthlyLimit,
+          total: effectiveTotal,
           unit: '$'
         }
       })

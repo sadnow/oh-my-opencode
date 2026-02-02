@@ -241,4 +241,95 @@ describe('Weighted Distribution Integration Tests', () => {
     expect(opencodeCount).toBe(0) // Zero weight
     expect(anthropicCount).toBe(1000) // All valid selections
   })
+
+  describe('Velocity-based load balancing', () => {
+    it('balances provider exhaustion timing with velocity adjustment', () => {
+      //#given two providers with same usage but different velocities
+      const models = ['providerA/model-a', 'providerB/model-b']
+      const usagePercentByProvider = {
+        providerA: 50,
+        providerB: 50,
+      }
+      const daysUntilResetByProvider = {
+        providerA: 30,
+        providerB: 30,
+      }
+      const velocityByProvider = {
+        providerA: 10.0,
+        providerB: 2.0,
+      }
+
+      //#when running 1000 selections
+      const selections: Record<string, number> = { providerA: 0, providerB: 0 }
+
+      for (let i = 0; i < 1000; i++) {
+        const candidates = calculator.buildCandidates(
+          models,
+          usagePercentByProvider,
+          daysUntilResetByProvider,
+          velocityByProvider
+        )
+        const selected = calculator.selectBestProvider(candidates)
+        if (selected) {
+          selections[selected.provider] = (selections[selected.provider] || 0) + 1
+        }
+      }
+
+      //#then providerB should get significantly more load (velocity-adjusted)
+      const providerBPercent = (selections.providerB / 1000) * 100
+
+      expect(providerBPercent).toBeGreaterThan(60)
+      expect(providerBPercent).toBeLessThan(85)
+
+      //#and exhaustion timing should be more balanced
+      const providerALoad = selections.providerA / 1000
+      const providerBLoad = selections.providerB / 1000
+
+      const daysToExhaustA = 50 / (10.0 * providerALoad)
+      const daysToExhaustB = 50 / (2.0 * providerBLoad)
+
+      const mean = (daysToExhaustA + daysToExhaustB) / 2
+      const variance =
+        (Math.pow(daysToExhaustA - mean, 2) + Math.pow(daysToExhaustB - mean, 2)) / 2
+      const stdDev = Math.sqrt(variance)
+      const coefficientOfVariation = stdDev / mean
+
+      expect(coefficientOfVariation).toBeLessThan(0.3)
+    })
+
+    it('handles providers without velocity data gracefully', () => {
+      //#given one provider with velocity, one without
+      const models = ['providerA/model-a', 'providerB/model-b']
+      const usagePercentByProvider = {
+        providerA: 50,
+        providerB: 50,
+      }
+      const velocityByProvider = {
+        providerA: 10.0,
+      }
+
+      //#when running selections
+      const selections: Record<string, number> = { providerA: 0, providerB: 0 }
+
+      for (let i = 0; i < 100; i++) {
+        const candidates = calculator.buildCandidates(
+          models,
+          usagePercentByProvider,
+          undefined,
+          velocityByProvider
+        )
+        const selected = calculator.selectBestProvider(candidates)
+        if (selected) {
+          selections[selected.provider]++
+        }
+      }
+
+      //#then both providers should receive some load
+      expect(selections.providerA).toBeGreaterThan(0)
+      expect(selections.providerB).toBeGreaterThan(0)
+
+      //#and providerB (no velocity penalty) should get more load
+      expect(selections.providerB).toBeGreaterThan(selections.providerA)
+    })
+  })
 })

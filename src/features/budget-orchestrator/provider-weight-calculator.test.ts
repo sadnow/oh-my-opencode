@@ -237,6 +237,67 @@ describe('ProviderWeightCalculator', () => {
       expect(instance1).not.toBe(instance2)
     })
   })
+
+  describe('calculateWeight with velocity penalty', () => {
+    it('calculateWeight with high velocity should reduce weight', () => {
+      //#given provider with 50% usage, high velocity (2x expected)
+      const usagePercent = 50
+      const velocityPerDay = 2.0 // 2x expected velocity
+
+      //#when calculateWeight() called with velocityPerDay parameter
+      const weight = calculator.calculateWeight('anthropic', usagePercent, null, velocityPerDay)
+
+      //#then weight should be penalized (~0.5x base weight)
+      // Base weight: 0.5 * 2.0 = 1.0
+      // With velocity penalty: 1.0 * 0.5 = 0.5
+      expect(weight).toBeCloseTo(0.5, 2)
+    })
+
+    it('calculateWeight with low velocity should maintain weight', () => {
+      //#given provider with 50% usage, low velocity (0.5x expected)
+      const usagePercent = 50
+      const velocityPerDay = 0.5 // 0.5x expected velocity
+
+      //#when calculateWeight() called
+      const weight = calculator.calculateWeight('anthropic', usagePercent, null, velocityPerDay)
+
+      //#then weight should be boosted slightly (clamped to max 1.5)
+      // Base weight: 0.5 * 2.0 = 1.0
+      // With velocity boost: 1.0 * 1.5 = 1.5 (clamped)
+      expect(weight).toBeCloseTo(1.5, 2)
+    })
+
+    it('calculateWeight without velocity data should use default (1.0)', () => {
+      //#given provider with 50% usage, no velocity parameter
+      const usagePercent = 50
+
+      //#when calculateWeight() called
+      const weight = calculator.calculateWeight('anthropic', usagePercent)
+
+      //#then weight unchanged from current formula
+      // Base weight: 0.5 * 2.0 = 1.0
+      // No velocity penalty: 1.0 * 1.0 = 1.0
+      expect(weight).toBeCloseTo(1.0, 2)
+    })
+
+    it('velocity penalty respects min/max bounds', () => {
+      //#given extreme velocity ratios
+      const usagePercent = 50
+
+      //#when calculating with very high velocity (10x)
+      const highVelocityWeight = calculator.calculateWeight('anthropic', usagePercent, null, 10.0)
+
+      //#when calculating with very low velocity (0.1x)
+      const lowVelocityWeight = calculator.calculateWeight('anthropic', usagePercent, null, 0.1)
+
+      //#then penalty clamped to [0.3, 1.5] range
+      // Base weight: 0.5 * 2.0 = 1.0
+      // High velocity: 1.0 * 0.3 = 0.3 (clamped to min)
+      // Low velocity: 1.0 * 1.5 = 1.5 (clamped to max)
+      expect(highVelocityWeight).toBeCloseTo(0.3, 2)
+      expect(lowVelocityWeight).toBeCloseTo(1.5, 2)
+    })
+  })
 })
 
 describe('Provider Distribution Integration', () => {

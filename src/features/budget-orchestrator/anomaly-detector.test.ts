@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest'
+import { describe, it, expect, beforeEach } from 'bun:test'
 import { AnomalyDetector } from './anomaly-detector'
 
 describe('AnomalyDetector', () => {

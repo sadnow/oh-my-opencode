@@ -139,6 +139,33 @@ export class RoutingLogger {
   }
 
   /**
+   * Log a warning when API provider is used over available subscription
+   */
+  logApiUsageWarning(
+    selectedProvider: string,
+    useCase: string,
+    subscriptionUsage: Record<string, number>
+  ): void {
+    const isApiProvider = selectedProvider === 'opencode' || 
+      !['anthropic', 'github-copilot', 'google', 'openai'].includes(selectedProvider)
+    
+    if (!isApiProvider) return // Only warn for API providers
+    
+    const subscriptionInfo = Object.entries(subscriptionUsage)
+      .filter(([provider]) => ['anthropic', 'github-copilot'].includes(provider))
+      .map(([provider, usage]) => `${provider}: ${usage.toFixed(1)}%`)
+      .join(', ')
+    
+    if (subscriptionInfo) {
+      this.logWarning(
+        'routing_decision',
+        `API provider "${selectedProvider}" selected for ${useCase} while subscriptions available: ${subscriptionInfo}`,
+        { selectedProvider, useCase, subscriptionUsage }
+      )
+    }
+  }
+
+  /**
    * Log a tier override
    */
   logOverride(type: "force" | "lock" | "unlock" | "clear", tier?: string, source?: string) {
