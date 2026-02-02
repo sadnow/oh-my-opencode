@@ -1,22 +1,23 @@
 import { describe, test, expect } from 'bun:test'
-import { renderWithProviders, screen } from '../test-utils'
+import { renderWithProviders } from '../test-utils'
 import { PresetComparison } from './PresetComparison'
 
 describe('PresetComparison', () => {
   test('renders all 9 presets', () => {
-    renderWithProviders(<PresetComparison />)
-    expect(screen.getByText('default')).toBeDefined()
-    expect(screen.getByText('balanced')).toBeDefined()
+    const { getByText } = renderWithProviders(<PresetComparison />)
+    expect(getByText('default')).toBeDefined()
+    expect(getByText('balanced')).toBeDefined()
   })
   
   test('shows category rows', () => {
-    renderWithProviders(<PresetComparison />)
-    expect(screen.getByText('ultrabrain')).toBeDefined()
-    expect(screen.getByText('quick')).toBeDefined()
+    const { getByText } = renderWithProviders(<PresetComparison />)
+    expect(getByText('ultrabrain')).toBeDefined()
+    expect(getByText('quick')).toBeDefined()
   })
   
   test('displays model names', () => {
-    renderWithProviders(<PresetComparison />)
-    expect(screen.getByText(/claude-opus-4-5/)).toBeDefined()
+    const { container } = renderWithProviders(<PresetComparison />)
+    // Model names are displayed with provider prefix (e.g., anthropic/claude-opus-4-5)
+    expect(container.textContent).toContain('claude-opus-4-5')
   })
 })
