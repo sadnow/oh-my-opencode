@@ -957,7 +957,31 @@ export class BackgroundManager {
 
 const cleanupAll = () => {
       log("[background-agent] Flushing session state before shutdown")
-      flushStateSync()
+      
+      // Retry logic for flushStateSync
+      let success = false
+      const maxRetries = 3
+      const retryDelay = 200 // ms
+      
+      for (let attempt = 1; attempt <= maxRetries; attempt++) {
+        success = flushStateSync()
+        if (success) {
+          if (attempt > 1) {
+            log(`[background-agent] Session state flushed successfully on attempt ${attempt}`)
+          }
+          break
+        }
+        
+        if (attempt < maxRetries) {
+          log(`[background-agent] Failed to flush session state (attempt ${attempt}/${maxRetries}), retrying in ${retryDelay}ms...`)
+          // Synchronous sleep for retry delay
+          Bun.sleepSync(retryDelay)
+        }
+      }
+      
+      if (!success) {
+        console.error("[background-agent] CRITICAL: Failed to flush session state after", maxRetries, "attempts. Session data may be lost.")
+      }
 
       for (const manager of BackgroundManager.cleanupManagers) {
         try {
