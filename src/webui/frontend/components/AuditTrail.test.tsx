@@ -107,9 +107,9 @@ describe('AuditTrail', () => {
   })
 
   test('shows error state', async () => {
-    global.fetch = async () => {
+    global.fetch = (async () => {
       throw new Error('Network error')
-    } as any
+    }) as any
     
     const { getByText } = render(<AuditTrail />)
     
