@@ -299,6 +299,31 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
       )
     : null;
 
+  // Wire disabled_models config to GlobalOverrideManager if budget orchestrator is enabled
+  if (budgetOrchestrator && pluginConfig.disabled_models) {
+    const { getGlobalOverrideManager } = await import("./features/budget-orchestrator/global-override");
+    const globalOverrideManager = getGlobalOverrideManager();
+    globalOverrideManager.setDisabledModels(pluginConfig.disabled_models);
+    log("[oh-my-opencode] Disabled models configured", { 
+      count: Object.keys(pluginConfig.disabled_models).length,
+      providers: Object.keys(pluginConfig.disabled_models)
+    });
+  }
+
+  // Initialize Zen model detection cache (fire-and-forget, non-blocking)
+  // This populates the cache so isModelAllowed() can check Zen model availability
+  if (budgetOrchestrator) {
+    import("./features/budget-orchestrator/zen-model-detection").then(({ fetchZenAvailableModels }) => {
+      fetchZenAvailableModels().then(models => {
+        if (models.length > 0) {
+          log("[oh-my-opencode] Zen model cache populated", { count: models.length });
+        }
+      }).catch(err => {
+        log("[oh-my-opencode] Zen model detection skipped", { reason: String(err) });
+      });
+    });
+  }
+
   // Create usage tracking hook (always enabled if usageTracker exists)
   const usageTracking = usageTracker
     ? createUsageTrackingHook(ctx, usageTracker)
