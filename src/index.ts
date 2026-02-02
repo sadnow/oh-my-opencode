@@ -38,6 +38,7 @@ import {
   createQuestionLabelTruncatorHook,
   createSubagentQuestionBlockerHook,
   createOibAutoselectHook,
+  createOibAuthHook,
 } from "./hooks";
 import {
   contextCollector,
@@ -306,9 +307,18 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
   log("[oh-my-opencode] Usage tracking hook", { created: !!usageTracking });
 
   // Create oib-autoselect hook (enabled if budgetOrchestrator exists and hook not disabled)
+  log("[oh-my-opencode] Creating oib-autoselect hook", { 
+    hookEnabled: isHookEnabled("oib-autoselect"),
+    budgetOrchestratorExists: !!budgetOrchestrator 
+  });
   const oibAutoselect = isHookEnabled("oib-autoselect")
     ? createOibAutoselectHook(ctx, budgetOrchestrator)
     : null;
+  log("[oh-my-opencode] oib-autoselect hook created", { created: !!oibAutoselect });
+
+  // Always create oib-auth hook to make virtual model visible in UI
+  // The oib-autoselect hook handles the case when budget is disabled
+  const oibAuth = createOibAuthHook();
 
   const tmuxSessionManager = new TmuxSessionManager(ctx, tmuxConfig);
 
@@ -452,7 +462,7 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
   });
 
   return {
-    tool: {
+tool: {
       ...builtinTools,
       ...backgroundTools,
       call_omo_agent: callOmoAgent,
@@ -463,6 +473,7 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
       slashcommand: slashcommandTool,
       interactive_bash,
     },
+    auth: oibAuth ?? undefined,
 
     "chat.message": async (input, output) => {
       if (input.agent) {
@@ -585,6 +596,7 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
       await ralphLoop?.event(input);
       await atlasHook?.handler(input);
       await usageTracking?.event?.(input);
+      await oibAutoselect?.event?.(input);
 
       const { event } = input;
       const props = event.properties as Record<string, unknown> | undefined;
