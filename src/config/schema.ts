@@ -429,6 +429,12 @@ export const APIBudgetSchema = z.object({
 })
 export type APIBudget = z.infer<typeof APIBudgetSchema>
 
+/** Disabled models per provider - these models will be skipped during selection */
+export const DisabledModelsConfigSchema = z.record(
+  z.string(), // provider name (e.g., "github-copilot", "opencode-zen")
+  z.array(z.string()) // model names to disable (e.g., ["claude-opus-4.5", "gpt-5.2"])
+)
+
 // Budget configuration
 export const BudgetConfigSchema = z.object({
   /** Enable budget-aware orchestration (default: false) */
@@ -542,6 +548,8 @@ export const OhMyOpenCodeConfigSchema = z.object({
   disabled_skills: z.array(BuiltinSkillNameSchema).optional(),
   disabled_hooks: z.array(HookNameSchema).optional(),
   disabled_commands: z.array(BuiltinCommandNameSchema).optional(),
+  /** Models to disable per provider (e.g., {"github-copilot": ["claude-opus-4.5"]}) */
+  disabled_models: DisabledModelsConfigSchema.optional(),
   agents: AgentOverridesSchema.optional(),
   categories: CategoriesConfigSchema.optional(),
   claude_code: ClaudeCodeConfigSchema.optional(),
@@ -601,6 +609,7 @@ export type WebUIBind = z.infer<typeof WebUIBindSchema>
 export type WebUIMode = z.infer<typeof WebUIModeSchema>
 export type UsageTrackingConfig = z.infer<typeof UsageTrackingConfigSchema>
 
+export type DisabledModelsConfig = z.infer<typeof DisabledModelsConfigSchema>
 export type BudgetConfig = z.infer<typeof BudgetConfigSchema>
 export type BudgetNotificationConfig = z.infer<typeof BudgetNotificationConfigSchema>
 export type ModelTier = z.infer<typeof ModelTierSchema>

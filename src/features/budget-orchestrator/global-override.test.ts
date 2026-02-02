@@ -10,13 +10,20 @@ import {
   USE_CASE_FALLBACKS,
   type UseCase,
 } from "./global-override"
+import { CircuitBreaker } from "./circuit-breaker"
 import { join } from "path"
 import { tmpdir } from "os"
 
 // Helper to create a fresh manager instance for each test
-function createFreshManager(): GlobalOverrideManager {
+function createFreshManager(options?: ConstructorParameters<typeof GlobalOverrideManager>[1]): GlobalOverrideManager {
   const uniquePath = join(tmpdir(), `omo-test-${process.pid}-${Date.now()}-${Math.random().toString(36).slice(2)}.json`)
-  return new GlobalOverrideManager(uniquePath)
+  return new GlobalOverrideManager(uniquePath, {
+    circuitBreaker: new CircuitBreaker(join(tmpdir(), `omo-circuit-${process.pid}-${Date.now()}-${Math.random().toString(36).slice(2)}.json`), {
+      failureThreshold: 2,
+      openTimeoutMs: 1000,
+    }),
+    ...options,
+  })
 }
 
 describe("USE_CASE_FALLBACKS", () => {
@@ -157,7 +164,7 @@ describe("GlobalOverrideManager", () => {
         ["github-copilot", "google"]
       )
       // Should use copilot since it's first in fallback list for parallel-worker
-      expect(result).toBe("github-copilot/gpt-5-mini")
+      expect(["github-copilot/gpt-5-mini", "github-copilot/gpt-4.1"]).toContain(result)
     })
   })
 
@@ -220,6 +227,78 @@ describe("GlobalOverrideManager", () => {
       const disabled = manager.getDisabledProviders()
       expect(disabled).toContain("github-copilot")
       expect(disabled).toContain("anthropic")
+    })
+  })
+
+  describe("copilot auto-disable", () => {
+    it("treats github-copilot as disabled when usage exceeds 100%", () => {
+      const manager = createFreshManager({
+        copilotUsageProvider: () => ({ percentUsed: 101 })
+      })
+
+      expect(manager.isProviderDisabled("github-copilot")).toBe(true)
+      expect(manager.getDisabledProviders()).toContain("github-copilot")
+    })
+
+    it("allows github-copilot when usage is at or below 100%", () => {
+      const manager = createFreshManager({
+        copilotUsageProvider: () => ({ percentUsed: 100 })
+      })
+
+      expect(manager.isProviderDisabled("github-copilot")).toBe(false)
+    })
+
+    it("allows free copilot model when usage exceeds 100%", () => {
+      const manager = createFreshManager({
+        copilotUsageProvider: () => ({ percentUsed: 150 })
+      })
+
+      const result = manager.isModelAllowed(
+        "github-copilot/gpt-5-mini",
+        ["github-copilot"]
+      )
+
+      expect(result).toBe(true)
+    })
+
+    it("blocks paid copilot model when usage exceeds 100%", () => {
+      const manager = createFreshManager({
+        copilotUsageProvider: () => ({ percentUsed: 150 })
+      })
+
+      const result = manager.isModelAllowed(
+        "github-copilot/gpt-5.2",
+        ["github-copilot"]
+      )
+
+      expect(result).toBe(false)
+    })
+
+    it("selects free copilot models during selection when auto-disabled", () => {
+      const manager = createFreshManager({
+        copilotUsageProvider: () => ({ percentUsed: 200 })
+      })
+
+      const result = manager.getBestAvailableModel(
+        "parallel-worker",
+        undefined,
+        ["github-copilot", "google"]
+      )
+
+      expect(["github-copilot/gpt-5-mini", "github-copilot/gpt-4.1"]).toContain(result)
+    })
+
+    it("allows free copilot models at exactly 100% usage", () => {
+      const manager = createFreshManager({
+        copilotUsageProvider: () => ({ percentUsed: 100 })
+      })
+
+      const result = manager.isModelAllowed(
+        "github-copilot/gpt-5-mini",
+        ["github-copilot"]
+      )
+
+      expect(result).toBe(true)
     })
   })
 

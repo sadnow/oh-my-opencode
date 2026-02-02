@@ -80,7 +80,8 @@
           "prometheus-md-only",
           "sisyphus-junior-notepad",
           "start-work",
-          "atlas"
+          "atlas",
+          "oib-autoselect"
         ]
       }
     },
@@ -92,6 +93,18 @@
           "init-deep",
           "start-work"
         ]
+      }
+    },
+    "disabled_models": {
+      "type": "object",
+      "propertyNames": {
+        "type": "string"
+      },
+      "additionalProperties": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
       }
     },
     "agents": {
@@ -3050,6 +3063,17 @@
             "zen_monthly_dollars": {
               "type": "number",
               "minimum": 0
+            },
+            "zen_manual_usage_dollars": {
+              "anyOf": [
+                {
+                  "type": "number",
+                  "minimum": 0
+                },
+                {
+                  "type": "null"
+                }
+              ]
             }
           }
         },

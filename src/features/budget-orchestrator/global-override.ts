@@ -11,12 +11,16 @@
  */
 
 import { log } from "../../shared"
+import { getCopilotUsageTracker } from "../copilot-usage"
 import type { ModelTier } from "../../config/schema"
 import { join } from "path"
 import { homedir } from "os"
 import { getRoutingLogger } from "./routing-logger"
+import { CircuitBreaker } from "./circuit-breaker"
 import { getWeightCalculator } from "./provider-weight-calculator"
 import type { WeightCandidate } from "./provider-classification"
+import { isModelFailed, isModelFailedByProvider } from "./model-failure-cache"
+import { isZenModelInCache, hasZenCacheData } from "./zen-model-detection"
 
 // ============================================================================
 // Use-Case Specific Model Fallback Lists
@@ -73,7 +77,7 @@ export const USE_CASE_FALLBACKS = {
   /** Oracle - debugging, architecture, needs BEST reasoning */
   oracle: [
     "anthropic/claude-opus-4-5",         // Best reasoning overall
-    "openai/o3",                         // Strong reasoning
+    "openai/o1-pro",                     // Strong reasoning
     "openai/gpt-5.2",                    // Very strong
     "github-copilot/gpt-5.2-codex",      // Premium copilot reasoning, free
     "opencode/kimi-k2-thinking",         // Great thinking model
@@ -92,7 +96,7 @@ export const USE_CASE_FALLBACKS = {
     "github-copilot/claude-opus-4.5",    // Best via Copilot (3x but free with sub)
     "github-copilot/claude-sonnet-4.5",  // Good orchestration, free (1x)
     "github-copilot/gpt-5.2-codex",      // Strong via Copilot (1x)
-    "openai/o3",                         // Good reasoning
+    "openai/o1-pro",                     // Good reasoning
     "opencode/kimi-k2-thinking",         // Good for planning
     "opencode/glm-4.7",                  // Capable at agentic tasks
     "google/gemini-3-pro-preview",       // Strong Gemini
@@ -136,7 +140,7 @@ export const USE_CASE_FALLBACKS = {
   /** Ultrabrain - deep reasoning and complex analysis */
   ultrabrain: [
     "anthropic/claude-opus-4-5",         // Best reasoning overall
-    "openai/o3",                         // Strong reasoning
+    "openai/o1-pro",                     // Strong reasoning
     "openai/gpt-5.2",                    // Very strong
     "github-copilot/gpt-5.2-codex",      // Premium copilot reasoning, free
     "opencode/kimi-k2-thinking",         // Great thinking model
@@ -173,6 +177,9 @@ export interface GlobalOverrideState {
   /** Disabled providers (model selection will fallback to alternatives) */
   disabledProviders: string[]
   
+  /** Disabled models per provider from config */
+  disabledModels: Record<string, string[]>
+  
   /** Maximum tier cap (no models above this tier will be used) */
   maxTierCap: ModelTier | null
   
@@ -208,12 +215,20 @@ export interface GlobalOverrideOptions {
   source?: "cli" | "webui" | "api" | "auto"
 }
 
+export type CopilotUsageProvider = () => { percentUsed: number; error?: string } | null
+
+export interface GlobalOverrideManagerOptions {
+  copilotUsageProvider?: CopilotUsageProvider
+  circuitBreaker?: CircuitBreaker
+}
+
 // ============================================================================
 // Default State
 // ============================================================================
 
 const DEFAULT_GLOBAL_OVERRIDE_STATE: GlobalOverrideState = {
   disabledProviders: [],
+  disabledModels: {},
   maxTierCap: null,
   autoDisableOnQuota: {
     enabled: true,
@@ -230,6 +245,19 @@ const DEFAULT_GLOBAL_OVERRIDE_STATE: GlobalOverrideState = {
   modifiedBy: null,
 }
 
+const COPILOT_AUTO_DISABLE_THRESHOLD = 100
+const COPILOT_FREE_MODELS = new Set([
+  "gpt-5-mini",
+  "gpt-4.1",
+])
+
+// OpenCode free models - these should be prioritized when available
+const OPENCODE_FREE_MODELS = new Set([
+  "glm-4.7-free",
+  "glm-4.6-free",
+  "qwen3-coder-free",
+])
+
 // ============================================================================
 // Global Override Manager
 // ============================================================================
@@ -237,18 +265,32 @@ const DEFAULT_GLOBAL_OVERRIDE_STATE: GlobalOverrideState = {
 export class GlobalOverrideManager {
   private state: GlobalOverrideState
   private persistPath: string
+  private copilotUsageProvider: CopilotUsageProvider
+  private circuitBreaker: CircuitBreaker
   
-  constructor(persistPath?: string) {
+  constructor(persistPath?: string, options: GlobalOverrideManagerOptions = {}) {
     this.persistPath = persistPath ?? join(
       homedir(),
       ".config",
       "opencode",
       "oh-my-opencode-global-override.json"
     )
+
+    this.copilotUsageProvider = options.copilotUsageProvider ?? (() => {
+      try {
+        return getCopilotUsageTracker().getData()
+      } catch (error) {
+        log("[global-override] Failed to read Copilot usage:", error)
+        return null
+      }
+    })
+
+    this.circuitBreaker = options.circuitBreaker ?? new CircuitBreaker()
     
     // Deep copy to avoid mutating DEFAULT_GLOBAL_OVERRIDE_STATE
     this.state = this.loadState() ?? {
       disabledProviders: [...DEFAULT_GLOBAL_OVERRIDE_STATE.disabledProviders],
+      disabledModels: { ...DEFAULT_GLOBAL_OVERRIDE_STATE.disabledModels },
       maxTierCap: DEFAULT_GLOBAL_OVERRIDE_STATE.maxTierCap,
       autoDisableOnQuota: {
         ...DEFAULT_GLOBAL_OVERRIDE_STATE.autoDisableOnQuota,
@@ -322,19 +364,59 @@ export class GlobalOverrideManager {
       this.saveState()
     }
   }
+
+  /**
+   * Set disabled models from config.
+   * These models will be filtered out during selection.
+   */
+  setDisabledModels(disabledModels: Record<string, string[]>): void {
+    this.state.disabledModels = disabledModels
+    log("[global-override] Disabled models set:", disabledModels)
+  }
+
+  /**
+   * Check if a specific model is disabled.
+   */
+  isModelDisabled(provider: string, modelId: string): boolean {
+    const disabledForProvider = this.state.disabledModels[provider] ?? []
+    // Check both exact match and normalized match (with/without provider prefix)
+    const normalizedModelId = modelId.replace(/^[^/]+\//, "") // Remove provider prefix if present
+    return disabledForProvider.some(disabled => {
+      const normalizedDisabled = disabled.replace(/^[^/]+\//, "")
+      return normalizedDisabled === normalizedModelId || disabled === modelId
+    })
+  }
   
   /**
    * Check if a provider is disabled.
    */
   isProviderDisabled(provider: string): boolean {
-    return this.state.disabledProviders.includes(provider)
+    if (this.state.disabledProviders.includes(provider)) {
+      return true
+    }
+
+    const allowedByCircuit = this.circuitBreaker.shouldAllow(provider)
+    if (!allowedByCircuit) {
+      return true
+    }
+
+    return this.getRuntimeDisabledProviders().includes(provider)
   }
   
   /**
    * Get list of disabled providers.
    */
   getDisabledProviders(): string[] {
-    return [...this.state.disabledProviders]
+    const runtimeDisabled = this.getRuntimeDisabledProviders()
+    return Array.from(new Set([...this.state.disabledProviders, ...runtimeDisabled]))
+  }
+
+  recordProviderSuccess(provider: string, latencyMs?: number): void {
+    this.circuitBreaker.recordSuccess(provider, latencyMs)
+  }
+
+  recordProviderFailure(provider: string, error?: unknown, latencyMs?: number): void {
+    this.circuitBreaker.recordFailure(provider, error, latencyMs)
   }
   
   // --------------------------------------------------------------------------
@@ -550,7 +632,8 @@ export class GlobalOverrideManager {
     availableProviders: string[] = [],
     usagePercentByProvider: Record<string, number> = {},
     quotaTargets: Record<string, number> = {},
-    daysUntilResetByProvider?: Record<string, number>
+    daysUntilResetByProvider?: Record<string, number>,
+    velocityByProvider?: Record<string, number>
   ): string {
     const fallbackList = USE_CASE_FALLBACKS[useCase]
     
@@ -601,7 +684,8 @@ export class GlobalOverrideManager {
     const candidates = calculator.buildCandidates(
       allowedModels,
       usagePercentByProvider,
-      daysUntilResetByProvider
+      daysUntilResetByProvider,
+      velocityByProvider
     )
     
     const selected = calculator.selectBestProvider(candidates)
@@ -695,6 +779,29 @@ export class GlobalOverrideManager {
     const lowerModel = modelId.toLowerCase()
     return premiumPatterns.some(p => lowerModel.includes(p))
   }
+
+  private isCopilotFreeModel(modelId: string): boolean {
+    return COPILOT_FREE_MODELS.has(modelId.toLowerCase())
+  }
+
+  private isOpencodeFreeModel(modelId: string): boolean {
+    return OPENCODE_FREE_MODELS.has(modelId.toLowerCase())
+  }
+
+  /**
+   * Check if a model is a free model (Copilot or OpenCode free).
+   * Free models should be prioritized and allowed even when provider is at quota.
+   */
+  isFreeModel(model: string): boolean {
+    const [provider, modelId] = model.split("/")
+    if (provider === "github-copilot") {
+      return this.isCopilotFreeModel(modelId)
+    }
+    if (provider === "opencode") {
+      return this.isOpencodeFreeModel(modelId)
+    }
+    return false
+  }
   
   /**
    * Check if a model is allowed given current overrides.
@@ -703,13 +810,43 @@ export class GlobalOverrideManager {
     const [provider, modelId] = model.split("/")
     
     // Check if provider is disabled
-    if (this.isProviderDisabled(provider)) {
+    if (this.state.disabledProviders.includes(provider)) {
       return false
+    }
+
+    const isRuntimeDisabled = this.getRuntimeDisabledProviders().includes(provider)
+    if (isRuntimeDisabled) {
+      // Allow free models even when provider is runtime-disabled
+      const isAllowedFree = (provider === "github-copilot" && this.isCopilotFreeModel(modelId)) ||
+                            (provider === "opencode" && this.isOpencodeFreeModel(modelId))
+      if (!isAllowedFree) {
+        return false
+      }
     }
     
     // Check if provider is available (opencode is always available)
     if (provider !== "opencode" && !availableProviders.includes(provider)) {
       return false
+    }
+
+    // Check if specific model is disabled via config
+    if (this.isModelDisabled(provider, modelId)) {
+      return false
+    }
+
+    // Check if model has failed previously (runtime failure cache)
+    if (isModelFailedByProvider(provider, modelId)) {
+      log("[global-override] Model skipped due to previous failure", { provider, modelId })
+      return false
+    }
+
+    // Check Zen API model availability (TIER 2: API-based detection)
+    // Only applies to opencode/opencode-zen providers when we have cache data
+    if ((provider === "opencode" || provider === "opencode-zen") && hasZenCacheData()) {
+      if (!isZenModelInCache(modelId)) {
+        log("[global-override] Model skipped - not available in Zen API", { provider, modelId })
+        return false
+      }
     }
     
     // Check emergency mode - only economy tier allowed
@@ -798,8 +935,9 @@ export class GlobalOverrideManager {
     emergencyMode: boolean
     modifiedBy: string | null
   } {
+    const runtimeDisabled = this.getRuntimeDisabledProviders()
     return {
-      disabledProviders: this.state.disabledProviders,
+      disabledProviders: Array.from(new Set([...this.state.disabledProviders, ...runtimeDisabled])),
       autoDisabledProviders: this.state.autoDisableOnQuota.autoDisabledProviders,
       maxTierCap: this.state.maxTierCap,
       autoDisableOnQuota: {
@@ -815,6 +953,19 @@ export class GlobalOverrideManager {
       modifiedBy: this.state.modifiedBy,
     }
   }
+
+  private getRuntimeDisabledProviders(): string[] {
+    const data = this.copilotUsageProvider()
+    if (!data || data.error) {
+      return []
+    }
+
+    if (data.percentUsed > COPILOT_AUTO_DISABLE_THRESHOLD) {
+      return ["github-copilot"]
+    }
+
+    return []
+  }
   
   /**
    * Clear all overrides.
@@ -825,6 +976,7 @@ export class GlobalOverrideManager {
     // Deep copy to avoid mutating DEFAULT_GLOBAL_OVERRIDE_STATE
     this.state = {
       disabledProviders: [...DEFAULT_GLOBAL_OVERRIDE_STATE.disabledProviders],
+      disabledModels: { ...DEFAULT_GLOBAL_OVERRIDE_STATE.disabledModels },
       maxTierCap: DEFAULT_GLOBAL_OVERRIDE_STATE.maxTierCap,
       autoDisableOnQuota: {
         ...DEFAULT_GLOBAL_OVERRIDE_STATE.autoDisableOnQuota,
@@ -861,6 +1013,7 @@ export class GlobalOverrideManager {
         // Validate and merge with defaults
         return {
           disabledProviders: Array.isArray(data.disabledProviders) ? data.disabledProviders : [],
+          disabledModels: data.disabledModels ?? {},
           maxTierCap: data.maxTierCap ?? null,
           autoDisableOnQuota: {
             enabled: data.autoDisableOnQuota?.enabled ?? true,
@@ -911,10 +1064,16 @@ let globalOverrideManagerInstance: GlobalOverrideManager | null = null
 /**
  * Get the global override manager instance.
  */
-export function getGlobalOverrideManager(): GlobalOverrideManager {
+export function getGlobalOverrideManager(options?: GlobalOverrideManagerOptions): GlobalOverrideManager {
   if (!globalOverrideManagerInstance) {
-    globalOverrideManagerInstance = new GlobalOverrideManager()
+    globalOverrideManagerInstance = new GlobalOverrideManager(undefined, options)
+    return globalOverrideManagerInstance
   }
+
+  if (options?.circuitBreaker || options?.copilotUsageProvider) {
+    return new GlobalOverrideManager(undefined, options)
+  }
+
   return globalOverrideManagerInstance
 }
 
