@@ -45,11 +45,9 @@ describe("Provider Detection", () => {
 
   describe("extractModelName", () => {
     test("should extract model name from Anthropic format", () => {
-      // Note: The requirement says claude-3.5-sonnet -> claude-sonnet-3.5
-      // But extractModelName just splits by '/'. 
-      // If the input is "claude-3.5-sonnet", it returns "claude-3.5-sonnet".
-      // If the requirement implies a mapping, it's not in extractModelName.
-      expect(extractModelName("anthropic/claude-3.5-sonnet")).toBe("claude-3.5-sonnet")
+      // Note: extractModelName splits by '/' AND normalizes version numbers
+      // "3.5" becomes "3-5" via normalizeModelID for consistent comparisons
+      expect(extractModelName("anthropic/claude-3.5-sonnet")).toBe("claude-3-5-sonnet")
     })
 
     test("should extract model name from OpenAI format", () => {
