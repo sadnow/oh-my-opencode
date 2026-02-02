@@ -30,6 +30,7 @@ import { getOpenCodeConfigPaths } from "../shared/opencode-config-dir";
 import { migrateAgentConfig } from "../shared/permission-compat";
 import { AGENT_NAME_MAP } from "../shared/migration";
 import { resolveModelWithFallback } from "../shared/model-resolver";
+import { getGlobalOverrideManager } from "../features/budget-orchestrator/global-override";
 import { AGENT_MODEL_REQUIREMENTS } from "../shared/model-requirements";
 import { PROMETHEUS_SYSTEM_PROMPT, PROMETHEUS_PERMISSION } from "../agents/prometheus-prompt";
 import { DEFAULT_CATEGORIES } from "../tools/delegate-task/constants";
@@ -245,6 +246,7 @@ export function createConfigHandler(deps: ConfigHandlerDeps) {
           fallbackChain: prometheusRequirement?.fallbackChain,
           availableModels,
           systemDefaultModel: defaultModel ?? "",
+          disabledProviders: getGlobalOverrideManager().getDisabledProviders(),
         });
         const resolvedModel = modelResolution?.model;
         const resolvedVariant = modelResolution?.variant;

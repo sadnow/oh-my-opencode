@@ -519,11 +519,11 @@ To continue this session: session_id="${args.session_id}"`
             connectedProviders: connectedProviders ?? undefined
           })
 
-         const resolved = resolveCategoryConfig(args.category, {
-           userCategories,
-           inheritedModel,
-           systemDefaultModel,
-         })
+          const resolved = resolveCategoryConfig(args.category, {
+            userCategories,
+            inheritedModel,
+            systemDefaultModel,
+          })
          if (!resolved) {
            return `Unknown category: "${args.category}". Available: ${Object.keys({ ...DEFAULT_CATEGORIES, ...userCategories }).join(", ")}`
          }
@@ -531,17 +531,28 @@ To continue this session: session_id="${args.session_id}"`
          const requirement = CATEGORY_MODEL_REQUIREMENTS[args.category]
          let actualModel: string | undefined
 
-         if (!requirement) {
-           actualModel = resolved.model
-           if (actualModel) {
-             modelInfo = { model: actualModel, type: "system-default", source: "system-default" }
-           }
-          } else {
-          const resolution = resolveModelWithFallback({
+          if (!requirement) {
+            actualModel = resolved.model
+            if (actualModel) {
+              modelInfo = { model: actualModel, type: "system-default", source: "system-default" }
+            }
+           } else {
+           const disabledProviders = budgetOrchestrator
+              ? (budgetOrchestrator as { getGlobalOverrideManager?: () => { getDisabledProviders: () => string[] } })
+                  .getGlobalOverrideManager?.()
+                  ?.getDisabledProviders() ?? []
+              : []
+            const usagePercentByProvider = budgetOrchestrator
+              ? (budgetOrchestrator as { getUsagePercentages?: () => Record<string, number> })
+                  .getUsagePercentages?.() ?? {}
+              : {}
+            const resolution = resolveModelWithFallback({
               userModel: userCategories?.[args.category]?.model ?? resolved.model ?? sisyphusJuniorModel,
               fallbackChain: requirement.fallbackChain,
               availableModels,
               systemDefaultModel,
+              disabledProviders,
+              usagePercentByProvider,
             })
 
            if (resolution) {

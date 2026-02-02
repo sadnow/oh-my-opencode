@@ -4,7 +4,7 @@ import { invalidatePackage } from "./cache"
 import { PACKAGE_NAME } from "./constants"
 import { log } from "../../shared/logger"
 import { getConfigLoadErrors, clearConfigLoadErrors } from "../../shared/config-errors"
-import { runBunInstall } from "../../cli/config-manager"
+import { runBunInstall, ensureOibProviderInConfig } from "../../cli/config-manager"
 import { isModelCacheAvailable } from "../../shared/model-availability"
 import { hasConnectedProvidersCache, updateConnectedProvidersCache } from "../../shared/connected-providers-cache"
 import type { AutoUpdateCheckerOptions } from "./types"
@@ -79,6 +79,14 @@ export function createAutoUpdateCheckerHook(ctx: PluginInput, options: AutoUpdat
 		await showConfigErrorsIfAny(ctx)
 		await showModelCacheWarningIfNeeded(ctx)
 		await updateAndShowConnectedProvidersCacheStatus(ctx, budgetEnabled)
+
+		// Ensure oh-im-broke provider is in opencode.json for UI visibility
+		const oibResult = ensureOibProviderInConfig()
+		if (oibResult.added) {
+			log("[auto-update-checker] Added oh-im-broke provider to opencode.json config")
+		} else if (oibResult.error) {
+			log("[auto-update-checker] Failed to add oh-im-broke provider:", oibResult.error)
+		}
 
         if (localDevVersion) {
           if (showStartupToast) {

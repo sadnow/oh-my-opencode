@@ -557,7 +557,76 @@ export const ANTIGRAVITY_PROVIDER_CONFIG = {
   },
 }
 
+/**
+ * Oh-Im-Broke Provider Configuration
+ *
+ * Virtual provider for budget-aware model routing.
+ * The oib-autoselect model is intercepted by the oib-autoselect hook
+ * and substituted with the appropriate real model based on budget tier.
+ */
+export const OIB_PROVIDER_CONFIG = {
+  "oh-im-broke": {
+    name: "Oh Im Broke",
+    models: {
+      "oib-autoselect": {
+        name: "OIB Autoselect (Budget Router)",
+        limit: { context: 200000, output: 16000 },
+        modalities: { input: ["text"], output: ["text"] },
+      },
+    },
+  },
+}
 
+
+
+/**
+ * Ensures the oh-im-broke provider exists in the user's opencode.json config.
+ * This is called at plugin startup to make the virtual model visible in the UI.
+ * 
+ * @returns Object with `added` boolean and optional `error` string
+ */
+export function ensureOibProviderInConfig(): { added: boolean; error?: string } {
+  const { format, path: configPath } = detectConfigFormat()
+  
+  // Import log dynamically to avoid circular dependency
+  const { log } = require("../shared/logger")
+  log("[ensureOibProviderInConfig] Called", { format, configPath })
+  
+  if (format === "none") {
+    log("[ensureOibProviderInConfig] No config file found")
+    return { added: false, error: "No config file found" }
+  }
+
+  try {
+    const parseResult = parseConfigWithError(configPath)
+    if (!parseResult.config) {
+      log("[ensureOibProviderInConfig] Failed to parse config", { error: parseResult.error })
+      return { added: false, error: parseResult.error ?? "Failed to parse config" }
+    }
+
+    const config = parseResult.config
+    const providers = (config.provider ?? {}) as Record<string, unknown>
+
+    // Check if already exists
+    if (providers["oh-im-broke"]) {
+      log("[ensureOibProviderInConfig] Provider already exists")
+      return { added: false } // Already exists, no action needed
+    }
+
+    // Add the provider
+    log("[ensureOibProviderInConfig] Adding oh-im-broke provider")
+    providers["oh-im-broke"] = OIB_PROVIDER_CONFIG["oh-im-broke"]
+    config.provider = providers
+
+    writeFileSync(configPath, JSON.stringify(config, null, 2) + "\n")
+    log("[ensureOibProviderInConfig] Successfully wrote config", { configPath })
+    return { added: true }
+  } catch (err) {
+    const errorMsg = formatErrorWithSuggestion(err, "ensure OIB provider in config")
+    log("[ensureOibProviderInConfig] Error", { error: errorMsg })
+    return { added: false, error: errorMsg }
+  }
+}
 
 export function addProviderConfig(config: InstallConfig): ConfigMergeResult {
   try {
@@ -586,6 +655,9 @@ export function addProviderConfig(config: InstallConfig): ConfigMergeResult {
     if (config.hasGemini) {
       providers.google = ANTIGRAVITY_PROVIDER_CONFIG.google
     }
+
+    // Always add oh-im-broke provider
+    providers["oh-im-broke"] = OIB_PROVIDER_CONFIG["oh-im-broke"]
 
     if (Object.keys(providers).length > 0) {
       newConfig.provider = providers
