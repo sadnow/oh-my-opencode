@@ -30,7 +30,9 @@
     "postinstall": "node postinstall.mjs",
     "prepublishOnly": "bun run clean && bun run build",
     "typecheck": "tsc --noEmit",
-    "test": "bun test",
+    "test": "bun test src/shared/ src/features/ src/hooks/ src/tools/ src/agents/ src/cli/ src/config/ src/integration/",
+    "test:webui": "bun test src/webui/",
+    "test:all": "bun run test && bun run test:webui",
     "webui": "bun run fork/start-webui.ts"
   },
   "keywords": [
