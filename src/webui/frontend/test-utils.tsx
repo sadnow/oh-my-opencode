@@ -2,6 +2,7 @@ import { render } from '@testing-library/react'
 import type { RenderOptions } from '@testing-library/react'
 import type { ReactElement } from 'react'
 import { Window } from 'happy-dom'
+import '@testing-library/jest-dom'
 
 // Setup happy-dom globals for React testing
 const window = new Window()

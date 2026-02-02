@@ -1,31 +1,35 @@
-import { describe, it, expect, vi, beforeEach } from "bun:test";
+import { describe, it, expect, vi, beforeEach, afterEach } from "bun:test";
 import { handleGetAlerts } from "./alerts";
 import { handleGetAnomalies } from "./anomaly";
 import { handleGetStatsRoiComparison } from "./stats";
 import { getRoutingLogger } from "../../features/budget-orchestrator/routing-logger";
 
-vi.mock("../../features/budget-orchestrator/routing-logger", () => ({
-  getRoutingLogger: vi.fn(),
-}));
-
 describe("Budget API Integration Tests", () => {
-  describe("handleGetAlerts", () => {
-    beforeEach(() => {
-      vi.clearAllMocks();
-    });
+  const logger = getRoutingLogger();
+  let getLogsSpy: ReturnType<typeof vi.spyOn>;
+  let getStatsSpy: ReturnType<typeof vi.spyOn>;
 
+  beforeEach(() => {
+    vi.clearAllMocks();
+    logger.clearLogs();
+    getLogsSpy = vi.spyOn(logger, "getLogs");
+    getStatsSpy = vi.spyOn(logger, "getStats");
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  describe("handleGetAlerts", () => {
     it("should return alerts and stats", async () => {
       //#given
       const mockLogs = [
         { timestamp: "2026-01-31T10:00:00Z", level: "info", category: "budget_alert", message: "Test alert" }
       ];
-      const mockStats = { total: 1, byLevel: { info: 1 } };
+      const mockStats = { total: 1, byLevel: { info: 1 }, byCategory: { budget_alert: 1 }, last24h: 1 };
       
-      const mockLogger = {
-        getLogs: vi.fn().mockReturnValue(mockLogs),
-        getStats: vi.fn().mockReturnValue(mockStats),
-      };
-      (getRoutingLogger as any).mockReturnValue(mockLogger);
+      getLogsSpy.mockReturnValue(mockLogs as any);
+      getStatsSpy.mockReturnValue(mockStats as any);
 
       const request = new Request("http://localhost/api/alerts?limit=10&level=info&category=budget_alert");
 
@@ -38,24 +42,18 @@ describe("Budget API Integration Tests", () => {
       expect(data.success).toBe(true);
       expect(data.data.alerts).toEqual(mockLogs);
       expect(data.data.stats).toEqual(mockStats);
-      expect(mockLogger.getLogs).toHaveBeenCalledWith(10, "info", "budget_alert");
+      expect(getLogsSpy).toHaveBeenCalledWith(10, "info", "budget_alert");
     });
 
     it("should use default values for limit and category", async () => {
       //#given
-      const mockLogger = {
-        getLogs: vi.fn().mockReturnValue([]),
-        getStats: vi.fn().mockReturnValue({}),
-      };
-      (getRoutingLogger as any).mockReturnValue(mockLogger);
-
       const request = new Request("http://localhost/api/alerts");
 
       //#when
       await handleGetAlerts(request).json();
 
       //#then
-      expect(mockLogger.getLogs).toHaveBeenCalledWith(50, null, "budget_alert");
+      expect(getLogsSpy).toHaveBeenCalledWith(50, null, "budget_alert");
     });
   });
 

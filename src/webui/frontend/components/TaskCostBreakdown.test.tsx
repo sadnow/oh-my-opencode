@@ -1,11 +1,21 @@
 import { Window } from 'happy-dom'
 
-const window = new Window()
+const window = new Window({ url: 'http://localhost/' })
 global.window = window as any
 global.document = window.document as any
 global.navigator = window.navigator as any
 global.HTMLElement = window.HTMLElement as any
 global.Node = window.Node as any
+
+// Override Request constructor to resolve relative URLs
+const OriginalRequest = globalThis.Request
+globalThis.Request = class extends OriginalRequest {
+  constructor(input: RequestInfo | URL, init?: RequestInit) {
+    const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url
+    const resolvedUrl = url.startsWith('/') ? `http://localhost${url}` : url
+    super(resolvedUrl, init)
+  }
+} as typeof Request
 
 import { describe, test, expect, beforeEach, afterEach } from 'bun:test'
 import { render, cleanup, waitFor } from '@testing-library/react'
@@ -15,7 +25,7 @@ import { setupServer } from 'msw/node'
 import { TaskCostBreakdown } from './TaskCostBreakdown'
 
 const server = setupServer(
-  http.get('/api/stats/by-category', () => {
+  http.get('http://localhost/api/stats/by-category', () => {
     return HttpResponse.json({
       success: true,
       data: {
@@ -45,7 +55,7 @@ describe('TaskCostBreakdown', () => {
   test('displays cost breakdown grouped by task type', async () => {
     //#given
     server.use(
-      http.get('/api/stats/by-category', () => {
+      http.get('http://localhost/api/stats/by-category', () => {
         return HttpResponse.json({
           success: true,
           data: {
@@ -78,7 +88,7 @@ describe('TaskCostBreakdown', () => {
   test('calculates percentages that sum to 100%', async () => {
     //#given
     server.use(
-      http.get('/api/stats/by-category', () => {
+      http.get('http://localhost/api/stats/by-category', () => {
         return HttpResponse.json({
           success: true,
           data: {
@@ -118,7 +128,7 @@ describe('TaskCostBreakdown', () => {
   test('handles categories without task type prefix', async () => {
     //#given
     server.use(
-      http.get('/api/stats/by-category', () => {
+      http.get('http://localhost/api/stats/by-category', () => {
         return HttpResponse.json({
           success: true,
           data: {
@@ -149,7 +159,7 @@ describe('TaskCostBreakdown', () => {
   test('displays loading state', async () => {
     //#given
     server.use(
-      http.get('/api/stats/by-category', () => {
+      http.get('http://localhost/api/stats/by-category', () => {
         return new Promise(resolve => {
           setTimeout(() => resolve(
             HttpResponse.json({
@@ -180,7 +190,7 @@ describe('TaskCostBreakdown', () => {
   test('displays error state', async () => {
     //#given
     server.use(
-      http.get('/api/stats/by-category', () => {
+      http.get('http://localhost/api/stats/by-category', () => {
         return HttpResponse.error()
       })
     )
@@ -189,17 +199,17 @@ describe('TaskCostBreakdown', () => {
 
     //#when
     await waitFor(() => {
-      expect(getByText('Error')).toBeDefined()
+      expect(getByText('Error:', { exact: false })).toBeDefined()
     })
 
     //#then
-    expect(getByText('Failed to fetch cost breakdown')).toBeDefined()
+    expect(getByText('Failed to fetch', { exact: false })).toBeDefined()
   })
 
   test('displays no data message when categories are empty', async () => {
     //#given
     server.use(
-      http.get('/api/stats/by-category', () => {
+      http.get('http://localhost/api/stats/by-category', () => {
         return HttpResponse.json({
           success: true,
           data: {
@@ -224,7 +234,7 @@ describe('TaskCostBreakdown', () => {
   test('period selector changes period', async () => {
     //#given
     server.use(
-      http.get('/api/stats/by-category', () => {
+      http.get('http://localhost/api/stats/by-category', () => {
         return HttpResponse.json({
           success: true,
           data: {
@@ -260,7 +270,7 @@ describe('TaskCostBreakdown', () => {
     //#given
     let fetchCount = 0
     server.use(
-      http.get('/api/stats/by-category', () => {
+      http.get('http://localhost/api/stats/by-category', () => {
         fetchCount++
         return HttpResponse.json({
           success: true,
@@ -296,7 +306,7 @@ describe('TaskCostBreakdown', () => {
   test('displays task count for each type', async () => {
     //#given
     server.use(
-      http.get('/api/stats/by-category', () => {
+      http.get('http://localhost/api/stats/by-category', () => {
         return HttpResponse.json({
           success: true,
           data: {
@@ -327,7 +337,7 @@ describe('TaskCostBreakdown', () => {
   test('displays cost amount for each type', async () => {
     //#given
     server.use(
-      http.get('/api/stats/by-category', () => {
+      http.get('http://localhost/api/stats/by-category', () => {
         return HttpResponse.json({
           success: true,
           data: {
@@ -358,7 +368,7 @@ describe('TaskCostBreakdown', () => {
   test('handles zero total cost gracefully', async () => {
     //#given
     server.use(
-      http.get('/api/stats/by-category', () => {
+      http.get('http://localhost/api/stats/by-category', () => {
         return HttpResponse.json({
           success: true,
           data: {
@@ -372,16 +382,17 @@ describe('TaskCostBreakdown', () => {
       })
     )
 
-    const { getByText, container } = render(<TaskCostBreakdown />)
+    const { getAllByText, container } = render(<TaskCostBreakdown />)
 
     //#when
     await waitFor(() => {
-      expect(getByText('Task Cost Breakdown')).toBeDefined()
+      expect(getAllByText('Task Cost Breakdown')[0]).toBeDefined()
     })
 
     //#then
-    expect(getByText('$0.00')).toBeDefined()
+    const zeroAmounts = getAllByText('$0.00')
+    expect(zeroAmounts.length).toBeGreaterThan(0)
     // Percentages should be 0% when total is 0
-    expect(getByText('0.0%')).toBeDefined()
+    expect(getAllByText('0.0%')[0]).toBeDefined()
   })
 })

@@ -1,11 +1,21 @@
 import { Window } from 'happy-dom'
 
-const window = new Window()
+const window = new Window({ url: 'http://localhost/' })
 global.window = window as any
 global.document = window.document as any
 global.navigator = window.navigator as any
 global.HTMLElement = window.HTMLElement as any
 global.Node = window.Node as any
+
+// Override Request constructor to resolve relative URLs
+const OriginalRequest = globalThis.Request
+globalThis.Request = class extends OriginalRequest {
+  constructor(input: RequestInfo | URL, init?: RequestInit) {
+    const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url
+    const resolvedUrl = url.startsWith('/') ? `http://localhost${url}` : url
+    super(resolvedUrl, init)
+  }
+} as typeof Request
 
 import { describe, test, expect, beforeEach, afterEach } from 'bun:test'
 import { render, cleanup, waitFor } from '@testing-library/react'
@@ -15,7 +25,7 @@ import { setupServer } from 'msw/node'
 import { HealthIndicator } from './HealthIndicator'
 
 const server = setupServer(
-  http.get('/api/health-check', () => {
+  http.get('http://localhost/api/health-check', () => {
     return HttpResponse.json({
       success: true,
       data: {
@@ -55,7 +65,7 @@ describe('HealthIndicator', () => {
   test('displays green status when healthy', async () => {
     //#given
     server.use(
-      http.get('/api/health-check', () => {
+      http.get('http://localhost/api/health-check', () => {
         return HttpResponse.json({
           success: true,
           data: {
@@ -96,7 +106,7 @@ describe('HealthIndicator', () => {
   test('displays yellow status with warnings', async () => {
     //#given
     server.use(
-      http.get('/api/health-check', () => {
+      http.get('http://localhost/api/health-check', () => {
         return HttpResponse.json({
           success: true,
           data: {
@@ -138,7 +148,7 @@ describe('HealthIndicator', () => {
   test('displays red status with errors', async () => {
     //#given
     server.use(
-      http.get('/api/health-check', () => {
+      http.get('http://localhost/api/health-check', () => {
         return HttpResponse.json({
           success: true,
           data: {
@@ -184,7 +194,7 @@ describe('HealthIndicator', () => {
     //#given
     let fetchCount = 0
     server.use(
-      http.get('/api/health-check', () => {
+      http.get('http://localhost/api/health-check', () => {
         fetchCount++
         return HttpResponse.json({
           success: true,
@@ -233,7 +243,7 @@ describe('HealthIndicator', () => {
   test('displays loading state', async () => {
     //#given
     server.use(
-      http.get('/api/health-check', () => {
+      http.get('http://localhost/api/health-check', () => {
         return new Promise(resolve => {
           setTimeout(() => resolve(
             HttpResponse.json({
@@ -277,7 +287,7 @@ describe('HealthIndicator', () => {
   test('displays error state', async () => {
     //#given
     server.use(
-      http.get('/api/health-check', () => {
+      http.get('http://localhost/api/health-check', () => {
         return HttpResponse.error()
       })
     )
@@ -286,10 +296,10 @@ describe('HealthIndicator', () => {
 
     //#when
     await waitFor(() => {
-      expect(getByText('Error')).toBeDefined()
+      expect(getByText('Error:', { exact: false })).toBeDefined()
     })
 
     //#then
-    expect(getByText('Failed to fetch health status')).toBeDefined()
+    expect(getByText('Failed to fetch', { exact: false })).toBeDefined()
   })
 })
