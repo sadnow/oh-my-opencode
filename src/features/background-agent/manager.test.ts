@@ -2196,7 +2196,6 @@ describe("BackgroundManager.deadlockDetection", () => {
 
     manager.shutdown()
   })
-})
 
 describe("BackgroundManager.checkAndInterruptStaleTasks", () => {
   test("should NOT interrupt task running less than 30 seconds (min runtime guard)", async () => {
@@ -2446,5 +2445,6 @@ describe("BackgroundManager.checkAndInterruptStaleTasks", () => {
 
     expect(task.status).toBe("cancelled")
   })
+})
 })
 

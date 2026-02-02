@@ -107,3 +107,24 @@ export function clearSessionAgent(sessionID: string): void {
   sessionAgentMap.delete(sessionID)
   scheduleSave()
 }
+
+/**
+ * Flush any pending state changes synchronously.
+ * Call this during shutdown to ensure state is persisted before process exit.
+ */
+export function flushStateSync(): boolean {
+  // Cancel any pending debounced save
+  if (saveTimeout) {
+    clearTimeout(saveTimeout)
+    saveTimeout = undefined
+  }
+  
+  // Persist current state synchronously
+  const state: SessionState = {
+    version: 1,
+    subagentSessions: Array.from(subagentSessions),
+    sessionAgentMap: Object.fromEntries(sessionAgentMap),
+  }
+  
+  return persistence.persistStateSync(state)
+}

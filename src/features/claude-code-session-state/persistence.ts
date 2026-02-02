@@ -209,6 +209,45 @@ export class SessionStatePersistence {
   }
 
   /**
+   * Persist state synchronously - for use during shutdown when async is not safe
+   * Blocks until write completes or fails
+   */
+  persistStateSync(state: SessionState): boolean {
+    // Try to acquire lock (synchronous operation)
+    const acquired = this.fileLock.acquire()
+    if (!acquired) {
+      log("[session-state-persistence] Could not acquire lock for sync save, skipping")
+      return false
+    }
+
+    try {
+      // Ensure directory exists
+      const dir = path.dirname(this.statePath)
+      if (!fs.existsSync(dir)) {
+        fs.mkdirSync(dir, { recursive: true })
+      }
+
+      // Write to temp file first, then rename (atomic operation)
+      const tempPath = `${this.statePath}.tmp`
+      fs.writeFileSync(tempPath, JSON.stringify(state, null, 2))
+      fs.renameSync(tempPath, this.statePath)
+
+      // Create backup
+      const backupPath = `${this.statePath}.backup`
+      fs.copyFileSync(this.statePath, backupPath)
+
+      log("[session-state-persistence] State persisted synchronously (shutdown)")
+      this.state = state
+      return true
+    } catch (error) {
+      log("[session-state-persistence] Failed to persist state synchronously:", error)
+      return false
+    } finally {
+      this.fileLock.release()
+    }
+  }
+
+  /**
    * Get the current state
    */
   getState(): SessionState | null {

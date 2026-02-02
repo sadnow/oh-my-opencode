@@ -9,9 +9,12 @@ import { log, getAgentToolRestrictions } from "../../shared"
 import { ConcurrencyManager } from "./concurrency"
 import type { BackgroundTaskConfig, TmuxConfig } from "../../config/schema"
 import { isInsideTmux } from "../../shared/tmux"
-import type { BudgetOrchestrator } from "../budget-orchestrator"
+import type { BudgetOrchestrator, UseCase } from "../budget-orchestrator"
+import { recordModelFailure, isModelUnavailableError } from "../budget-orchestrator/model-failure-cache"
 
 import { subagentSessions } from "../claude-code-session-state"
+import { flushStateSync } from "../claude-code-session-state/state"
+
 import { getTaskToastManager } from "../task-toast-manager"
 import { findNearestMessageWithFields, MESSAGE_STORAGE } from "../hook-message-injector"
 import { existsSync, readdirSync } from "node:fs"
@@ -22,7 +25,22 @@ const MIN_STABILITY_TIME_MS = 10 * 1000  // Must run at least 10s before stabili
 const DEFAULT_STALE_TIMEOUT_MS = 180_000  // 3 minutes
 const MIN_RUNTIME_BEFORE_STALE_MS = 30_000  // 30 seconds
 
+const AGENT_TO_USE_CASE: Record<string, UseCase> = {
+  'librarian': 'librarian',
+  'explore': 'explorer',
+  'oracle': 'oracle',
+  'sisyphus-junior': 'implementation',
+  'multimodal-looker': 'quick',
+  'general': 'implementation',
+  'build': 'implementation',
+}
+
+function getUseCaseForAgent(agent: string): UseCase {
+  return AGENT_TO_USE_CASE[agent] ?? 'implementation'
+}
+
 type ProcessCleanupEvent = NodeJS.Signals | "beforeExit" | "exit"
+
 
 type OpencodeClient = PluginInput["client"]
 
@@ -84,6 +102,7 @@ export class BackgroundManager {
 
   private queuesByKey: Map<string, QueueItem[]> = new Map()
   private processingKeys: Set<string> = new Set()
+  private completingTasks: Set<string> = new Set()  // Prevent race conditions in tryCompleteTask
 
   constructor(
     ctx: PluginInput,
@@ -294,10 +313,33 @@ export class BackgroundManager {
       toastManager.updateTask(task.id, "running")
     }
 
+    // BUDGET-AWARE MODEL SELECTION
+    let budgetAwareModel = input.model
+    if (this.budgetOrchestrator && input.model) {
+      try {
+        const useCase = getUseCaseForAgent(input.agent)
+        const originalModelStr = `${input.model.providerID}/${input.model.modelID}`
+        const recommendedModelStr = this.budgetOrchestrator.getBestModelForUseCase(useCase, originalModelStr)
+
+        if (recommendedModelStr !== originalModelStr) {
+          const [providerID, modelID] = recommendedModelStr.split("/")
+          budgetAwareModel = { providerID, modelID, variant: input.model.variant }
+          log("[background-agent] Budget-aware model substitution", {
+            original: originalModelStr,
+            recommended: recommendedModelStr,
+            useCase,
+            agent: input.agent,
+          })
+        }
+      } catch (error) {
+        log("[background-agent] Budget check failed, using original model", { error })
+      }
+    }
+
     log("[background-agent] Calling prompt (fire-and-forget) for launch with:", {
       sessionID,
       agent: input.agent,
-      model: input.model,
+      model: budgetAwareModel,
       hasSkillContent: !!input.skillContent,
       promptLength: input.prompt.length,
     })
@@ -306,12 +348,13 @@ export class BackgroundManager {
     // Include model if caller provided one (e.g., from Sisyphus category configs)
     // IMPORTANT: variant must be a top-level field in the body, NOT nested inside model
     // OpenCode's PromptInput schema expects: { model: { providerID, modelID }, variant: "max" }
-    const launchModel = input.model
-      ? { providerID: input.model.providerID, modelID: input.model.modelID }
+    const launchModel = budgetAwareModel
+      ? { providerID: budgetAwareModel.providerID, modelID: budgetAwareModel.modelID }
       : undefined
-    const launchVariant = input.model?.variant
+    const launchVariant = budgetAwareModel?.variant
 
     this.client.session.prompt({
+
       path: { id: sessionID },
       body: {
         agent: input.agent,
@@ -327,7 +370,7 @@ export class BackgroundManager {
         },
         parts: [{ type: "text", text: input.prompt }],
       },
-    }).catch((error) => {
+}).catch((error) => {
       log("[background-agent] promptAsync error:", error)
       const existingTask = this.findBySession(sessionID)
       if (existingTask) {
@@ -338,6 +381,20 @@ export class BackgroundManager {
         } else {
           existingTask.error = errorMessage
         }
+
+        // Record model failure if it's a model unavailability error (auto-disable for 24h)
+        if (budgetAwareModel && isModelUnavailableError(errorMessage)) {
+          const modelStr = `${budgetAwareModel.providerID}/${budgetAwareModel.modelID}`
+          const recorded = recordModelFailure(modelStr, errorMessage)
+          if (recorded) {
+            log("[background-agent] Model auto-disabled due to unavailability error", {
+              model: modelStr,
+              error: errorMessage,
+              ttl: "24 hours",
+            })
+          }
+        }
+
         existingTask.completedAt = new Date()
         if (existingTask.concurrencyKey) {
           this.concurrencyManager.release(existingTask.concurrencyKey)
@@ -582,11 +639,25 @@ export class BackgroundManager {
         },
         parts: [{ type: "text", text: input.prompt }],
       },
-    }).catch((error) => {
+}).catch((error) => {
       log("[background-agent] resume prompt error:", error)
       existingTask.status = "error"
       const errorMessage = error instanceof Error ? error.message : String(error)
       existingTask.error = errorMessage
+
+      // Record model failure if it's a model unavailability error (auto-disable for 24h)
+      if (existingTask.model && isModelUnavailableError(errorMessage)) {
+        const modelStr = `${existingTask.model.providerID}/${existingTask.model.modelID}`
+        const recorded = recordModelFailure(modelStr, errorMessage)
+        if (recorded) {
+          log("[background-agent] Model auto-disabled due to unavailability error (resume)", {
+            model: modelStr,
+            error: errorMessage,
+            ttl: "24 hours",
+          })
+        }
+      }
+
       existingTask.completedAt = new Date()
 
       // Release concurrency on error to prevent slot leaks
@@ -722,6 +793,11 @@ export class BackgroundManager {
   }
 
   markForNotification(task: BackgroundTask): void {
+    // Guard: Skip if no parentSessionID to prevent storing under undefined key
+    if (!task.parentSessionID) {
+      log("[background-agent] markForNotification: task has no parentSessionID, skipping", { taskId: task.id })
+      return
+    }
     const queue = this.notifications.get(task.parentSessionID) ?? []
     queue.push(task)
     this.notifications.set(task.parentSessionID, queue)
@@ -879,7 +955,10 @@ export class BackgroundManager {
     if (BackgroundManager.cleanupRegistered) return
     BackgroundManager.cleanupRegistered = true
 
-    const cleanupAll = () => {
+const cleanupAll = () => {
+      log("[background-agent] Flushing session state before shutdown")
+      flushStateSync()
+
       for (const manager of BackgroundManager.cleanupManagers) {
         try {
           manager.shutdown()
@@ -941,32 +1020,52 @@ export class BackgroundManager {
       return false
     }
 
-    // Atomically mark as completed to prevent race conditions
-    task.status = "completed"
-    task.completedAt = new Date()
-
-    // Release concurrency BEFORE any async operations to prevent slot leaks
-    if (task.concurrencyKey) {
-      this.concurrencyManager.release(task.concurrencyKey)
-      task.concurrencyKey = undefined
+    // Guard: Check if another async path is already completing this task
+    if (this.completingTasks.has(task.id)) {
+      log("[background-agent] Task completion already in progress, skipping:", { taskId: task.id, source })
+      return false
     }
 
-    this.markForNotification(task)
+    // Mark as completing to prevent re-entrancy across async boundaries
+    this.completingTasks.add(task.id)
 
     try {
-      await this.notifyParentSession(task)
-      log(`[background-agent] Task completed via ${source}:`, task.id)
-    } catch (err) {
-      log("[background-agent] Error in notifyParentSession:", { taskId: task.id, error: err })
-      // Concurrency already released, notification failed but task is complete
-    }
+      // Atomically mark as completed to prevent race conditions
+      task.status = "completed"
+      task.completedAt = new Date()
 
-    return true
+      // Release concurrency BEFORE any async operations to prevent slot leaks
+      if (task.concurrencyKey) {
+        this.concurrencyManager.release(task.concurrencyKey)
+        task.concurrencyKey = undefined
+      }
+
+      this.markForNotification(task)
+
+      try {
+        await this.notifyParentSession(task)
+        log(`[background-agent] Task completed via ${source}:`, task.id)
+      } catch (err) {
+        log("[background-agent] Error in notifyParentSession:", { taskId: task.id, error: err })
+        // Concurrency already released, notification failed but task is complete
+      }
+
+      return true
+    } finally {
+      // Always clear the completing flag
+      this.completingTasks.delete(task.id)
+    }
   }
 
   private async notifyParentSession(task: BackgroundTask): Promise<void> {
     // Note: Callers must release concurrency before calling this method
     // to ensure slots are freed even if notification fails
+
+    // Guard: Skip if no parentSessionID to prevent API calls with undefined id
+    if (!task.parentSessionID) {
+      log("[background-agent] notifyParentSession: task has no parentSessionID, skipping notification", { taskId: task.id })
+      return
+    }
 
     const duration = this.formatDuration(task.startedAt ?? new Date(), task.completedAt)
 
