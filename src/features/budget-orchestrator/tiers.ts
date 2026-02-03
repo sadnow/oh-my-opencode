@@ -31,6 +31,10 @@ export const MODEL_TIERS: Record<ModelTier, TierConfig> = {
       // OpenAI premium - o-series and GPT-5.2
       "openai/o1-pro",
       "opencode/gpt-5.2-codex",
+      // OpenCode Zen BYOK - OpenAI premium (user's own key, free/cheap through Zen)
+      "opencode/gpt-5.2",
+      // OpenCode Zen BYOK - Google premium
+      "opencode/gemini-3-pro",
       "openai/gpt-5.2-pro",
       // Google premium - Gemini 3 Pro
       "google/gemini-3-pro-preview",
@@ -57,6 +61,8 @@ export const MODEL_TIERS: Record<ModelTier, TierConfig> = {
       "openai/gpt-5.1",
       "openai/gpt-5.1-codex",
       "opencode/gpt-5.1-codex-max",
+      // OpenCode Zen BYOK - OpenAI standard (user's own key)
+      "opencode/gpt-5.1",
       "opencode/gpt-5",
       "opencode/gpt-5-codex",
       "openai/o1",
@@ -94,6 +100,8 @@ export const MODEL_TIERS: Record<ModelTier, TierConfig> = {
       "opencode/kimi-k2-thinking-turbo",
       "opencode/kimi-k2",
       "opencode/big-pickle",
+      // OpenCode Zen BYOK - Google budget (user's own key)
+      "opencode/gemini-3-flash",
       // OpenAI budget
       "openai/gpt-4.1-mini",
       "opencode/gpt-5.1-codex-mini",
@@ -115,6 +123,8 @@ export const MODEL_TIERS: Record<ModelTier, TierConfig> = {
       // OpenAI economy ($0.05/$0.40)
       "openai/gpt-4.1-nano",
       "openai/gpt-5-nano",
+      // OpenCode Zen BYOK - OpenAI economy (user's own key)
+      "opencode/gpt-5-nano",
       // Google economy - Flash Lite
       "google/gemini-2.5-flash-lite",
       "google/gemini-2.5-flash-lite-preview-09-2025",
