@@ -30,7 +30,7 @@ export const MODEL_TIERS: Record<ModelTier, TierConfig> = {
       "anthropic/claude-opus-4-0",
       // OpenAI premium - o-series and GPT-5.2
       "openai/o1-pro",
-      "openai/gpt-5.2-codex",
+      "opencode/gpt-5.2-codex",
       "openai/gpt-5.2-pro",
       // Google premium - Gemini 3 Pro
       "google/gemini-3-pro-preview",
@@ -56,6 +56,9 @@ export const MODEL_TIERS: Record<ModelTier, TierConfig> = {
       "openai/gpt-5.2",
       "openai/gpt-5.1",
       "openai/gpt-5.1-codex",
+      "opencode/gpt-5.1-codex-max",
+      "opencode/gpt-5",
+      "opencode/gpt-5-codex",
       "openai/o1",
       "openai/o1-mini",
       // Google standard - Gemini 2.5/3 Pro
@@ -89,9 +92,11 @@ export const MODEL_TIERS: Record<ModelTier, TierConfig> = {
       "opencode/glm-4.6",
       "opencode/kimi-k2-thinking",
       "opencode/kimi-k2-thinking-turbo",
+      "opencode/kimi-k2",
       "opencode/big-pickle",
       // OpenAI budget
       "openai/gpt-4.1-mini",
+      "opencode/gpt-5.1-codex-mini",
       "openai/o4-mini",
       // GitHub Copilot budget (included in Pro+ subscription)
       // 0x multiplier = FREE!
@@ -115,6 +120,7 @@ export const MODEL_TIERS: Record<ModelTier, TierConfig> = {
       "google/gemini-2.5-flash-lite-preview-09-2025",
       // OpenCode economy - Qwen3 Coder
       "opencode/qwen3-coder",
+      "opencode/minimax-m2.1",
       "opencode/minimax-m2.1-free",
       "opencode/qwen3-coder-30b-a3b",
       "opencode/qwen3-coder-480b-a35b-instruct",

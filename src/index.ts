@@ -329,6 +329,20 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
       )
     : null;
 
+  // Initialize hybrid provider tracker independently if config exists
+  // This ensures BYOK daily token limits work even when full budget orchestration is disabled
+  if (!budgetOrchestrator && pluginConfig.budget?.hybrid_providers) {
+    try {
+      const { initHybridProviderTracker } = await import("./features/budget-orchestrator/hybrid-tracker");
+      initHybridProviderTracker({
+        providers: pluginConfig.budget.hybrid_providers
+      });
+      log("[oh-my-opencode] Hybrid provider tracker initialized independently (budget disabled)");
+    } catch (error) {
+      log("[oh-my-opencode] Failed to initialize hybrid provider tracker:", String(error));
+    }
+  }
+
   // Wire disabled_models config to GlobalOverrideManager if budget orchestrator is enabled
   if (budgetOrchestrator && pluginConfig.disabled_models) {
     const { getGlobalOverrideManager } = await import("./features/budget-orchestrator/global-override");

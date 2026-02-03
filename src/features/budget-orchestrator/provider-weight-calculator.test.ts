@@ -213,12 +213,15 @@ describe('ProviderWeightCalculator', () => {
       expect(selected).toBe('anthropic/claude')
     })
 
-    it('throws for empty model list', () => {
+    it('returns fallback for empty model list', () => {
       //#given empty model list
       const models: string[] = []
 
-      //#then throws
-      expect(() => calculator.selectBestModel(models, {})).toThrow()
+      //#when selecting best model
+      const result = calculator.selectBestModel(models, {})
+
+      //#then returns safe fallback
+      expect(result).toBe("opencode/big-pickle")
     })
   })
 

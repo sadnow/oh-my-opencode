@@ -276,7 +276,14 @@ export class ProviderWeightCalculator {
     velocityByProvider?: Record<string, number>
   ): string {
     if (models.length === 0) {
-      throw new Error('No models provided to selectBestModel')
+      // Graceful fallback instead of crash - log warning and return safe default
+      const logger = getRoutingLogger()
+      logger.logDebug(
+        "routing_decision",
+        "[selectBestModel] No models provided, falling back to opencode/big-pickle",
+        { timestamp: new Date().toISOString(), reason: "empty model list" }
+      )
+      return "opencode/big-pickle"
     }
     
     const candidates = this.buildCandidates(models, usagePercentByProvider, daysUntilResetByProvider, velocityByProvider)
