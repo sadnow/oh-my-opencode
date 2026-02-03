@@ -21,6 +21,8 @@ import { getWeightCalculator } from "./provider-weight-calculator"
 import type { WeightCandidate } from "./provider-classification"
 import { isModelFailed, isModelFailedByProvider } from "./model-failure-cache"
 import { isZenModelInCache, hasZenCacheData } from "./zen-model-detection"
+import { detectUnderlyingProvider } from "./underlying-provider"
+import { getHybridProviderTracker } from "./hybrid-tracker"
 
 // ============================================================================
 // Use-Case Specific Model Fallback Lists
@@ -217,8 +219,11 @@ export interface GlobalOverrideOptions {
 
 export type CopilotUsageProvider = () => { percentUsed: number; error?: string } | null
 
+export type HybridUsageProvider = () => { exhaustedProviders: string[] } | null
+
 export interface GlobalOverrideManagerOptions {
   copilotUsageProvider?: CopilotUsageProvider
+  hybridUsageProvider?: HybridUsageProvider
   circuitBreaker?: CircuitBreaker
 }
 
@@ -266,6 +271,7 @@ export class GlobalOverrideManager {
   private state: GlobalOverrideState
   private persistPath: string
   private copilotUsageProvider: CopilotUsageProvider
+  private hybridUsageProvider: HybridUsageProvider
   private circuitBreaker: CircuitBreaker
   
   constructor(persistPath?: string, options: GlobalOverrideManagerOptions = {}) {
@@ -281,6 +287,16 @@ export class GlobalOverrideManager {
         return getCopilotUsageTracker().getData()
       } catch (error) {
         log("[global-override] Failed to read Copilot usage:", error)
+        return null
+      }
+    })
+
+    this.hybridUsageProvider = options.hybridUsageProvider ?? (() => {
+      try {
+        const tracker = getHybridProviderTracker()
+        tracker.checkAndReset()
+        return { exhaustedProviders: tracker.getExhaustedProviders() }
+      } catch {
         return null
       }
     })
@@ -823,7 +839,23 @@ export class GlobalOverrideManager {
         return false
       }
     }
-    
+
+    // Check if this is a BYOK model whose underlying provider's free tier is exhausted
+    if (provider === "opencode") {
+      const underlyingProvider = detectUnderlyingProvider(model)
+      if (underlyingProvider) {
+        // This is a BYOK model - check if underlying provider exhausted
+        const hybridData = this.hybridUsageProvider()
+        if (hybridData?.exhaustedProviders.includes(underlyingProvider)) {
+          log("[global-override] BYOK model blocked - underlying provider free tier exhausted", {
+            model, underlyingProvider
+          })
+          return false
+        }
+      }
+      // Native OpenCode models (null underlyingProvider) always pass this check
+    }
+
     // Check if provider is available (opencode is always available)
     if (provider !== "opencode" && !availableProviders.includes(provider)) {
       return false

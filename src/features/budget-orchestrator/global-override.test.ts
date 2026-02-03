@@ -318,4 +318,62 @@ describe("GlobalOverrideManager", () => {
       expect(manager.isModelAllowed("opencode/glm-4.7-flash", [])).toBe(true) // has "flash"
     })
   })
+
+  describe("BYOK hybrid provider integration", () => {
+    it("blocks opencode/gpt-4o when openai free tier exhausted", () => {
+      const manager = createFreshManager({
+        copilotUsageProvider: () => ({ percentUsed: 0 }),
+        hybridUsageProvider: () => ({ exhaustedProviders: ["openai"] }),
+      })
+      expect(manager.isModelAllowed("opencode/gpt-4o", ["opencode"])).toBe(false)
+    })
+
+    it("allows opencode/big-pickle when openai exhausted (native model)", () => {
+      const manager = createFreshManager({
+        copilotUsageProvider: () => ({ percentUsed: 0 }),
+        hybridUsageProvider: () => ({ exhaustedProviders: ["openai"] }),
+      })
+      expect(manager.isModelAllowed("opencode/big-pickle", ["opencode"])).toBe(true)
+    })
+
+    it("allows opencode/gpt-4o when NOT exhausted", () => {
+      const manager = createFreshManager({
+        copilotUsageProvider: () => ({ percentUsed: 0 }),
+        hybridUsageProvider: () => ({ exhaustedProviders: [] }),
+      })
+      expect(manager.isModelAllowed("opencode/gpt-4o", ["opencode"])).toBe(true)
+    })
+
+    it("blocks opencode/gemini-pro when google exhausted", () => {
+      const manager = createFreshManager({
+        copilotUsageProvider: () => ({ percentUsed: 0 }),
+        hybridUsageProvider: () => ({ exhaustedProviders: ["google"] }),
+      })
+      expect(manager.isModelAllowed("opencode/gemini-pro", ["opencode"])).toBe(false)
+    })
+
+    it("allows opencode/gpt-4o when only google exhausted", () => {
+      const manager = createFreshManager({
+        copilotUsageProvider: () => ({ percentUsed: 0 }),
+        hybridUsageProvider: () => ({ exhaustedProviders: ["google"] }),
+      })
+      expect(manager.isModelAllowed("opencode/gpt-4o", ["opencode"])).toBe(true)
+    })
+
+    it("allows native models when all BYOK exhausted", () => {
+      const manager = createFreshManager({
+        copilotUsageProvider: () => ({ percentUsed: 0 }),
+        hybridUsageProvider: () => ({ exhaustedProviders: ["openai", "google"] }),
+      })
+      expect(manager.isModelAllowed("opencode/qwen-2.5-coder", ["opencode"])).toBe(true)
+    })
+
+    it("handles null hybridUsageProvider gracefully", () => {
+      const manager = createFreshManager({
+        copilotUsageProvider: () => ({ percentUsed: 0 }),
+        hybridUsageProvider: () => null,
+      })
+      expect(manager.isModelAllowed("opencode/gpt-4o", ["opencode"])).toBe(true)
+    })
+  })
 })
