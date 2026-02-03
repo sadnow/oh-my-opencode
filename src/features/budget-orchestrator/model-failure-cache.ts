@@ -49,6 +49,10 @@ const MODEL_UNAVAILABLE_PATTERNS = [
   /unknown.*model/i,
   /access.*denied.*model/i,
   /model.*disabled/i,
+  // Zen proxy failures — server-side crashes when parsing provider responses
+  /Cannot read properties of undefined/i,
+  /reading 'promptTokenCount'/i,
+  /reading 'input_tokens'/i,
 ]
 
 let failureCache: ModelFailureCache | null = null
