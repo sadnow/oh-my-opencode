@@ -87,3 +87,78 @@ describe("isNativeOpenCodeModel", () => {
     expect(isNativeOpenCodeModel("anthropic/claude-opus-4-5")).toBe(false)
   })
 })
+
+describe("current Zen model detection (2026)", () => {
+  test("detects openai for opencode/gpt-5.2", () => {
+    expect(detectUnderlyingProvider("opencode/gpt-5.2")).toBe("openai")
+  })
+  test("detects openai for opencode/gpt-5.2-codex", () => {
+    expect(detectUnderlyingProvider("opencode/gpt-5.2-codex")).toBe("openai")
+  })
+  test("detects openai for opencode/gpt-5.1", () => {
+    expect(detectUnderlyingProvider("opencode/gpt-5.1")).toBe("openai")
+  })
+  test("detects openai for opencode/gpt-5.1-codex", () => {
+    expect(detectUnderlyingProvider("opencode/gpt-5.1-codex")).toBe("openai")
+  })
+  test("detects openai for opencode/gpt-5.1-codex-max", () => {
+    expect(detectUnderlyingProvider("opencode/gpt-5.1-codex-max")).toBe("openai")
+  })
+  test("detects openai for opencode/gpt-5.1-codex-mini", () => {
+    expect(detectUnderlyingProvider("opencode/gpt-5.1-codex-mini")).toBe("openai")
+  })
+  test("detects openai for opencode/gpt-5", () => {
+    expect(detectUnderlyingProvider("opencode/gpt-5")).toBe("openai")
+  })
+  test("detects openai for opencode/gpt-5-codex", () => {
+    expect(detectUnderlyingProvider("opencode/gpt-5-codex")).toBe("openai")
+  })
+  test("detects openai for opencode/gpt-5-nano", () => {
+    expect(detectUnderlyingProvider("opencode/gpt-5-nano")).toBe("openai")
+  })
+
+  test("returns null for opencode/qwen3-coder", () => {
+    expect(detectUnderlyingProvider("opencode/qwen3-coder")).toBeNull()
+  })
+  test("returns null for opencode/glm-4.7", () => {
+    expect(detectUnderlyingProvider("opencode/glm-4.7")).toBeNull()
+  })
+  test("returns null for opencode/glm-4.6", () => {
+    expect(detectUnderlyingProvider("opencode/glm-4.6")).toBeNull()
+  })
+  test("returns null for opencode/glm-4.7-free", () => {
+    expect(detectUnderlyingProvider("opencode/glm-4.7-free")).toBeNull()
+  })
+  test("returns null for opencode/kimi-k2.5", () => {
+    expect(detectUnderlyingProvider("opencode/kimi-k2.5")).toBeNull()
+  })
+  test("returns null for opencode/kimi-k2.5-free", () => {
+    expect(detectUnderlyingProvider("opencode/kimi-k2.5-free")).toBeNull()
+  })
+  test("returns null for opencode/kimi-k2", () => {
+    expect(detectUnderlyingProvider("opencode/kimi-k2")).toBeNull()
+  })
+  test("returns null for opencode/kimi-k2-thinking", () => {
+    expect(detectUnderlyingProvider("opencode/kimi-k2-thinking")).toBeNull()
+  })
+  test("returns null for opencode/minimax-m2.1", () => {
+    expect(detectUnderlyingProvider("opencode/minimax-m2.1")).toBeNull()
+  })
+  test("returns null for opencode/big-pickle", () => {
+    expect(detectUnderlyingProvider("opencode/big-pickle")).toBeNull()
+  })
+  test("returns null for opencode/trinity-large-preview-free", () => {
+    expect(detectUnderlyingProvider("opencode/trinity-large-preview-free")).toBeNull()
+  })
+
+  test("detects google for opencode/gemini-3-pro", () => {
+    expect(detectUnderlyingProvider("opencode/gemini-3-pro")).toBe("google")
+  })
+  test("detects google for opencode/gemini-3-flash", () => {
+    expect(detectUnderlyingProvider("opencode/gemini-3-flash")).toBe("google")
+  })
+
+  test("returns null for opencode/claude-3-5-haiku", () => {
+    expect(detectUnderlyingProvider("opencode/claude-3-5-haiku")).toBeNull()
+  })
+})
