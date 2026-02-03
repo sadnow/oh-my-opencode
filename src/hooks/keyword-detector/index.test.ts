@@ -343,7 +343,7 @@ describe("keyword-detector system-reminder filtering", () => {
   let logSpy: ReturnType<typeof spyOn>
 
   beforeEach(() => {
-    setMainSession(undefined)
+    _resetForTesting() // Clear all session state to prevent pollution from other tests
     logCalls = []
     logSpy = spyOn(sharedModule, "log").mockImplementation((msg: string, data?: unknown) => {
       logCalls.push({ msg, data })

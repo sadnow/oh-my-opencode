@@ -1,4 +1,4 @@
-import { describe, test, expect, mock, beforeEach, afterEach } from 'bun:test'
+import { describe, test, expect, mock, beforeEach, afterEach, beforeAll, afterAll } from 'bun:test'
 import type { TmuxConfig } from '../../config/schema'
 import type { WindowState, PaneAction } from './types'
 import type { ActionResult, ExecuteContext } from './action-executor'
@@ -9,6 +9,7 @@ type ExecuteActionsResult = {
   results: Array<{ action: PaneAction; result: ActionResult }>
 }
 
+// Mock functions - defined at module level but mocks are set up in beforeAll
 const mockQueryWindowState = mock<(paneId: string) => Promise<WindowState | null>>(
   async () => ({
     windowWidth: 212,
@@ -33,33 +34,50 @@ const mockExecuteAction = mock<(
 const mockIsInsideTmux = mock<() => boolean>(() => true)
 const mockGetCurrentPaneId = mock<() => string | undefined>(() => '%0')
 
-mock.module('./pane-state-querier', () => ({
-  queryWindowState: mockQueryWindowState,
-  paneExists: mockPaneExists,
-  getRightmostAgentPane: (state: WindowState) =>
-    state.agentPanes.length > 0
-      ? state.agentPanes.reduce((r, p) => (p.left > r.left ? p : r))
-      : null,
-  getOldestAgentPane: (state: WindowState) =>
-    state.agentPanes.length > 0
-      ? state.agentPanes.reduce((o, p) => (p.left < o.left ? p : o))
-      : null,
-}))
+// Store original modules for restoration
+let originalTmuxModule: typeof import('../../shared/tmux') | null = null
 
-mock.module('./action-executor', () => ({
-  executeActions: mockExecuteActions,
-  executeAction: mockExecuteAction,
-}))
+// Set up module mocks before all tests in this file
+beforeAll(async () => {
+  // Import original module before mocking (for potential restoration)
+  originalTmuxModule = await import('../../shared/tmux')
+  
+  mock.module('./pane-state-querier', () => ({
+    queryWindowState: mockQueryWindowState,
+    paneExists: mockPaneExists,
+    getRightmostAgentPane: (state: WindowState) =>
+      state.agentPanes.length > 0
+        ? state.agentPanes.reduce((r, p) => (p.left > r.left ? p : r))
+        : null,
+    getOldestAgentPane: (state: WindowState) =>
+      state.agentPanes.length > 0
+        ? state.agentPanes.reduce((o, p) => (p.left < o.left ? p : o))
+        : null,
+  }))
 
-mock.module('../../shared/tmux', () => ({
-  isInsideTmux: mockIsInsideTmux,
-  getCurrentPaneId: mockGetCurrentPaneId,
-  POLL_INTERVAL_BACKGROUND_MS: 2000,
-  SESSION_TIMEOUT_MS: 600000,
-  SESSION_MISSING_GRACE_MS: 6000,
-  SESSION_READY_POLL_INTERVAL_MS: 100,
-  SESSION_READY_TIMEOUT_MS: 500,
-}))
+  mock.module('./action-executor', () => ({
+    executeActions: mockExecuteActions,
+    executeAction: mockExecuteAction,
+  }))
+
+  mock.module('../../shared/tmux', () => ({
+    isInsideTmux: mockIsInsideTmux,
+    getCurrentPaneId: mockGetCurrentPaneId,
+    POLL_INTERVAL_BACKGROUND_MS: 2000,
+    SESSION_TIMEOUT_MS: 600000,
+    SESSION_MISSING_GRACE_MS: 6000,
+    SESSION_READY_POLL_INTERVAL_MS: 100,
+    SESSION_READY_TIMEOUT_MS: 500,
+  }))
+})
+
+// Restore original modules after all tests complete
+afterAll(() => {
+  // Restore the original tmux module to prevent pollution of other test files
+  if (originalTmuxModule) {
+    mock.module('../../shared/tmux', () => originalTmuxModule)
+  }
+})
 
 const trackedSessions = new Set<string>()
 

@@ -11,6 +11,7 @@ import {
 import type { BoulderState } from "../../features/boulder-state"
 
 import { MESSAGE_STORAGE } from "../../features/hook-message-injector"
+import { setMainSession, _resetForTesting } from "../../features/claude-code-session-state"
 
 describe("atlas hook", () => {
    const TEST_DIR = join(tmpdir(), "atlas-test-" + Date.now())
@@ -611,15 +612,16 @@ describe("atlas hook", () => {
     const MAIN_SESSION_ID = "main-session-123"
 
      beforeEach(() => {
-       mock.module("../../features/claude-code-session-state", () => ({
-         getMainSessionID: () => MAIN_SESSION_ID,
-         subagentSessions: new Set<string>(),
-       }))
+       // Use real session state module instead of mock.module to avoid polluting other tests
+       // (mock.module persists globally and cannot be properly restored in Bun)
+       _resetForTesting()
+       setMainSession(MAIN_SESSION_ID)
        setupMessageStorage(MAIN_SESSION_ID, "atlas")
      })
 
     afterEach(() => {
       cleanupMessageStorage(MAIN_SESSION_ID)
+      _resetForTesting() // Clean up session state
     })
 
     test("should inject continuation when boulder has incomplete tasks", async () => {

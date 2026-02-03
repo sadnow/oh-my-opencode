@@ -1,6 +1,8 @@
 import { describe, expect, it, mock, beforeEach } from "bun:test"
 
 // Mock dependencies before importing
+// NOTE: We intentionally do NOT mock system-directive to avoid polluting other tests
+// (mock.module persists globally and cannot be properly restored in Bun)
 const mockInjectHookMessage = mock(() => true)
 mock.module("../../features/hook-message-injector", () => ({
   injectHookMessage: mockInjectHookMessage,
@@ -8,20 +10,6 @@ mock.module("../../features/hook-message-injector", () => ({
 
 mock.module("../../shared/logger", () => ({
   log: () => {},
-}))
-
-mock.module("../../shared/system-directive", () => ({
-  createSystemDirective: (type: string) => `[DIRECTIVE:${type}]`,
-  SystemDirectiveTypes: {
-    TODO_CONTINUATION: "TODO CONTINUATION",
-    RALPH_LOOP: "RALPH LOOP",
-    BOULDER_CONTINUATION: "BOULDER CONTINUATION",
-    DELEGATION_REQUIRED: "DELEGATION REQUIRED",
-    SINGLE_TASK_ONLY: "SINGLE TASK ONLY",
-    COMPACTION_CONTEXT: "COMPACTION CONTEXT",
-    CONTEXT_WINDOW_MONITOR: "CONTEXT WINDOW MONITOR",
-    PROMETHEUS_READ_ONLY: "PROMETHEUS READ-ONLY",
-  },
 }))
 
 import { createCompactionContextInjector } from "./index"
