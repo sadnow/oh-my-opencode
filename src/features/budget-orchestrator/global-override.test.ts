@@ -383,5 +383,21 @@ describe("GlobalOverrideManager", () => {
       })
       expect(manager.isModelAllowed("opencode/gpt-4o", ["opencode"])).toBe(true)
     })
+
+    it("blocks known broken Zen models", () => {
+      const manager = createFreshManager({
+        copilotUsageProvider: () => ({ percentUsed: 0 }),
+        hybridUsageProvider: () => ({ exhaustedProviders: [] }),
+      })
+      //#given known broken models on Zen proxy
+      //#when checking if they are allowed
+      //#then they should be blocked
+      expect(manager.isModelAllowed("opencode/gemini-3-flash", ["opencode"])).toBe(false)
+      expect(manager.isModelAllowed("opencode/gemini-3-pro", ["opencode"])).toBe(false)
+      expect(manager.isModelAllowed("opencode/minimax-m2.1-free", ["opencode"])).toBe(false)
+      // Working models should still be allowed
+      expect(manager.isModelAllowed("opencode/big-pickle", ["opencode"])).toBe(true)
+      expect(manager.isModelAllowed("opencode/gpt-5-nano", ["opencode"])).toBe(true)
+    })
   })
 })
