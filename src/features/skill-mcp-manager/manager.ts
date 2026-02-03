@@ -6,6 +6,7 @@ import type { ClaudeCodeMcpServer } from "../claude-code-mcp-loader/types"
 import { expandEnvVarsInObject } from "../claude-code-mcp-loader/env-expander"
 import { createCleanMcpEnvironment } from "./env-cleaner"
 import type { SkillMcpClientInfo, SkillMcpServerContext } from "./types"
+import { log } from "../../shared"
 
 /**
  * Connection type for a managed MCP client.
@@ -94,10 +95,16 @@ export class SkillMcpManager {
     // Don't call process.exit() here - let the background-agent manager handle the final process exit.
     // Use void + catch to trigger async cleanup without awaiting it in the signal handler.
 
-    process.on("SIGINT", () => void cleanup().catch(() => {}))
-    process.on("SIGTERM", () => void cleanup().catch(() => {}))
+    process.on("SIGINT", () => void cleanup().catch((err) => {
+      log("[skill-mcp-manager] Cleanup failed during SIGINT", { error: String(err) })
+    }))
+    process.on("SIGTERM", () => void cleanup().catch((err) => {
+      log("[skill-mcp-manager] Cleanup failed during SIGTERM", { error: String(err) })
+    }))
     if (process.platform === "win32") {
-      process.on("SIGBREAK", () => void cleanup().catch(() => {}))
+      process.on("SIGBREAK", () => void cleanup().catch((err) => {
+        log("[skill-mcp-manager] Cleanup failed during SIGBREAK", { error: String(err) })
+      }))
     }
   }
 

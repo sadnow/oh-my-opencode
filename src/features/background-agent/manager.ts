@@ -1335,7 +1335,9 @@ Use \`background_output(task_id="${task.id}")\` to retrieve this result when rea
 
       this.client.session.abort({
         path: { id: sessionID },
-      }).catch(() => {})
+      }).catch((err) => {
+        log("[background-agent] Failed to abort stale session", { sessionID, taskId: task.id, error: String(err) })
+      })
 
       log(`[background-agent] Task ${task.id} interrupted: stale timeout`)
 
@@ -1490,7 +1492,9 @@ Use \`background_output(task_id="${task.id}")\` to retrieve this result when rea
                     }
 
                     // Abort server-side session (fire-and-forget)
-                    this.client.session.abort({ path: { id: sessionID } }).catch(() => {})
+                    this.client.session.abort({ path: { id: sessionID } }).catch((err) => {
+                      log("[background-agent] Failed to abort deadlocked session", { sessionID, taskId: task.id, error: String(err) })
+                    })
 
                     // Notify parent
                     this.markForNotification(task)
