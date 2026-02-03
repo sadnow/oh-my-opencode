@@ -145,12 +145,14 @@ export function createTodoContinuationEnforcer(
   async function showCountdownToast(seconds: number, incompleteCount: number): Promise<void> {
     await ctx.client.tui.showToast({
       body: {
-        title: "Todo Continuation",
+        title: "Enforcing Continuation",
         message: `Resuming in ${seconds}s... (${incompleteCount} tasks remaining)`,
         variant: "warning" as const,
         duration: TOAST_DURATION_MS,
       },
-    }).catch(() => {})
+    }).catch((err: unknown) => {
+      console.warn("[todo-continuation-enforcer] Failed to show continuation toast:", err)
+    })
   }
 
   interface ResolvedMessageInfo {

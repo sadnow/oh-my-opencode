@@ -718,7 +718,9 @@ tool: {
                 body: { parts: [{ type: "text", text: "continue" }] },
                 query: { directory: ctx.directory },
               })
-              .catch(() => {});
+              .catch((err: unknown) => {
+                console.warn("[auto-continue] Failed to send continue prompt:", err)
+              });
           }
         }
       }

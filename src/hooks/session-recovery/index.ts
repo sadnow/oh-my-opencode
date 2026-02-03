@@ -357,7 +357,9 @@ export function createSessionRecoveryHook(ctx: PluginInput, options?: SessionRec
         onAbortCallback(sessionID)  // Mark recovering BEFORE abort
       }
 
-      await ctx.client.session.abort({ path: { id: sessionID } }).catch(() => {})
+      await ctx.client.session.abort({ path: { id: sessionID } }).catch((err: unknown) => {
+        console.warn("[session-recovery] Failed to abort session:", err)
+      })
 
       const messagesResp = await ctx.client.session.messages({
         path: { id: sessionID },
@@ -390,7 +392,9 @@ export function createSessionRecoveryHook(ctx: PluginInput, options?: SessionRec
             duration: 3000,
           },
         })
-        .catch(() => {})
+        .catch((err: unknown) => {
+          console.warn("[session-recovery] Failed to show recovery toast:", err)
+        })
 
       let success = false
 
