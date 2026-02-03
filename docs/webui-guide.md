@@ -1,7 +1,7 @@
 # oh-im-broke WebUI Guide
 
-**Version**: 3.0  
-**Last Updated**: 2026-01-31
+**Version**: 3.1  
+**Last Updated**: 2026-02-03
 
 ---
 
@@ -12,7 +12,7 @@ The oh-im-broke WebUI is a **dense, professional budget analytics dashboard** de
 ### Key Features
 
 - **Compact Design**: 30% more content visible on screen compared to standard dashboards
-- **8 Visualization Components**: Heatmaps, timelines, gauges, leaderboards, and more
+- **27 Visualization Components**: Heatmaps, timelines, gauges, leaderboards, forecasting, anomaly detection, and more
 - **Real-time Updates**: 30-second polling (WebSocket backend ready for future enhancement)
 - **Zero External Dependencies**: All charts built with native SVG
 - **Professional Aesthetic**: Bloomberg Terminal-inspired dark theme
@@ -133,29 +133,35 @@ bun run webui --port 8080 --bind 0.0.0.0
   - Filter by provider, model, date range
   - Search by session ID or prompt
 - **Audit Trail**: Historical routing decisions
-- **Logged Alerts**: Budget alerts and warnings
+- **Logged Alerts Panel**: Budget alerts and warnings with level/category filtering
+- **Anomaly Indicator**: Spending anomaly detection display (spikes, sustained high, sudden drops) with dismissal support
 
 **Use Cases**:
 - Debug unexpected model selections
 - Audit routing logic
 - Track tier changes
 - Investigate cost spikes
+- Monitor spending anomalies in real time
 
 ### 5. Settings Tab
 
 **Purpose**: Configure adaptive budget settings and overrides
 
 **Components**:
-- **Adaptive Settings**: Configure learning mode, auto-upgrade/downgrade
-- **Quota Targets**: Set target utilization percentages
+- **Settings**: Configure learning mode, auto-upgrade/downgrade, quota targets, Zen budget
+- **Preset Wizard**: Step-by-step budget preset configuration (providers, budget level, preference)
+- **Preset Comparison**: Side-by-side comparison of all available presets with category breakdowns
 - **Global Overrides**: Emergency mode, max tier limits, provider disabling
-- **Zen Usage Override**: Manual budget adjustments
+- **Mode Toggle**: Switch between beginner and power-user display modes
+- **Export Button / Export Modal**: Export usage data, config, presets, and routing logs as CSV or JSON
 
 **Use Cases**:
 - Enable/disable adaptive features
 - Set emergency budget limits
 - Override automatic decisions
 - Fine-tune budget behavior
+- Compare and select budget presets
+- Export data for external analysis
 
 ---
 
@@ -278,6 +284,144 @@ bun run webui --port 8080 --bind 0.0.0.0
 - Filterable by type
 - Clickable for details
 
+### Forecast Widget
+
+**What it shows**: Budget forecasting with multiple time horizons
+
+**Predictions**:
+- **24-hour**: Short-term spending forecast
+- **7-day**: Weekly spending projection
+- **30-day**: Monthly spending projection
+
+**Metrics**:
+- Prediction accuracy (color-coded: green >= 80%, yellow >= 50%, red < 50%)
+- Spending velocity vs. hourly allowance
+- Trend direction (up/down/flat)
+- Learning progress indicator
+
+### ROI Comparison
+
+**What it shows**: Return on investment comparison across models
+
+**Features**:
+- Current model cost vs. alternative models
+- Per-alternative savings amount and percentage
+- Input/output token counts
+- Tier-based grouping of alternatives
+
+**Use Cases**:
+- Identify cheaper model alternatives
+- Quantify potential savings
+- Make informed model selection decisions
+
+### Task Cost Breakdown
+
+**What it shows**: Per-task cost analysis by category and type
+
+**Features**:
+- Period selector (24h, week, month)
+- Category-based cost breakdown with color coding
+- Task type grouping (Primary, Background, Subagent)
+- Percentage distribution visualization
+
+**Use Cases**:
+- Understand where budget is being spent
+- Optimize task delegation strategy
+- Identify expensive task categories
+
+### Health Indicator
+
+**What it shows**: System health status from the health-check endpoint
+
+**Checks Monitored**:
+- File existence
+- Recent updates
+- Recent records
+- Zero output token detection
+- Cost validation
+
+**Stats Displayed**:
+- Total and recent record counts
+- Average input/output tokens
+- Average cost per call
+- Last update age
+
+### Anomaly Indicator
+
+**What it shows**: Spending anomaly detection and alerts
+
+**Anomaly Types**:
+- **Spike**: Sudden spending increase (red)
+- **Sustained High**: Prolonged elevated spending (yellow)
+- **Sudden Drop**: Unexpected spending decrease (blue)
+
+**Features**:
+- Active anomaly count badge
+- Dismissible anomaly cards
+- Color-coded by severity type
+
+### Logged Alerts Panel
+
+**What it shows**: Alert log viewer with filtering
+
+**Log Entry Fields**:
+- Timestamp, level (info/warning/error/decision), category, message, metadata
+
+**Filter Options**:
+- By level: All, Info, Warning, Error, Decision
+- By category: Tier Change, Upgrade/Downgrade Scheduled/Executed, Budget Alert, Override, Adaptive
+
+### Preset Wizard
+
+**What it shows**: Step-by-step budget preset configuration
+
+**Wizard Steps**:
+1. **Providers**: Select active providers (Anthropic, OpenAI, Google, GitHub Copilot, OpenCode)
+2. **Budget**: Choose budget level (Budget-Friendly, Balanced, Quality-Focused, No Limits)
+3. **Preference**: Set priority (Quality First, Speed First, Balanced)
+4. **Recommendation**: Review recommended preset
+5. **Complete**: Apply selected preset
+
+### Preset Comparison
+
+**What it shows**: Side-by-side comparison of all available presets
+
+**Features**:
+- Searchable category filter
+- Cost-per-hour estimates with "cheapest" badge
+- Category-level model/tier comparison across presets
+- Required providers listed per preset
+
+### Mode Toggle
+
+**What it shows**: Display mode switcher
+
+**Modes**:
+- **Beginner**: Simplified interface with essential information
+- **Power User**: Full-detail interface with all metrics
+
+### Export Button / Export Modal
+
+**What it shows**: Data export functionality
+
+**Export Formats**: CSV, JSON
+
+**Exportable Data**:
+- Usage records
+- Configuration
+- Presets
+- Routing logs
+
+### Density Toggle
+
+**What it shows**: Display density switcher
+
+**Modes**:
+- **Compact** (default): Minimal padding, smaller fonts, maximum information density
+- **Comfortable**: Increased padding, slightly larger fonts, more whitespace
+
+Persists preference in localStorage.
+
 ---
 
 ## Design System
@@ -380,7 +524,7 @@ The WebUI backend exposes the following REST API endpoints:
 
 - `GET /api/routing-logs?limit=100` - Routing decision logs
 - `GET /api/alerts` - Budget alerts and warnings
-- `GET /api/anomalies` - Detected spending anomalies
+- `GET /api/anomalies?provider=&type=&since=&limit=100` - Detected spending anomalies (filterable)
 
 ### Configuration
 
@@ -388,6 +532,43 @@ The WebUI backend exposes the following REST API endpoints:
 - `POST /api/adaptive/settings` - Update adaptive settings
 - `GET /api/config` - Current configuration
 - `POST /api/config` - Update configuration
+
+### Orchestration
+
+- `GET /api/orchestration/tiers` - Model tier definitions
+- `GET /api/orchestration/model/:model/tier` - Get tier for a specific model
+- `POST /api/orchestration/check-downgrade` - Check downgrade eligibility
+- `GET /api/orchestration/recommendations` - Get model recommendations
+- `GET /api/orchestration/status` - Orchestration status
+
+### Global Overrides
+
+- `GET /api/global-override` - Current global override state
+- `GET /api/global-override/fallbacks` - Fallback model lists per use case
+- `GET /api/global-override/best-model/:useCase` - Best model for a use case
+- `POST /api/global-override/provider/disable` - Disable a provider
+- `POST /api/global-override/provider/enable` - Enable a provider
+- `POST /api/global-override/max-tier` - Set maximum tier limit
+- `POST /api/global-override/emergency-mode` - Toggle emergency mode
+- `POST /api/global-override/auto-disable-quota` - Auto-disable on quota exhaustion
+- `POST /api/global-override/clear` - Clear all overrides
+
+### Presets & Wizard
+
+- `GET /api/presets` - List all available orchestration presets
+- `GET /api/preset/:name` - Get a specific preset configuration
+- `GET /api/learning-modes` - Get available learning modes
+- `POST /api/preset/:name` - Apply a preset
+- `POST /api/wizard` - Run the configuration wizard
+- `GET /api/features` - Get feature flags
+- `POST /api/features/:name` - Toggle a feature
+
+### Export
+
+- `GET /api/export/usage?format=csv|json` - Export usage records
+- `GET /api/export/config` - Export configuration as JSON
+- `GET /api/export/presets?format=csv|json` - Export presets
+- `GET /api/export/routing-logs` - Export routing logs as CSV
 
 ### Health & Monitoring
 
@@ -544,17 +725,25 @@ bun run dev
 
 ### Testing
 
+Tests use `bun:test` with `happy-dom` for DOM simulation. Current status: 146 tests across 17 files (123 passing, 23 skipped, 0 failing).
+
 ```bash
-# Type check
-cd src/webui/frontend
-bun run typecheck
+# Run WebUI frontend tests
+bun run test:webui
+
+# Run all tests (includes webui route tests)
+bun run test
 
 # Build (validates production bundle)
+cd src/webui/frontend
 bun run build
-
-# E2E tests (when implemented)
-bun run test:e2e
 ```
+
+**Test coverage includes**:
+- Frontend component rendering and interaction tests
+- Backend route handler unit tests
+- API response format validation
+- Export functionality (CSV/JSON)
 
 ---
 
@@ -578,9 +767,10 @@ bun run test:e2e
 
 ### Q: Can I export data?
 
-**A**: Yes! Use the export endpoints:
-- `/api/export/usage` - Export usage data as CSV
+**A**: Yes! Use the Export Button in the dashboard header, or call the export endpoints directly:
+- `/api/export/usage?format=csv|json` - Export usage data
 - `/api/export/config` - Export configuration as JSON
+- `/api/export/presets?format=csv|json` - Export presets
 - `/api/export/routing-logs` - Export routing logs as CSV
 
 ### Q: How do I reset all data?
@@ -604,6 +794,35 @@ For issues, questions, or feature requests:
 ---
 
 ## Changelog
+
+### Version 3.1 (2026-02-03)
+
+**Added**:
+- 19 new visualization components (27 total, up from 8)
+- Forecast Widget with 24h/7d/30d budget predictions
+- ROI Comparison for cross-model cost analysis
+- Task Cost Breakdown with per-category spending
+- Health Indicator for system health monitoring
+- Anomaly Indicator for spending anomaly detection
+- Logged Alerts Panel with level/category filtering
+- Preset Wizard for step-by-step budget configuration
+- Preset Comparison for side-by-side preset analysis
+- Mode Toggle (beginner/power-user display modes)
+- Export Button and Export Modal for data export (CSV/JSON)
+- Density Toggle for compact/comfortable display modes
+- Orchestration API endpoints (tiers, model lookup, recommendations)
+- Global Override API endpoints (provider disable/enable, emergency mode)
+- Preset and Wizard API endpoints
+- Export API endpoints (usage, config, presets, routing logs)
+
+**Changed**:
+- Testing migrated from vitest to `bun:test` with `happy-dom`
+- Test commands updated: `bun run test:webui` for frontend, `bun run test` for all
+- 146 tests across 17 files (123 passing, 23 skipped)
+
+**Fixed**:
+- Test framework alignment with project standard (bun:test)
+- Documentation accuracy for component count and API endpoints
 
 ### Version 3.0 (2026-01-31)
 
@@ -635,10 +854,9 @@ For issues, questions, or feature requests:
 - WebSocket frontend not implemented (polling works)
 - Mobile responsive design not implemented
 - Keyboard shortcuts not implemented
-- E2E tests not created
 
 ---
 
-**Last Updated**: 2026-01-31  
+**Last Updated**: 2026-02-03  
 **Maintainer**: oh-im-broke team  
 **License**: Same as oh-im-broke project
