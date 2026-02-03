@@ -103,6 +103,7 @@ export class BackgroundManager {
   private queuesByKey: Map<string, QueueItem[]> = new Map()
   private processingKeys: Set<string> = new Set()
   private completingTasks: Set<string> = new Set()  // Prevent race conditions in tryCompleteTask
+  private removalTimers: Map<string, ReturnType<typeof setTimeout>> = new Map()  // Track task removal timers for cleanup
 
   constructor(
     ctx: PluginInput,
@@ -1213,14 +1214,18 @@ Use \`background_output(task_id="${task.id}")\` to retrieve this result when rea
     }
 
     const taskId = task.id
-    setTimeout(() => {
+    const timerId = setTimeout(() => {
       // Guard: Only delete if task still exists (could have been deleted by session.deleted event)
       if (this.tasks.has(taskId)) {
         this.clearNotificationsForTask(taskId)
         this.tasks.delete(taskId)
+        this.removalTimers.delete(taskId)
         log("[background-agent] Removed completed task from memory:", taskId)
       }
     }, 5 * 60 * 1000)
+    
+    // Store timer ID so it can be cleared on shutdown or early deletion
+    this.removalTimers.set(taskId, timerId)
   }
 
   private formatDuration(start: Date, end?: Date): string {
@@ -1552,6 +1557,13 @@ Use \`background_output(task_id="${task.id}")\` to retrieve this result when rea
     this.shutdownTriggered = true
     log("[background-agent] Shutting down BackgroundManager")
     this.stopPolling()
+
+    // Clear all pending task removal timers
+    for (const timerId of this.removalTimers.values()) {
+      clearTimeout(timerId)
+    }
+    this.removalTimers.clear()
+    log("[background-agent] Cleared " + this.removalTimers.size + " removal timers")
 
     // Release concurrency for all running tasks first
     for (const task of this.tasks.values()) {
