@@ -37,7 +37,7 @@ oh-my-opencode is a Claude Code plugin that adds:
 | Constraint | Rule |
 |------------|------|
 | Push target | `origin` (sadnow/oh-my-opencode) only, **NEVER** upstream |
-| GitHub issues | **NEVER** create issues on `code-yeongyu/oh-my-opencode` - that's spam. Our fork uses markdown files in `.sisyphus/` for tracking |
+| GitHub issues | Create on `sadnow/oh-my-opencode` (our fork), **NEVER** on `code-yeongyu/oh-my-opencode` (upstream = spam) |
 | Test files | Fix code, not tests - **NEVER** delete/modify tests to pass builds |
 | Ultimate fallback | `opencode/big-pickle` - always keep last in fallback lists |
 | Free provider | `opencode` provider always available (no API key required) |
