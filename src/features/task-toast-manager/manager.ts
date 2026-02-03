@@ -172,7 +172,9 @@ export class TaskToastManager {
         variant: "info",
         duration: running.length + queued.length > 2 ? 5000 : 3000,
       },
-    }).catch(() => {})
+    }).catch((err: unknown) => {
+      console.warn("[task-toast-manager] Failed to show task started toast:", err)
+    })
   }
 
   /**
@@ -200,7 +202,9 @@ export class TaskToastManager {
         variant: "success",
         duration: 5000,
       },
-    }).catch(() => {})
+    }).catch((err: unknown) => {
+      console.warn("[task-toast-manager] Failed to show task completion toast:", err)
+    })
   }
 }
 
