@@ -58,6 +58,8 @@ function getConnectionType(config: ClaudeCodeMcpServer): ConnectionType | null {
   return null
 }
 
+const CONNECTION_TIMEOUT = 30000 // 30 seconds timeout for MCP connections
+
 export class SkillMcpManager {
   private clients: Map<string, ManagedClient> = new Map()
   private pendingConnections: Map<string, Promise<Client>> = new Map()
@@ -216,7 +218,13 @@ export class SkillMcpManager {
     )
 
     try {
-      await client.connect(transport)
+      // Wrap connection with timeout to prevent indefinite hangs
+      await Promise.race([
+        client.connect(transport),
+        new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error(`Connection timeout after ${CONNECTION_TIMEOUT}ms`)), CONNECTION_TIMEOUT)
+        ),
+      ])
     } catch (error) {
       try {
         await transport.close()
@@ -283,7 +291,13 @@ export class SkillMcpManager {
     )
 
     try {
-      await client.connect(transport)
+      // Wrap connection with timeout to prevent indefinite hangs
+      await Promise.race([
+        client.connect(transport),
+        new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error(`Connection timeout after ${CONNECTION_TIMEOUT}ms`)), CONNECTION_TIMEOUT)
+        ),
+      ])
     } catch (error) {
       // Close transport to prevent orphaned MCP process on connection failure
       try {
