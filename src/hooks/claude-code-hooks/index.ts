@@ -223,7 +223,9 @@ export function createClaudeCodeHooksHook(
                 duration: 4000,
               },
             })
-            .catch(() => {})
+            .catch((err: unknown) => {
+              log("[claude-code-hooks] Failed to inject env vars toast:", err)
+            })
           throw new Error(result.reason ?? "Hook blocked the operation")
         }
 
@@ -290,7 +292,9 @@ export function createClaudeCodeHooksHook(
                 duration: 4000,
               },
             })
-            .catch(() => {})
+            .catch((err: unknown) => {
+              log("[claude-code-hooks] Failed to inject env vars toast:", err)
+            })
         }
 
         if (result.warnings && result.warnings.length > 0) {
@@ -311,7 +315,9 @@ export function createClaudeCodeHooksHook(
                 duration: 2000,
               },
             })
-            .catch(() => {})
+            .catch((err: unknown) => {
+              log("[claude-code-hooks] Failed to inject env vars toast:", err)
+            })
         }
       }
     },
