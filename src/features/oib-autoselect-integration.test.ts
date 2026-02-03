@@ -139,8 +139,8 @@ describe("OIB-Autoselect Integration", () => {
         output
       )
 
-      //#then - Should fallback to gpt-4o-mini
-      expect(output.message.model).toEqual({ providerID: "opencode", modelID: "gpt-4o-mini" })
+      //#then - Should fallback to big-pickle
+      expect(output.message.model).toEqual({ providerID: "opencode", modelID: "big-pickle" })
     })
 
     it("should preserve other providers when injecting virtual provider", async () => {
@@ -338,8 +338,8 @@ describe("OIB-Autoselect Integration", () => {
         output
       )
 
-      //#then - Should fallback to gpt-4o-mini
-      expect(output.message.model).toEqual({ providerID: "opencode", modelID: "gpt-4o-mini" })
+      //#then - Should fallback to big-pickle
+      expect(output.message.model).toEqual({ providerID: "opencode", modelID: "big-pickle" })
     })
 
     it("should handle orchestrator returning empty string", async () => {
@@ -363,8 +363,8 @@ describe("OIB-Autoselect Integration", () => {
         output
       )
 
-      //#then - Should fallback to gpt-4o-mini
-      expect(output.message.model).toEqual({ providerID: "opencode", modelID: "gpt-4o-mini" })
+      //#then - Should fallback to big-pickle
+      expect(output.message.model).toEqual({ providerID: "opencode", modelID: "big-pickle" })
     })
 
     it("should handle undefined input.model gracefully", async () => {

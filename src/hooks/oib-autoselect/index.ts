@@ -17,7 +17,7 @@ export type BudgetOrchestrator = ActualBudgetOrchestrator
 
 const VIRTUAL_MODEL_ID = "oh-im-broke/oib-autoselect"
 const VIRTUAL_PROVIDER_ID = "oh-im-broke"
-const DEFAULT_FALLBACK_MODEL = "opencode/gpt-4o-mini"
+const DEFAULT_FALLBACK_MODEL = "opencode/big-pickle"
 
 // In-memory cache of tracked sessions (synced with file storage)
 // Loaded from disk on first access, persisted on changes

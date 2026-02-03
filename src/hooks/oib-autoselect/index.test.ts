@@ -95,7 +95,7 @@ describe("oib-autoselect hook", () => {
       output
     )
 
-    expect(output.message.model).toEqual({ providerID: "opencode", modelID: "gpt-4o-mini" })
+    expect(output.message.model).toEqual({ providerID: "opencode", modelID: "big-pickle" })
   })
 
   it("should use fallback model when getBestModelForUseCase returns invalid format", async () => {
@@ -117,7 +117,7 @@ describe("oib-autoselect hook", () => {
       output
     )
 
-    expect(output.message.model).toEqual({ providerID: "opencode", modelID: "gpt-4o-mini" })
+    expect(output.message.model).toEqual({ providerID: "opencode", modelID: "big-pickle" })
   })
 
   it("should use fallback model when getBestModelForUseCase returns multiple slashes", async () => {
@@ -139,7 +139,7 @@ describe("oib-autoselect hook", () => {
       output
     )
 
-    expect(output.message.model).toEqual({ providerID: "opencode", modelID: "gpt-4o-mini" })
+    expect(output.message.model).toEqual({ providerID: "opencode", modelID: "big-pickle" })
   })
 
   it("should use fallback model when getBestModelForUseCase returns empty parts", async () => {
@@ -161,7 +161,7 @@ describe("oib-autoselect hook", () => {
       output
     )
 
-    expect(output.message.model).toEqual({ providerID: "opencode", modelID: "gpt-4o-mini" })
+    expect(output.message.model).toEqual({ providerID: "opencode", modelID: "big-pickle" })
   })
 
   it("should handle different model selections from orchestrator", async () => {
