@@ -6,6 +6,7 @@
 
 import { log } from "../../shared"
 import type { BudgetConfig, ModelTier, LearningMode, AdaptiveConfig, QuotaTargets } from "../../config/schema"
+import { initHybridProviderTracker } from "./hybrid-tracker"
 import { LEARNING_MODE_PRESETS } from "../../cli/wizard/generator"
 import type {
   BudgetState,
@@ -119,6 +120,20 @@ export class BudgetOrchestrator {
     
     // Initialize global override manager
     this.globalOverrideManager = getGlobalOverrideManager()
+
+    // Initialize hybrid provider tracker from config
+    if (migratedConfig.hybrid_providers) {
+      try {
+        initHybridProviderTracker({
+          providers: migratedConfig.hybrid_providers
+        })
+        log("[budget-orchestrator] Hybrid provider tracker initialized", {
+          providers: Object.keys(migratedConfig.hybrid_providers)
+        })
+      } catch (error) {
+        log("[budget-orchestrator] Failed to initialize hybrid provider tracker:", error)
+      }
+    }
 
     // Initialize managers
     this.subscriptionManager = new SubscriptionBudgetManager(

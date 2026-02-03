@@ -106,11 +106,13 @@ export class UsageTracker {
     })
 
     // Track BYOK usage in hybrid provider tracker
-    if (input.model.startsWith('opencode/')) {
+    if (input.provider === 'opencode') {
       try {
         const tracker = getHybridProviderTracker()
-        tracker.recordUsage(input.model, input.inputTokens + input.outputTokens)
-      } catch (error) {
+        // recordUsage expects full model ID (e.g., "opencode/gpt-5-nano")
+        const fullModelId = `${input.provider}/${input.model}`
+        tracker.recordUsage(fullModelId, input.inputTokens + input.outputTokens)
+      } catch {
         // Hybrid tracker not initialized - ignore
       }
     }
