@@ -53,6 +53,21 @@ oh-my-opencode is a Claude Code plugin that adds:
 - **Conventional commits**: `feat:`, `fix:`, `docs:`, `refactor:`, `test:`
 - **Verify before push**: `bun run typecheck && bun test`
 
+## Work Tracking
+
+**Use GitHub Issues** on our fork (`sadnow/oh-my-opencode`) for:
+- Feature planning (break into sub-issues)
+- Bug tracking with reproduction steps
+- Research tasks and architectural decisions
+- Session crash/OOM documentation
+
+```bash
+# Create issue
+gh issue create --repo sadnow/oh-my-opencode --title "feat: ..." --body "..."
+# Add comment
+gh issue comment <num> --repo sadnow/oh-my-opencode --body "..."
+```
+
 ## Anti-Regression Rules
 
 ### NEVER Remove or Modify
