@@ -7,7 +7,7 @@
 import * as fs from "fs"
 import * as path from "path"
 import { homedir } from "os"
-import { execSync } from "child_process"
+import { spawn } from "bun"
 import { log } from "../../shared"
 
 // ============================================================================
@@ -163,10 +163,34 @@ function mapPlanType(apiPlan?: string): "free" | "pro" | "business" | "enterpris
  * Fetch Copilot usage from GitHub internal API
  */
 async function fetchFromGitHubAPI(): Promise<CopilotFetchResult> {
-  // Get gh token
+  // Get gh token with timeout to prevent indefinite hangs
   let token: string
   try {
-    token = execSync("gh auth token", { encoding: "utf-8", stdio: ["pipe", "pipe", "pipe"] }).trim()
+    const proc = spawn(["gh", "auth", "token"], {
+      stdout: "pipe",
+      stderr: "pipe",
+    })
+
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      setTimeout(() => {
+        proc.kill()
+        reject(new Error("gh auth token timed out after 5000ms"))
+      }, 5000)
+    })
+
+    const exitCode = await Promise.race([proc.exited, timeoutPromise])
+    
+    if (exitCode !== 0) {
+      log("[copilot-usage] gh auth token failed with exit code " + exitCode)
+      return {
+        percentUsed: 0,
+        needsAuth: true,
+        error: "GitHub CLI not authenticated. Run 'gh auth login' to authenticate.",
+      }
+    }
+
+    const stdout = await new Response(proc.stdout).text()
+    token = stdout.trim()
   } catch (err) {
     log("[copilot-usage] Failed to get gh token: " + String(err))
     return {
