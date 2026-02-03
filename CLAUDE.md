@@ -136,6 +136,18 @@ src/webui/
 | Routes | Add catch-all before specific | Specific routes first |
 | Async | Skip await in API handlers | Always await fetch calls |
 
+## Test Pollution Prevention (CRITICAL)
+
+**Bun's `mock.module()` is GLOBAL and PERMANENT** - `mock.restore()` does NOT undo it.
+
+| Don't | Do |
+|-------|-----|
+| `mock.module("../../shared/x")` at module level | Use real module with `_resetForTesting()` |
+| Mock shared modules (system-directive, session-state) | Import real module, use setup/teardown functions |
+| Assume test isolation | Add `_resetForTesting()` to `beforeEach` |
+
+**If you MUST mock a shared module**: Ensure ALL exports are provided, not just the ones your test needs.
+
 ## Adding New Features
 
 When adding budget-related features:
