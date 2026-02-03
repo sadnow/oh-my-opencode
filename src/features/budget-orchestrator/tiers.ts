@@ -33,8 +33,7 @@ export const MODEL_TIERS: Record<ModelTier, TierConfig> = {
       "opencode/gpt-5.2-codex",
       // OpenCode Zen BYOK - OpenAI premium (user's own key, free/cheap through Zen)
       "opencode/gpt-5.2",
-      // OpenCode Zen BYOK - Google premium
-      "opencode/gemini-3-pro",
+      // opencode/gemini-3-pro — EXCLUDED: Zen proxy 500 (see ZEN_KNOWN_BROKEN_MODELS)
       "openai/gpt-5.2-pro",
       // Google premium - Gemini 3 Pro
       "google/gemini-3-pro-preview",
@@ -100,8 +99,7 @@ export const MODEL_TIERS: Record<ModelTier, TierConfig> = {
       "opencode/kimi-k2-thinking-turbo",
       "opencode/kimi-k2",
       "opencode/big-pickle",
-      // OpenCode Zen BYOK - Google budget (user's own key)
-      "opencode/gemini-3-flash",
+      // opencode/gemini-3-flash — EXCLUDED: Zen proxy 500 (see ZEN_KNOWN_BROKEN_MODELS)
       // OpenAI budget
       "openai/gpt-4.1-mini",
       "opencode/gpt-5.1-codex-mini",
@@ -131,7 +129,7 @@ export const MODEL_TIERS: Record<ModelTier, TierConfig> = {
       // OpenCode economy - Qwen3 Coder
       "opencode/qwen3-coder",
       "opencode/minimax-m2.1",
-      "opencode/minimax-m2.1-free",
+      // opencode/minimax-m2.1-free — EXCLUDED: Zen proxy 500 (see ZEN_KNOWN_BROKEN_MODELS)
       "opencode/qwen3-coder-30b-a3b",
       "opencode/qwen3-coder-480b-a35b-instruct",
       "opencode/glm-4.5-flash",
