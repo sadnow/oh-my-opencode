@@ -70,9 +70,9 @@ export const USE_CASE_FALLBACKS = {
     "openai/gpt-4.1-nano",               // Very fast
     "anthropic/claude-haiku-4-5",        // Fast Claude
     "github-copilot/claude-haiku-4.5",   // Fast Claude via Copilot (0.33x)
-    "opencode/glm-4.7-flash",            // Fast GLM
+    "opencode/glm-4.7-free",             // Free GLM (Zen)
     "opencode/glm-4.6",                  // Budget GLM
-    "opencode/qwen3-coder-flash",        // Fast Qwen
+    "opencode/kimi-k2.5-free",           // Free Kimi (Zen)
     "opencode/big-pickle",               // Ultimate fallback
   ],
   
@@ -134,8 +134,8 @@ export const USE_CASE_FALLBACKS = {
     "anthropic/claude-haiku-4-5",        // Fast Claude
     "openai/gpt-4.1-nano",               // Very fast
     "opencode/glm-4.6",                  // Fast budget
-    "opencode/glm-4.7-flash",            // Fast GLM
-    "opencode/qwen3-coder-flash",        // Fast Qwen
+    "opencode/glm-4.7-free",             // Free GLM (Zen)
+    "opencode/kimi-k2.5-free",           // Free Kimi (Zen)
     "opencode/big-pickle",               // Ultimate fallback
   ],
   
@@ -163,7 +163,7 @@ export const USE_CASE_FALLBACKS = {
     "google/gemini-2.5-flash",           // Fast
     "github-copilot/claude-haiku-4.5",   // Fast Claude via Copilot (0.33x)
     "anthropic/claude-haiku-4-5",        // Fast Claude
-    "opencode/glm-4.7-flash",            // Fast GLM
+    "opencode/glm-4.7-free",             // Free GLM (Zen)
     "opencode/glm-4.6",                  // Budget
     "opencode/big-pickle",               // Ultimate fallback
   ],
@@ -931,7 +931,7 @@ export class GlobalOverrideManager {
     // Standard models
     const standardPatterns = ["sonnet", "gpt-5.2", "gpt-5.1", "o1", "gemini-2.5-pro", "glm-4.7", "kimi-k2.5"]
     // Budget models
-    const budgetPatterns = ["haiku", "flash", "glm-4.7-flash", "kimi-k2-thinking", "mini"]
+    const budgetPatterns = ["haiku", "flash", "glm-4.7-free", "kimi-k2-thinking", "mini"]
     // Economy is everything else
     
     const lowerModel = modelId.toLowerCase()
