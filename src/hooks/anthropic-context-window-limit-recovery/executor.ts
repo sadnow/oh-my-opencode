@@ -216,7 +216,9 @@ async function fixEmptyMessages(
             duration: 5000,
           },
         })
-        .catch(() => {});
+        .catch((err: unknown) => {
+          log("[auto-compact] Failed to show empty content error toast:", err)
+        });
       return false;
     }
 
@@ -249,7 +251,9 @@ async function fixEmptyMessages(
           duration: 3000,
         },
       })
-      .catch(() => {});
+      .catch((err: unknown) => {
+        log("[auto-compact] Failed to show session recovery toast:", err)
+      });
   }
 
   return fixed;
@@ -275,7 +279,9 @@ export async function executeCompact(
           duration: 5000,
         },
       })
-      .catch(() => {});
+      .catch((err: unknown) => {
+        log("[auto-compact] Failed to show compact in progress toast:", err)
+      });
     return;
   }
   autoCompactState.compactionInProgress.add(sessionID);
@@ -329,7 +335,9 @@ export async function executeCompact(
               duration: 4000,
             },
           })
-          .catch(() => {});
+          .catch((err: unknown) => {
+            log("[auto-compact] Failed to show truncation result toast:", err)
+          });
 
         log("[auto-compact] aggressive truncation completed", aggressiveResult);
 
@@ -396,7 +404,9 @@ export async function executeCompact(
               duration: 10000,
             },
           })
-          .catch(() => {});
+          .catch((err: unknown) => {
+            log("[auto-compact] Failed to show recovery failed toast:", err)
+          });
         return;
       }
     }
@@ -426,7 +436,9 @@ export async function executeCompact(
                 duration: 3000,
               },
             })
-            .catch(() => {});
+            .catch((err: unknown) => {
+              log("[auto-compact] Failed to show auto compact toast:", err)
+            });
 
           const summarizeBody = { providerID, modelID, auto: true }
           await (client as Client).session.summarize({
@@ -463,7 +475,9 @@ export async function executeCompact(
               duration: 3000,
             },
           })
-          .catch(() => {});
+          .catch((err: unknown) => {
+            log("[auto-compact] Failed to show summarize skipped toast:", err)
+          });
       }
     }
 
@@ -478,7 +492,9 @@ export async function executeCompact(
           duration: 5000,
         },
       })
-      .catch(() => {});
+      .catch((err: unknown) => {
+        log("[auto-compact] Failed to show auto compact failed toast:", err)
+      });
   } finally {
     autoCompactState.compactionInProgress.delete(sessionID);
   }

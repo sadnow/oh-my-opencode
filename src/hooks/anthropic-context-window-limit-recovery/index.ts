@@ -59,16 +59,18 @@ export function createAnthropicContextWindowLimitRecoveryHook(ctx: PluginInput, 
         const providerID = parsed.providerID ?? (lastAssistant?.providerID as string | undefined)
         const modelID = parsed.modelID ?? (lastAssistant?.modelID as string | undefined)
 
-        await ctx.client.tui
-          .showToast({
-            body: {
-              title: "Context Limit Hit",
-              message: "Truncating large tool outputs and recovering...",
-              variant: "warning" as const,
-              duration: 3000,
-            },
-          })
-          .catch(() => {})
+      await ctx.client.tui
+        .showToast({
+          body: {
+            title: "Context Limit Hit",
+            message: "Truncating large tool outputs and recovering...",
+            variant: "warning" as const,
+            duration: 3000,
+          },
+        })
+        .catch((err: unknown) => {
+          log("[auto-compact] Failed to show context limit hit toast:", err)
+        })
 
         setTimeout(() => {
           executeCompact(
@@ -128,7 +130,9 @@ export function createAnthropicContextWindowLimitRecoveryHook(ctx: PluginInput, 
             duration: 3000,
           },
         })
-        .catch(() => {})
+        .catch((err: unknown) => {
+          log("[auto-compact] Failed to show auto compact toast:", err)
+        })
 
       await executeCompact(
         sessionID,
