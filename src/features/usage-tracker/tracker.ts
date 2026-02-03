@@ -70,6 +70,7 @@ export class UsageTracker {
   private storage: UsageStorage
   private dirty = false
   private saveTimeout?: ReturnType<typeof setTimeout>
+  private lastPruneTime = 0  // Track last prune time to prevent excessive pruning
 
   constructor(config?: Partial<UsageTrackerConfig>) {
     this.config = {
@@ -561,6 +562,14 @@ export class UsageTracker {
    */
   flush(): void {
     if (this.dirty && this.config.persist) {
+      // Prune old records periodically (every hour) to prevent unbounded growth
+      const now = Date.now()
+      const ONE_HOUR = 60 * 60 * 1000
+      if (now - this.lastPruneTime > ONE_HOUR) {
+        this.pruneOldRecords()
+        this.lastPruneTime = now
+      }
+      
       saveUsageStorage(this.storage, this.config.storagePath)
       this.dirty = false
     }
