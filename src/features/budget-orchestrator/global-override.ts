@@ -258,9 +258,11 @@ const COPILOT_FREE_MODELS = new Set([
 
 // OpenCode free models - these should be prioritized when available
 const OPENCODE_FREE_MODELS = new Set([
+  "big-pickle",
   "glm-4.7-free",
-  "glm-4.6-free",
-  "qwen3-coder-free",
+  "kimi-k2.5-free",
+  "minimax-m2.1-free",
+  "gpt-5-nano",
 ])
 
 // ============================================================================
@@ -841,7 +843,11 @@ export class GlobalOverrideManager {
     }
 
     // Check if this is a BYOK model whose underlying provider's free tier is exhausted
-    if (provider === "opencode") {
+    if (provider === "opencode" && this.isOpencodeFreeModel(modelId)) {
+      // Free OpenCode models bypass BYOK exhaustion check
+      // gpt-5-nano is free on Zen even though it's an OpenAI model
+      // Don't block it when OpenAI free tier is exhausted
+    } else if (provider === "opencode") {
       const underlyingProvider = detectUnderlyingProvider(model)
       if (underlyingProvider) {
         // This is a BYOK model - check if underlying provider exhausted

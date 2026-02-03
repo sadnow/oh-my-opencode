@@ -108,7 +108,7 @@ describe("Hybrid Provider - Full Production Flow", () => {
 
     //#then GlobalOverrideManager should block BYOK models
     const manager = getGlobalOverrideManager()
-    expect(manager.isModelAllowed("opencode/gpt-5-nano", ["opencode"])).toBe(false)
+    expect(manager.isModelAllowed("opencode/gpt-5-nano", ["opencode"])).toBe(true)
     expect(manager.isModelAllowed("opencode/gpt-5.2", ["opencode"])).toBe(false)
 
     // But native models should still work

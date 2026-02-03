@@ -328,6 +328,14 @@ describe("GlobalOverrideManager", () => {
       expect(manager.isModelAllowed("opencode/gpt-4o", ["opencode"])).toBe(false)
     })
 
+    it("allows opencode/gpt-5-nano when openai free tier exhausted", () => {
+      const manager = createFreshManager({
+        copilotUsageProvider: () => ({ percentUsed: 0 }),
+        hybridUsageProvider: () => ({ exhaustedProviders: ["openai"] }),
+      })
+      expect(manager.isModelAllowed("opencode/gpt-5-nano", ["opencode"])).toBe(true)
+    })
+
     it("allows opencode/big-pickle when openai exhausted (native model)", () => {
       const manager = createFreshManager({
         copilotUsageProvider: () => ({ percentUsed: 0 }),
