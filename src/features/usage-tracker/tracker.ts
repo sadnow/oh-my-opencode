@@ -28,6 +28,10 @@ import {
   getResetSchedule,
 } from "./reset-schedules"
 
+// Hybrid provider tracking imports
+import { getHybridProviderTracker } from "../budget-orchestrator/hybrid-tracker"
+import { detectUnderlyingProvider } from "../budget-orchestrator/underlying-provider"
+
 /**
  * Known model pricing (cost per 1M tokens in USD).
  * These are approximate and may need updates.
@@ -100,6 +104,16 @@ export class UsageTracker {
       model: input.model,
       cost: record.estimatedCost,
     })
+
+    // Track BYOK usage in hybrid provider tracker
+    if (input.model.startsWith('opencode/')) {
+      try {
+        const tracker = getHybridProviderTracker()
+        tracker.recordUsage(input.model, input.inputTokens + input.outputTokens)
+      } catch (error) {
+        // Hybrid tracker not initialized - ignore
+      }
+    }
 
     return record
   }
