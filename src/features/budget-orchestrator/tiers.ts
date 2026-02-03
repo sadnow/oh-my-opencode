@@ -84,7 +84,7 @@ export const MODEL_TIERS: Record<ModelTier, TierConfig> = {
       "google/gemini-2.5-flash",
       "google/gemini-2.5-flash-lite",
       // OpenCode budget ($0.60/$2.20)
-      "opencode/glm-4.7-flash",
+      "opencode/kimi-k2.5-free",
       "opencode/glm-4.7-free",
       "opencode/glm-4.6",
       "opencode/kimi-k2-thinking",
@@ -115,7 +115,7 @@ export const MODEL_TIERS: Record<ModelTier, TierConfig> = {
       "google/gemini-2.5-flash-lite-preview-09-2025",
       // OpenCode economy - Qwen3 Coder
       "opencode/qwen3-coder",
-      "opencode/qwen3-coder-flash",
+      "opencode/minimax-m2.1-free",
       "opencode/qwen3-coder-30b-a3b",
       "opencode/qwen3-coder-480b-a35b-instruct",
       "opencode/glm-4.5-flash",

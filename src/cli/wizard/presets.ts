@@ -47,7 +47,7 @@ export const ROLE_MODELS = {
   /** explore - Fast codebase search (needs SPEED, not deep reasoning) */
   explore: ["gemini-3-flash-preview", "gemini-2.5-flash", "gpt-4.1-nano", "claude-haiku-4-5"],
   /** librarian - Docs search, GitHub (needs moderate reasoning + tool use) */
-  librarian: ["gemini-3-flash-preview", "gemini-2.5-flash", "claude-haiku-4-5", "glm-4.7-flash"],
+  librarian: ["gemini-3-flash-preview", "gemini-2.5-flash", "claude-haiku-4-5", "glm-4.7-free"],
   /** implement - Coding and implementation tasks */
   implement: ["claude-sonnet-4-5", "gpt-5.2-codex", "glm-4.7", "qwen3-coder"],
   /** review - Code analysis and review */
@@ -59,7 +59,7 @@ export const ROLE_MODELS = {
   /** ultrabrain - Deep reasoning and complex analysis */
   ultrabrain: ["claude-opus-4-5", "o3", "gpt-5.2", "kimi-k2-thinking", "claude-sonnet-4-5"],
   /** parallel-worker - Background agents (optimized for I/O-bound parallel tasks) */
-  "parallel-worker": ["gemini-3-flash-preview", "gemini-2.5-flash", "gpt-4.1-nano", "glm-4.7-flash"],
+  "parallel-worker": ["gemini-3-flash-preview", "gemini-2.5-flash", "gpt-4.1-nano", "glm-4.7-free"],
   /** exploration - Breadth-first search and hypothesis generation */
   exploration: ["gemini-3-flash-preview", "gemini-2.5-flash", "gpt-4.1-nano", "glm-4.6"],
   /** analysis - Deep analysis before conclusions */
@@ -111,11 +111,9 @@ export const PROVIDER_PREFIXES: Record<string, string> = {
   "kimi-k2-0905": "opencode",
   "glm-4.6": "opencode",
   "glm-4.7": "opencode",
-  "glm-4.7-flash": "opencode",
   "glm-4.7-free": "opencode",
   "big-pickle": "opencode",
   "qwen3-coder": "opencode",
-  "qwen3-coder-flash": "opencode",
 }
 
 /**
