@@ -42,6 +42,9 @@ import { getHybridProviderTracker } from "./hybrid-tracker"
  * - implementation: Needs coding ability
  * - quick: Needs SPEED for simple queries
  */
+// NOTE: opencode/gemini-3-flash and opencode/gemini-3-pro are EXCLUDED due to
+// Zen proxy 500 errors on all endpoints (tested 2026-02-03).
+// opencode/minimax-m2.1-free also excluded from OPENCODE_FREE_MODELS for same reason.
 export const USE_CASE_FALLBACKS = {
   /** Librarian - docs search, GitHub, needs moderate reasoning + tool use */
   librarian: [
@@ -51,7 +54,6 @@ export const USE_CASE_FALLBACKS = {
     "github-copilot/gpt-5.1-codex",      // Strong alternative, free (1x)
     "google/gemini-3-flash-preview",     // Fast with good tool use
     "opencode/gpt-5.2",                  // BYOK OpenAI through Zen
-    "opencode/gemini-3-flash",           // BYOK Google through Zen
     "opencode/glm-4.7",                  // Good at agentic tasks
     "opencode/kimi-k2-thinking",         // Thinking model, good at analysis
     "anthropic/claude-haiku-4-5",        // Fast Claude
@@ -64,7 +66,6 @@ export const USE_CASE_FALLBACKS = {
   /** Explorer - fast codebase search, needs SPEED not deep reasoning */
   explorer: [
     "google/gemini-3-flash-preview",     // Fastest current gen
-    "opencode/gemini-3-flash",           // BYOK Google through Zen (fast)
     "opencode/gpt-5-nano",               // BYOK OpenAI through Zen (fast + cheap)
     "github-copilot/gpt-5-mini",         // Fast + free with subscription (0x FREE!)
     "github-copilot/gpt-4.1",            // Fast + free (0x FREE!)
@@ -86,7 +87,6 @@ export const USE_CASE_FALLBACKS = {
     "openai/o1-pro",                     // Strong reasoning
     "openai/gpt-5.2",                    // Very strong
     "opencode/gpt-5.2",                  // BYOK OpenAI through Zen
-    "opencode/gemini-3-pro",             // BYOK Google through Zen
     "github-copilot/gpt-5.2-codex",      // Premium copilot reasoning, free
     "opencode/kimi-k2-thinking",         // Great thinking model
     "anthropic/claude-sonnet-4-5",       // Good reasoning
@@ -103,7 +103,6 @@ export const USE_CASE_FALLBACKS = {
     "openai/gpt-5.2-codex",              // Strong coding orchestration
     "opencode/gpt-5.2-codex",            // BYOK OpenAI through Zen
     "opencode/gpt-5.2",                  // BYOK OpenAI through Zen
-    "opencode/gemini-3-pro",             // BYOK Google through Zen
     "github-copilot/claude-opus-4.5",    // Best via Copilot (3x but free with sub)
     "github-copilot/claude-sonnet-4.5",  // Good orchestration, free (1x)
     "github-copilot/gpt-5.2-codex",      // Strong via Copilot (1x)
@@ -120,7 +119,6 @@ export const USE_CASE_FALLBACKS = {
     "openai/gpt-5.2-codex",              // Strong coding
     "opencode/gpt-5.2-codex",            // BYOK OpenAI through Zen
     "opencode/gpt-5.1-codex",            // BYOK OpenAI through Zen
-    "opencode/gemini-3-flash",           // BYOK Google through Zen (fast coding)
     "github-copilot/claude-sonnet-4.5",  // Strong coding, free (1x)
     "github-copilot/gpt-5.2-codex",      // Strong coding via Copilot (1x)
     "github-copilot/gpt-5.1-codex",      // Good coding via Copilot (1x)
@@ -137,7 +135,6 @@ export const USE_CASE_FALLBACKS = {
   /** Quick - fast responses for simple queries */
   quick: [
     "google/gemini-3-flash-preview",     // Fastest
-    "opencode/gemini-3-flash",           // BYOK Google through Zen (fastest)
     "opencode/gpt-5-nano",               // BYOK OpenAI through Zen (fast + cheap)
     "github-copilot/gpt-5-mini",         // Fast + free (0x FREE!)
     "github-copilot/gpt-4.1",            // Fast + free (0x FREE!)
@@ -275,8 +272,17 @@ const OPENCODE_FREE_MODELS = new Set([
   "big-pickle",
   "glm-4.7-free",
   "kimi-k2.5-free",
-  "minimax-m2.1-free",
+  // "minimax-m2.1-free" — excluded: 500 on all Zen endpoints (paid minimax-m2.1 works)
   "gpt-5-nano",
+])
+
+// Known broken Zen models — defense-in-depth check in isModelAllowed().
+// These models fail consistently on the Zen proxy and should never be selected.
+// Updated: 2026-02-03 based on endpoint testing against all 24 Zen models.
+const ZEN_KNOWN_BROKEN_MODELS = new Set([
+  "gemini-3-flash",       // 500: "Cannot read properties of undefined (reading 'promptTokenCount')"
+  "gemini-3-pro",         // 500: Same Zen proxy parsing error
+  "minimax-m2.1-free",    // 500 on all endpoints (paid minimax-m2.1 works)
 ])
 
 // ============================================================================
@@ -883,6 +889,12 @@ export class GlobalOverrideManager {
 
     // Check if specific model is disabled via config
     if (this.isModelDisabled(provider, modelId)) {
+      return false
+    }
+
+    // Check if model is known broken on Zen (static list, defense-in-depth)
+    if (provider === "opencode" && ZEN_KNOWN_BROKEN_MODELS.has(modelId)) {
+      log("[global-override] Model skipped - known broken on Zen", { provider, modelId })
       return false
     }
 
