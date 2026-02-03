@@ -96,6 +96,36 @@ import { createConfigHandler } from "./plugin-handlers";
 const OhMyOpenCodePlugin: Plugin = async (ctx) => {
   log("[OhMyOpenCodePlugin] ENTRY - plugin loading", { directory: ctx.directory })
   
+  // Install global error handlers to catch unhandled rejections and exceptions
+  // This prevents silent crashes and allows us to flush state before exit
+  process.on('unhandledRejection', (reason, promise) => {
+    log('[CRITICAL] Unhandled Promise Rejection', { reason: String(reason), stack: reason instanceof Error ? reason.stack : undefined })
+    // Attempt to flush session state synchronously
+    try {
+      const { flushStateSync } = require('./features/claude-code-session-state/state')
+      flushStateSync()
+      log('[global] Session state flushed after unhandled rejection')
+    } catch (flushErr) {
+      log('[global] Failed to flush session state:', String(flushErr))
+    }
+  })
+  
+  process.on('uncaughtException', (err) => {
+    log('[CRITICAL] Uncaught Exception', { error: String(err), stack: err.stack })
+    // Attempt to flush session state synchronously
+    try {
+      const { flushStateSync } = require('./features/claude-code-session-state/state')
+      flushStateSync()
+      log('[global] Session state flushed before exit')
+    } catch (flushErr) {
+      log('[global] Failed to flush session state:', String(flushErr))
+    }
+    // Exit with error code
+    process.exit(1)
+  })
+  
+  log("[OhMyOpenCodePlugin] Global error handlers installed")
+  
   // Restore session state
   const { subagentSessions: subCount, agentMappings: mapCount } = getRestoredStateCounts();
   log("[session-state] Restored state", { subagentSessions: subCount, agentMappings: mapCount });
