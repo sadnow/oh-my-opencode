@@ -404,6 +404,25 @@ export const QuotaTargetsSchema = z.object({
   zen_manual_usage_dollars: z.number().min(0).nullable().optional(),
 })
 
+// Hybrid provider configuration: per-provider daily free token limits for BYOK providers
+export const HybridProviderConfigSchema = z.object({
+  /** Daily free token allowance before paid usage kicks in */
+  daily_free_tokens: z.number().int().positive().default(150000),
+  /** UTC time when daily counter resets (HH:MM format) */
+  reset_time: z.string().default("00:00"),
+  /** Regex patterns to match model IDs for this provider (e.g., ["^opencode/(gpt|o1)"]) */
+  model_patterns: z.array(z.string()).optional(),
+  /** Provider to fallback to when free tier exhausted */
+  fallback_provider: z.string().optional(),
+  /** Whether this hybrid provider config is active */
+  enabled: z.boolean().default(true),
+})
+
+export const HybridProvidersSchema = z.record(
+  z.string(),
+  HybridProviderConfigSchema
+)
+
 /** Subscription-based budget configuration */
 export const SubscriptionBudgetSchema = z.object({
   /** Claude Max subscription budget ($200/month) */
@@ -461,6 +480,8 @@ export const BudgetConfigSchema = z.object({
   adaptive_config: AdaptiveConfigSchema.optional(),
   /** Quota targets for different provider types */
   quota_targets: QuotaTargetsSchema.optional(),
+  /** Hybrid providers per-provider daily free token allowances for BYOK models */
+  hybrid_providers: HybridProvidersSchema.optional(),
   /** Persist routing logs to file (default: false) */
   routing_log_persist: z.boolean().default(false),
 })
@@ -617,5 +638,7 @@ export type OrchestrationPreset = z.infer<typeof OrchestrationPresetSchema>
 export type LearningMode = z.infer<typeof LearningModeSchema>
 export type AdaptiveConfig = z.infer<typeof AdaptiveConfigSchema>
 export type QuotaTargets = z.infer<typeof QuotaTargetsSchema>
+export type HybridProviderConfig = z.infer<typeof HybridProviderConfigSchema>
+export type HybridProviders = z.infer<typeof HybridProvidersSchema>
 
 export { AnyMcpNameSchema, type AnyMcpName, McpNameSchema, type McpName } from "../mcp/types"

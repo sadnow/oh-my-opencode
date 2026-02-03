@@ -649,6 +649,67 @@ describe("BrowserAutomationConfigSchema", () => {
   })
 })
 
+describe("HybridProviders config", () => {
+  test("validates valid hybrid provider config", () => {
+    //#given
+    const config = {
+      budget: {
+        hybrid_providers: {
+          openai: {
+            daily_free_tokens: 100000,
+          },
+        },
+      },
+    }
+
+    //#when / #then
+    expect(() => OhMyOpenCodeConfigSchema.parse(config)).not.toThrow()
+  })
+
+  test("rejects negative daily_free_tokens", () => {
+    //#given
+    const config = {
+      budget: {
+        hybrid_providers: {
+          openai: {
+            daily_free_tokens: -100,
+          },
+        },
+      },
+    }
+
+    //#when / #then
+    expect(() => OhMyOpenCodeConfigSchema.parse(config)).toThrow()
+  })
+
+  test("uses defaults when fields omitted", () => {
+    //#given
+    const config = {
+      budget: {
+        hybrid_providers: {
+          openai: {},
+        },
+      },
+    }
+
+    //#when
+    const parsed = OhMyOpenCodeConfigSchema.parse(config)
+
+    //#then
+    expect(parsed.budget?.hybrid_providers?.openai?.daily_free_tokens).toBe(150000)
+    expect(parsed.budget?.hybrid_providers?.openai?.reset_time).toBe("00:00")
+    expect(parsed.budget?.hybrid_providers?.openai?.enabled).toBe(true)
+  })
+
+  test("missing hybrid_providers is valid (optional)", () => {
+    //#given
+    const config = { budget: {} }
+
+    //#when / #then
+    expect(() => OhMyOpenCodeConfigSchema.parse(config)).not.toThrow()
+  })
+})
+
 describe("OhMyOpenCodeConfigSchema - browser_automation_engine", () => {
   test("accepts browser_automation_engine config", () => {
     // #given

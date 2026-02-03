@@ -3077,6 +3077,40 @@
             }
           }
         },
+        "hybrid_providers": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string"
+          },
+          "additionalProperties": {
+            "type": "object",
+            "properties": {
+              "daily_free_tokens": {
+                "default": 150000,
+                "type": "integer",
+                "exclusiveMinimum": 0,
+                "maximum": 9007199254740991
+              },
+              "reset_time": {
+                "default": "00:00",
+                "type": "string"
+              },
+              "model_patterns": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "fallback_provider": {
+                "type": "string"
+              },
+              "enabled": {
+                "default": true,
+                "type": "boolean"
+              }
+            }
+          }
+        },
         "routing_log_persist": {
           "default": false,
           "type": "boolean"
