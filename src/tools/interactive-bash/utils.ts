@@ -3,6 +3,8 @@ import { spawn } from "bun"
 let tmuxPath: string | null = null
 let initPromise: Promise<string | null> | null = null
 
+const FIND_TMUX_TIMEOUT_MS = 5000  // 5 seconds
+
 async function findTmuxPath(): Promise<string | null> {
   const isWindows = process.platform === "win32"
   const cmd = isWindows ? "where" : "which"
@@ -13,7 +15,15 @@ async function findTmuxPath(): Promise<string | null> {
       stderr: "pipe",
     })
 
-    const exitCode = await proc.exited
+    // Race between process exit and timeout
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      setTimeout(() => {
+        proc.kill()
+        reject(new Error(`${cmd} tmux timed out after ${FIND_TMUX_TIMEOUT_MS}ms`))
+      }, FIND_TMUX_TIMEOUT_MS)
+    })
+
+    const exitCode = await Promise.race([proc.exited, timeoutPromise])
     if (exitCode !== 0) {
       return null
     }
@@ -30,13 +40,21 @@ async function findTmuxPath(): Promise<string | null> {
       stderr: "pipe",
     })
 
-    const verifyExitCode = await verifyProc.exited
+    const verifyTimeoutPromise = new Promise<never>((_, reject) => {
+      setTimeout(() => {
+        verifyProc.kill()
+        reject(new Error(`tmux -V timed out after ${FIND_TMUX_TIMEOUT_MS}ms`))
+      }, FIND_TMUX_TIMEOUT_MS)
+    })
+
+    const verifyExitCode = await Promise.race([verifyProc.exited, verifyTimeoutPromise])
     if (verifyExitCode !== 0) {
       return null
     }
 
     return path
-  } catch {
+  } catch (error) {
+    console.warn("[interactive-bash] Failed to find tmux:", error)
     return null
   }
 }
