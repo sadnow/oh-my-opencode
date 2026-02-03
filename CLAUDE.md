@@ -55,17 +55,34 @@ oh-my-opencode is a Claude Code plugin that adds:
 
 ## Work Tracking
 
-**Use GitHub Issues** on our fork (`sadnow/oh-my-opencode`) for:
-- Feature planning (break into sub-issues)
-- Bug tracking with reproduction steps
-- Research tasks and architectural decisions
-- Session crash/OOM documentation
+### GitHub Issues (OUR FORK ONLY)
+
+**⚠️ CRITICAL: Issues on `sadnow/oh-my-opencode` ONLY. NEVER bug upstream (`code-yeongyu/oh-my-opencode`).**
+
+**When to create/update issues:**
+- Long-standing problems that need tracking across sessions
+- Major feature work that spans multiple days
+- Crash prevention progress and systematic debugging
+- Research tasks requiring external input
+- Architectural decisions needing documentation
+
+**When NOT to create issues:**
+- Quick fixes or one-off tasks (use notepads instead)
+- Already tracked in `.sisyphus/notepads/` or `.sisyphus/plans/`
+- Minor documentation updates
+- Routine maintenance
+
+**Balance:** Issues supplement notepads for long-term tracking. Don't go overboard - we have notepads for day-to-day work.
 
 ```bash
-# Create issue
+# Create issue (OUR FORK ONLY)
 gh issue create --repo sadnow/oh-my-opencode --title "feat: ..." --body "..."
-# Add comment
+
+# Add progress update
 gh issue comment <num> --repo sadnow/oh-my-opencode --body "..."
+
+# Close when done
+gh issue close <num> --repo sadnow/oh-my-opencode --comment "Fixed in commit abc123"
 ```
 
 ## Anti-Regression Rules
