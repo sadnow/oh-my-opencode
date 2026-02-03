@@ -421,3 +421,53 @@ describe('Provider Distribution Integration', () => {
     expect(anthropicRatio).toBeLessThan(0.7)
   })
 })
+
+describe("calculateWeight edge cases", () => {
+  let calculator: ProviderWeightCalculator
+
+  beforeEach(() => {
+    calculator = new ProviderWeightCalculator()
+    calculator.reset()
+  })
+
+  it("treats NaN usagePercent as 0", () => {
+    const weight = calculator.calculateWeight("anthropic", NaN)
+    // NaN fails Number.isFinite check, defaults to 0 usage → full weight
+    expect(weight).toBeCloseTo(2.0, 2) // 1.0 * 2.0
+  })
+
+  it("clamps Infinity usagePercent to 100", () => {
+    const weight = calculator.calculateWeight("anthropic", Infinity)
+    // Infinity fails Number.isFinite check, defaults to 0 usage
+    expect(weight).toBeCloseTo(2.0, 2)
+  })
+
+  it("clamps negative usagePercent to 0", () => {
+    const weight = calculator.calculateWeight("anthropic", -50)
+    // Math.max(0, usagePercent) clamps to 0 → full weight
+    expect(weight).toBeCloseTo(2.0, 2)
+  })
+
+  it("does not apply reset bonus for negative daysUntilReset", () => {
+    const weight = calculator.calculateWeight("anthropic", 50, -1)
+    // daysUntilReset >= 0 check fails → no bonus
+    expect(weight).toBeCloseTo(1.0, 2) // 0.5 * 2.0 * 1.0
+  })
+
+  it("does not apply reset bonus for NaN daysUntilReset", () => {
+    const weight = calculator.calculateWeight("anthropic", 50, NaN)
+    expect(weight).toBeCloseTo(1.0, 2)
+  })
+
+  it("applies max velocity penalty for zero velocity", () => {
+    const weight = calculator.calculateWeight("anthropic", 50, null, 0)
+    // velocityPerDay === 0 → rawPenalty = VELOCITY_PENALTY_MAX (1.5)
+    expect(weight).toBeCloseTo(1.5, 2) // 0.5 * 2.0 * 1.5
+  })
+
+  it("applies min velocity penalty for negative velocity", () => {
+    const weight = calculator.calculateWeight("anthropic", 50, null, -1)
+    // velocityPerDay < 0 → rawPenalty = VELOCITY_PENALTY_MIN (0.3)
+    expect(weight).toBeCloseTo(0.3, 2) // 0.5 * 2.0 * 0.3
+  })
+})
