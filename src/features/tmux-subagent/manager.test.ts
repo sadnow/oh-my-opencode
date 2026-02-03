@@ -1,4 +1,4 @@
-import { describe, test, expect, mock, beforeEach } from 'bun:test'
+import { describe, test, expect, mock, beforeEach, afterEach } from 'bun:test'
 import type { TmuxConfig } from '../../config/schema'
 import type { WindowState, PaneAction } from './types'
 import type { ActionResult, ExecuteContext } from './action-executor'
@@ -131,6 +131,10 @@ describe('TmuxSessionManager', () => {
         results: [],
       }
     })
+  })
+
+  afterEach(() => {
+    mock.restore()
   })
 
   describe('constructor', () => {
