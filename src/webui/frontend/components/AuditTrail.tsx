@@ -105,9 +105,10 @@ export function AuditTrail() {
     <div>
       <div style={{ marginBottom: '20px', display: 'flex', gap: '15px', alignItems: 'center', flexWrap: 'wrap' }}>
         <div>
-          <label style={{ marginRight: '8px', fontWeight: 'bold' }}>Time Range:</label>
-          <select 
-            value={timeRange} 
+          <label htmlFor="time-range-filter" style={{ marginRight: '8px', fontWeight: 'bold' }}>Time Range:</label>
+          <select
+            id="time-range-filter"
+            value={timeRange}
             onChange={(e) => setTimeRange(e.target.value as TimeRange)}
             style={{ padding: '5px 10px', borderRadius: '4px', border: '1px solid #ccc' }}
           >
@@ -119,9 +120,10 @@ export function AuditTrail() {
         </div>
         
         <div>
-          <label style={{ marginRight: '8px', fontWeight: 'bold' }}>Category:</label>
-          <select 
-            value={categoryFilter} 
+          <label htmlFor="category-filter" style={{ marginRight: '8px', fontWeight: 'bold' }}>Category:</label>
+          <select
+            id="category-filter"
+            value={categoryFilter}
             onChange={(e) => setCategoryFilter(e.target.value)}
             style={{ padding: '5px 10px', borderRadius: '4px', border: '1px solid #ccc' }}
           >

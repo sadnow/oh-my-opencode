@@ -1,5 +1,12 @@
 import { Window } from 'happy-dom'
 
+const _origWindow = global.window
+const _origDocument = global.document
+const _origNavigator = global.navigator
+const _origHTMLElement = global.HTMLElement
+const _origNode = global.Node
+const _origFetch = global.fetch
+
 const window = new Window()
 global.window = window as any
 global.document = window.document as any
@@ -7,15 +14,24 @@ global.navigator = window.navigator as any
 global.HTMLElement = window.HTMLElement as any
 global.Node = window.Node as any
 
-import { describe, test, expect, beforeEach, afterEach, vi } from 'vitest'
+import { describe, test, expect, beforeEach, afterEach, afterAll } from 'bun:test'
 import { render, cleanup, waitFor, fireEvent } from '@testing-library/react'
 import { LoggedAlertsPanel } from './LoggedAlertsPanel'
+
+afterAll(() => {
+  global.window = _origWindow
+  global.document = _origDocument
+  global.navigator = _origNavigator
+  global.HTMLElement = _origHTMLElement
+  global.Node = _origNode
+  global.fetch = _origFetch
+})
 
 describe('LoggedAlertsPanel', () => {
   beforeEach(() => {
     global.document.body.innerHTML = ''
     // Default mock for fetch
-    global.fetch = vi.fn().mockResolvedValue({
+    global.fetch = (async () => ({
       json: async () => ({
         success: true,
         data: {
@@ -23,17 +39,17 @@ describe('LoggedAlertsPanel', () => {
           stats: {}
         }
       })
-    })
+    })) as any
   })
 
   afterEach(() => {
     cleanup()
-    vi.restoreAllMocks()
+    global.fetch = _origFetch
   })
 
   test('renders loading state initially', () => {
     // Mock fetch to never resolve to keep it in loading state
-    global.fetch = vi.fn().mockReturnValue(new Promise(() => {}))
+    global.fetch = (() => new Promise(() => {})) as any
     
     const { getByText } = render(<LoggedAlertsPanel />)
     expect(getByText('Loading alerts...')).toBeDefined()
@@ -55,7 +71,7 @@ describe('LoggedAlertsPanel', () => {
       }
     ]
 
-    global.fetch = vi.fn().mockResolvedValue({
+    global.fetch = (async () => ({
       json: async () => ({
         success: true,
         data: {
@@ -63,7 +79,7 @@ describe('LoggedAlertsPanel', () => {
           stats: {}
         }
       })
-    })
+    })) as any
 
     const { getByText } = render(<LoggedAlertsPanel />)
 
@@ -78,7 +94,7 @@ describe('LoggedAlertsPanel', () => {
   })
 
   test('empty state shows "No alerts to display"', async () => {
-    global.fetch = vi.fn().mockResolvedValue({
+    global.fetch = (async () => ({
       json: async () => ({
         success: true,
         data: {
@@ -86,7 +102,7 @@ describe('LoggedAlertsPanel', () => {
           stats: {}
         }
       })
-    })
+    })) as any
 
     const { getByText } = render(<LoggedAlertsPanel />)
 
@@ -111,7 +127,7 @@ describe('LoggedAlertsPanel', () => {
       }
     ]
 
-    global.fetch = vi.fn().mockResolvedValue({
+    global.fetch = (async () => ({
       json: async () => ({
         success: true,
         data: {
@@ -119,7 +135,7 @@ describe('LoggedAlertsPanel', () => {
           stats: {}
         }
       })
-    })
+    })) as any
 
     const { getByText, getByLabelText, queryByText } = render(<LoggedAlertsPanel />)
 
@@ -137,7 +153,7 @@ describe('LoggedAlertsPanel', () => {
   })
 
   test('shows error state when fetch fails', async () => {
-    global.fetch = vi.fn().mockRejectedValue(new Error('Network error'))
+    global.fetch = (async () => { throw new Error('Network error') }) as any
 
     const { getByText } = render(<LoggedAlertsPanel />)
 

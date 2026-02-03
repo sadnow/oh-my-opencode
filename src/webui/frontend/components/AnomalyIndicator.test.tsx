@@ -1,29 +1,42 @@
-import { render, fireEvent } from '@testing-library/react'
-import { AnomalyIndicator } from './AnomalyIndicator'
-import { AnomalyRecord } from '../../../features/budget-orchestrator/anomaly-detector'
-import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { Window } from 'happy-dom'
 
+const _origWindow = global.window
+const _origDocument = global.document
+const _origNavigator = global.navigator
+const _origHTMLElement = global.HTMLElement
+const _origNode = global.Node
+const _origElement = (global as any).Element
+const _origHTMLButtonElement = (global as any).HTMLButtonElement
+const _origHTMLDivElement = (global as any).HTMLDivElement
+const _origHTMLSpanElement = (global as any).HTMLSpanElement
+
 const window = new Window()
-const document = window.document
-// @ts-ignore
-global.window = window
-// @ts-ignore
-global.document = document
-// @ts-ignore
-global.navigator = window.navigator
-// @ts-ignore
-global.Node = window.Node
-// @ts-ignore
-global.Element = window.Element
-// @ts-ignore
-global.HTMLElement = window.HTMLElement
-// @ts-ignore
-global.HTMLButtonElement = window.HTMLButtonElement
-// @ts-ignore
-global.HTMLDivElement = window.HTMLDivElement
-// @ts-ignore
-global.HTMLSpanElement = window.HTMLSpanElement
+global.window = window as any
+global.document = window.document as any
+global.navigator = window.navigator as any
+global.Node = window.Node as any
+;(global as any).Element = window.Element
+global.HTMLElement = window.HTMLElement as any
+;(global as any).HTMLButtonElement = window.HTMLButtonElement
+;(global as any).HTMLDivElement = window.HTMLDivElement
+;(global as any).HTMLSpanElement = window.HTMLSpanElement
+
+import { describe, it, expect, beforeEach, afterEach, afterAll } from 'bun:test'
+import { render, cleanup, fireEvent } from '@testing-library/react'
+import { AnomalyIndicator } from './AnomalyIndicator'
+import { AnomalyRecord } from '../../../features/budget-orchestrator/anomaly-detector'
+
+afterAll(() => {
+  global.window = _origWindow
+  global.document = _origDocument
+  global.navigator = _origNavigator
+  global.HTMLElement = _origHTMLElement
+  global.Node = _origNode
+  ;(global as any).Element = _origElement
+  ;(global as any).HTMLButtonElement = _origHTMLButtonElement
+  ;(global as any).HTMLDivElement = _origHTMLDivElement
+  ;(global as any).HTMLSpanElement = _origHTMLSpanElement
+})
 
 const mockAnomalies: AnomalyRecord[] = [
   {
@@ -61,6 +74,10 @@ const mockAnomalies: AnomalyRecord[] = [
 describe('AnomalyIndicator', () => {
   beforeEach(() => {
     document.body.innerHTML = ''
+  })
+
+  afterEach(() => {
+    cleanup()
   })
 
   it('renders empty state when no anomalies', () => {
@@ -112,13 +129,14 @@ describe('AnomalyIndicator', () => {
   })
 
   it('dismiss button calls onDismiss callback', () => {
-    const onDismiss = vi.fn()
+    let dismissedId: string | undefined
+    const onDismiss = (id: string) => { dismissedId = id }
     const { getByText } = render(<AnomalyIndicator anomalies={[mockAnomalies[0]]} onDismiss={onDismiss} />)
     
     const dismissButton = getByText('✕')
     fireEvent.click(dismissButton)
     
-    expect(onDismiss).toHaveBeenCalledWith('test-spike')
+    expect(dismissedId).toBe('test-spike')
   })
 
   it('shows Z-score and baseline values', () => {

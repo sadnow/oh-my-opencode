@@ -1,5 +1,12 @@
 import { Window } from 'happy-dom'
 
+const _origWindow = global.window
+const _origDocument = global.document
+const _origNavigator = global.navigator
+const _origHTMLElement = global.HTMLElement
+const _origNode = global.Node
+const _origFetch = global.fetch
+
 const window = new Window({ url: 'http://localhost/' })
 global.window = window as any
 global.document = window.document as any
@@ -17,7 +24,7 @@ globalThis.Request = class extends OriginalRequest {
   }
 } as typeof Request
 
-import { describe, test, expect, beforeEach, afterEach } from 'bun:test'
+import { describe, test, expect, beforeEach, afterEach, afterAll } from 'bun:test'
 import { render, cleanup, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { http, HttpResponse } from 'msw'
@@ -50,6 +57,16 @@ const server = setupServer(
     })
   })
 )
+
+afterAll(() => {
+  global.window = _origWindow
+  global.document = _origDocument
+  global.navigator = _origNavigator
+  global.HTMLElement = _origHTMLElement
+  global.Node = _origNode
+  global.fetch = _origFetch
+  globalThis.Request = OriginalRequest
+})
 
 describe('HealthIndicator', () => {
   beforeEach(() => {

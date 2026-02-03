@@ -1,5 +1,12 @@
 import { Window } from 'happy-dom'
 
+const _origWindow = global.window
+const _origDocument = global.document
+const _origNavigator = global.navigator
+const _origHTMLElement = global.HTMLElement
+const _origNode = global.Node
+const _origLocalStorage = global.localStorage
+
 const window = new Window()
 global.window = window as any
 global.document = window.document as any
@@ -19,11 +26,20 @@ const localStorageMock = (() => {
 })()
 global.localStorage = localStorageMock as any
 
-import { describe, test, expect, beforeEach, afterEach } from 'bun:test'
+import { describe, test, expect, beforeEach, afterEach, afterAll } from 'bun:test'
 import { render, cleanup, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { ModeToggle } from './ModeToggle'
 import { ModeProvider } from '../context/ModeContext'
+
+afterAll(() => {
+  global.window = _origWindow
+  global.document = _origDocument
+  global.navigator = _origNavigator
+  global.HTMLElement = _origHTMLElement
+  global.Node = _origNode
+  global.localStorage = _origLocalStorage
+})
 
 describe('ModeToggle', () => {
   beforeEach(() => {

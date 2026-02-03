@@ -1,5 +1,11 @@
 import { Window } from 'happy-dom'
 
+const _origWindow = global.window
+const _origDocument = global.document
+const _origNavigator = global.navigator
+const _origHTMLElement = global.HTMLElement
+const _origNode = global.Node
+
 const window = new Window()
 global.window = window as any
 global.document = window.document as any
@@ -7,9 +13,17 @@ global.navigator = window.navigator as any
 global.HTMLElement = window.HTMLElement as any
 global.Node = window.Node as any
 
-import { describe, test, expect, beforeEach, afterEach, vi } from 'vitest'
+import { describe, test, expect, beforeEach, afterEach, afterAll } from 'bun:test'
 import { render, cleanup } from '@testing-library/react'
 import { ForecastWidget } from './ForecastWidget'
+
+afterAll(() => {
+  global.window = _origWindow
+  global.document = _origDocument
+  global.navigator = _origNavigator
+  global.HTMLElement = _origHTMLElement
+  global.Node = _origNode
+})
 
 describe('ForecastWidget', () => {
   const defaultProps = {
@@ -31,7 +45,6 @@ describe('ForecastWidget', () => {
 
   afterEach(() => {
     cleanup()
-    vi.restoreAllMocks()
   })
 
   test('renders forecast values correctly', () => {

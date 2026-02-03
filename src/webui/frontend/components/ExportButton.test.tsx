@@ -1,6 +1,16 @@
 import { Window } from 'happy-dom'
 
+const _origWindow = global.window
+const _origDocument = global.document
+const _origNavigator = global.navigator
+const _origHTMLElement = global.HTMLElement
+const _origNode = global.Node
+const _origFetch = global.fetch
+const _origCreateObjectURL = global.URL.createObjectURL
+const _origRevokeObjectURL = global.URL.revokeObjectURL
+
 const window = new Window()
+;(window as any).event = undefined
 global.window = window as any
 global.document = window.document as any
 global.navigator = window.navigator as any
@@ -12,10 +22,21 @@ global.fetch = async () => ({
   blob: async () => new Blob(['mock'], { type: 'text/csv' })
 }) as any
 
-import { describe, test, expect, beforeEach, afterEach } from 'bun:test'
+import { describe, test, expect, beforeEach, afterEach, afterAll } from 'bun:test'
 import { render, cleanup, waitFor } from '@testing-library/react'
 import { ExportButton } from './ExportButton'
 import userEvent from '@testing-library/user-event'
+
+afterAll(() => {
+  global.window = _origWindow
+  global.document = _origDocument
+  global.navigator = _origNavigator
+  global.HTMLElement = _origHTMLElement
+  global.Node = _origNode
+  global.fetch = _origFetch
+  global.URL.createObjectURL = _origCreateObjectURL
+  global.URL.revokeObjectURL = _origRevokeObjectURL
+})
 
 describe('ExportButton', () => {
   beforeEach(() => {
