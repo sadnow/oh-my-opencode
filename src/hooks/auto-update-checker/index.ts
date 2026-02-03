@@ -90,14 +90,18 @@ export function createAutoUpdateCheckerHook(ctx: PluginInput, options: AutoUpdat
 
         if (localDevVersion) {
           if (showStartupToast) {
-            showLocalDevToast(ctx, displayVersion, isSisyphusEnabled).catch(() => {})
+            showLocalDevToast(ctx, displayVersion, isSisyphusEnabled).catch((err) => {
+              log("[auto-update-checker] Failed to show local dev toast:", err)
+            })
           }
           log("[auto-update-checker] Local development mode")
           return
         }
 
         if (showStartupToast) {
-          showVersionToast(ctx, displayVersion, getToastMessage(false)).catch(() => {})
+          showVersionToast(ctx, displayVersion, getToastMessage(false)).catch((err) => {
+            log("[auto-update-checker] Failed to show version toast:", err)
+          })
         }
 
         runBackgroundUpdateCheck(ctx, autoUpdate, getToastMessage).catch(err => {
@@ -191,7 +195,9 @@ async function showModelCacheWarningIfNeeded(ctx: PluginInput): Promise<void> {
         duration: 10000,
       },
     })
-    .catch(() => {})
+    .catch((err) => {
+      log("[auto-update-checker] Failed to show model cache warning toast:", err)
+    })
 
   log("[auto-update-checker] Model cache warning shown")
 }
@@ -199,7 +205,9 @@ async function showModelCacheWarningIfNeeded(ctx: PluginInput): Promise<void> {
 async function updateAndShowConnectedProvidersCacheStatus(ctx: PluginInput, budgetEnabled: boolean): Promise<void> {
 	const hadCache = hasConnectedProvidersCache()
 
-	updateConnectedProvidersCache(ctx.client, { budgetEnabled }).catch(() => {})
+	updateConnectedProvidersCache(ctx.client, { budgetEnabled }).catch((err) => {
+		log("[auto-update-checker] Failed to update connected providers cache:", err)
+	})
 
 	if (!hadCache) {
 		await ctx.client.tui
@@ -210,10 +218,12 @@ async function updateAndShowConnectedProvidersCacheStatus(ctx: PluginInput, budg
 					variant: "info" as const,
 					duration: 8000,
 				},
-			})
-			.catch(() => {})
+		})
+		.catch((err) => {
+			log("[auto-update-checker] Failed to show connected providers cache toast:", err)
+		})
 
-		log("[auto-update-checker] Connected providers cache toast shown (first run)")
+	log("[auto-update-checker] Connected providers cache toast shown (first run)")
 	} else {
 		log("[auto-update-checker] Connected providers cache exists, updating in background")
 	}
@@ -233,7 +243,9 @@ async function showConfigErrorsIfAny(ctx: PluginInput): Promise<void> {
         duration: 10000,
       },
     })
-    .catch(() => {})
+    .catch((err) => {
+      log("[auto-update-checker] Failed to show config errors toast:", err)
+    })
 
   log(`[auto-update-checker] Config load errors shown: ${errors.length} error(s)`)
   clearConfigLoadErrors()
@@ -280,7 +292,9 @@ async function showUpdateAvailableToast(
         duration: 8000,
       },
     })
-    .catch(() => {})
+    .catch((err) => {
+      log("[auto-update-checker] Failed to show update available toast:", err)
+    })
   log(`[auto-update-checker] Update available toast shown: v${latestVersion}`)
 }
 
@@ -294,7 +308,9 @@ async function showAutoUpdatedToast(ctx: PluginInput, oldVersion: string, newVer
         duration: 8000,
       },
     })
-    .catch(() => {})
+    .catch((err) => {
+      log("[auto-update-checker] Failed to show auto-updated toast:", err)
+    })
   log(`[auto-update-checker] Auto-updated toast shown: v${oldVersion} → v${newVersion}`)
 }
 
