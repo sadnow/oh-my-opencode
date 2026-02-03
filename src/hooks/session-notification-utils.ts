@@ -128,13 +128,26 @@ export async function getAplayPath(): Promise<string | null> {
 
 export function startBackgroundCheck(platform: Platform): void {
   if (platform === "darwin") {
-    getOsascriptPath().catch(() => {})
-    getAfplayPath().catch(() => {})
+    getOsascriptPath().catch((err: unknown) => {
+      // Background check - non-critical, but log for debugging
+      console.debug("[session-notification] Failed to check osascript path:", err)
+    })
+    getAfplayPath().catch((err: unknown) => {
+      console.debug("[session-notification] Failed to check afplay path:", err)
+    })
   } else if (platform === "linux") {
-    getNotifySendPath().catch(() => {})
-    getPaplayPath().catch(() => {})
-    getAplayPath().catch(() => {})
+    getNotifySendPath().catch((err: unknown) => {
+      console.debug("[session-notification] Failed to check notify-send path:", err)
+    })
+    getPaplayPath().catch((err: unknown) => {
+      console.debug("[session-notification] Failed to check paplay path:", err)
+    })
+    getAplayPath().catch((err: unknown) => {
+      console.debug("[session-notification] Failed to check aplay path:", err)
+    })
   } else if (platform === "win32") {
-    getPowershellPath().catch(() => {})
+    getPowershellPath().catch((err: unknown) => {
+      console.debug("[session-notification] Failed to check powershell path:", err)
+    })
   }
 }

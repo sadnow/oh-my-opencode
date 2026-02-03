@@ -65,14 +65,18 @@ async function sendNotification(
 
       const esTitle = title.replace(/\\/g, "\\\\").replace(/"/g, '\\"')
       const esMessage = message.replace(/\\/g, "\\\\").replace(/"/g, '\\"')
-      await ctx.$`${osascriptPath} -e ${"display notification \"" + esMessage + "\" with title \"" + esTitle + "\""}`.catch(() => {})
+      await ctx.$`${osascriptPath} -e ${"display notification \"" + esMessage + "\" with title \"" + esTitle + "\""}`.catch((err: unknown) => {
+        console.warn("[session-notification] Failed to send macOS notification:", err)
+      })
       break
     }
     case "linux": {
       const notifySendPath = await getNotifySendPath()
       if (!notifySendPath) return
 
-      await ctx.$`${notifySendPath} ${title} ${message} 2>/dev/null`.catch(() => {})
+      await ctx.$`${notifySendPath} ${title} ${message} 2>/dev/null`.catch((err: unknown) => {
+        console.warn("[session-notification] Failed to send Linux notification:", err)
+      })
       break
     }
     case "win32": {
@@ -93,7 +97,9 @@ $Toast = [Windows.UI.Notifications.ToastNotification]::new($SerializedXml)
 $Notifier = [Windows.UI.Notifications.ToastNotificationManager]::CreateToastNotifier('OpenCode')
 $Notifier.Show($Toast)
 `.trim().replace(/\n/g, "; ")
-      await ctx.$`${powershellPath} -Command ${toastScript}`.catch(() => {})
+      await ctx.$`${powershellPath} -Command ${toastScript}`.catch((err: unknown) => {
+        console.warn("[session-notification] Failed to send Windows notification:", err)
+      })
       break
     }
   }
@@ -104,17 +110,23 @@ async function playSound(ctx: PluginInput, p: Platform, soundPath: string): Prom
     case "darwin": {
       const afplayPath = await getAfplayPath()
       if (!afplayPath) return
-      ctx.$`${afplayPath} ${soundPath}`.catch(() => {})
+      ctx.$`${afplayPath} ${soundPath}`.catch((err: unknown) => {
+        console.warn("[session-notification] Failed to play macOS sound:", err)
+      })
       break
     }
     case "linux": {
       const paplayPath = await getPaplayPath()
       if (paplayPath) {
-        ctx.$`${paplayPath} ${soundPath} 2>/dev/null`.catch(() => {})
+        ctx.$`${paplayPath} ${soundPath} 2>/dev/null`.catch((err: unknown) => {
+          console.warn("[session-notification] Failed to play Linux sound (paplay):", err)
+        })
       } else {
         const aplayPath = await getAplayPath()
         if (aplayPath) {
-          ctx.$`${aplayPath} ${soundPath} 2>/dev/null`.catch(() => {})
+          ctx.$`${aplayPath} ${soundPath} 2>/dev/null`.catch((err: unknown) => {
+            console.warn("[session-notification] Failed to play Linux sound (aplay):", err)
+          })
         }
       }
       break
@@ -122,7 +134,9 @@ async function playSound(ctx: PluginInput, p: Platform, soundPath: string): Prom
     case "win32": {
       const powershellPath = await getPowershellPath()
       if (!powershellPath) return
-      ctx.$`${powershellPath} -Command ${"(New-Object Media.SoundPlayer '" + soundPath.replace(/'/g, "''") + "').PlaySync()"}`.catch(() => {})
+      ctx.$`${powershellPath} -Command ${"(New-Object Media.SoundPlayer '" + soundPath.replace(/'/g, "''") + "').PlaySync()"}`.catch((err: unknown) => {
+        console.warn("[session-notification] Failed to play Windows sound:", err)
+      })
       break
     }
   }
