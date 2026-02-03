@@ -600,7 +600,7 @@ describe('TmuxSessionManager', () => {
         main_pane_min_width: 80,
         agent_pane_min_width: 40,
       }
-      const manager = new TmuxSessionManager(ctx, config, mockTmuxDeps)
+      const manager = new TmuxSessionManager(ctx, config)
 
       // Spawn a session first
       await manager.onSessionCreated(
@@ -653,7 +653,7 @@ describe('TmuxSessionManager', () => {
         main_pane_min_width: 80,
         agent_pane_min_width: 40,
       }
-      const manager = new TmuxSessionManager(ctx, config, mockTmuxDeps)
+      const manager = new TmuxSessionManager(ctx, config)
 
       await manager.onSessionCreated(
         createSessionCreatedEvent('ses_child', 'ses_parent', 'Task')
@@ -711,7 +711,7 @@ describe('TmuxSessionManager', () => {
         main_pane_min_width: 80,
         agent_pane_min_width: 40,
       }
-      const manager = new TmuxSessionManager(ctx, config, mockTmuxDeps)
+      const manager = new TmuxSessionManager(ctx, config)
 
       await manager.onSessionCreated(
         createSessionCreatedEvent('ses_child', 'ses_parent', 'Task')
@@ -763,7 +763,7 @@ describe('TmuxSessionManager', () => {
         main_pane_min_width: 80,
         agent_pane_min_width: 40,
       }
-      const manager = new TmuxSessionManager(ctx, config, mockTmuxDeps)
+      const manager = new TmuxSessionManager(ctx, config)
 
       await manager.onSessionCreated(
         createSessionCreatedEvent('ses_child', 'ses_parent', 'Task')

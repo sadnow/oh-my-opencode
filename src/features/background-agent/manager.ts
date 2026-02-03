@@ -186,8 +186,10 @@ export class BackgroundManager {
       })
     }
 
-    // Trigger processing (fire-and-forget)
-    this.processKey(key)
+// Trigger processing (fire-and-forget)
+    void this.processKey(key).catch((err) => {
+      log("[background-agent] processKey failed", { key, error: String(err) })
+    })
 
     return task
   }
@@ -199,12 +201,17 @@ export class BackgroundManager {
 
     this.processingKeys.add(key)
 
-    try {
+try {
       const queue = this.queuesByKey.get(key)
       while (queue && queue.length > 0) {
         const item = queue[0]
 
-        await this.concurrencyManager.acquire(key)
+        try {
+          await this.concurrencyManager.acquire(key)
+        } catch (err) {
+          log("[background-agent] Acquire cancelled/failed for key", { key, error: String(err) })
+          break  // Exit loop gracefully
+        }
 
         if (item.task.status === "cancelled") {
           this.concurrencyManager.release(key)
