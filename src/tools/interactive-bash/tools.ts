@@ -100,7 +100,9 @@ The Bash tool can execute these commands directly. Do NOT retry with interactive
           try {
             proc.kill()
             // Fire-and-forget: wait for process exit in background to avoid zombies
-            void proc.exited.catch(() => {})
+            void proc.exited.catch((err: unknown) => {
+              console.debug("[interactive-bash] Process exit after timeout kill:", err)
+            })
           } catch {
             // Ignore kill errors; we'll still reject with timeoutError below
           }

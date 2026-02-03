@@ -425,7 +425,9 @@ export function createBackgroundCancel(manager: BackgroundManager, client: Openc
             } else if (task.sessionID) {
               client.session.abort({
                 path: { id: task.sessionID },
-              }).catch(() => {})
+              }).catch((err: unknown) => {
+                console.warn("[background-task] Failed to abort session during cancel-all:", err)
+              })
 
               task.status = "cancelled"
               task.completedAt = new Date()
@@ -493,7 +495,9 @@ Status: ${task.status}`
         if (task.sessionID) {
           client.session.abort({
             path: { id: task.sessionID },
-          }).catch(() => {})
+          }).catch((err: unknown) => {
+            console.warn("[background-task] Failed to abort session during cancel:", err)
+          })
         }
 
         task.status = "cancelled"

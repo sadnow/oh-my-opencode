@@ -84,6 +84,8 @@ export function getCachedTmuxPath(): string | null {
 export function startBackgroundCheck(): void {
   if (!initPromise) {
     initPromise = getTmuxPath()
-    initPromise.catch(() => {})
+    initPromise.catch((err: unknown) => {
+      console.debug("[interactive-bash] Background tmux check failed:", err)
+    })
   }
 }

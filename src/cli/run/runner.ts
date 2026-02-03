@@ -151,7 +151,9 @@ export async function run(options: RunOptions): Promise<number> {
         }
       }
 
-      await eventProcessor.catch(() => {})
+      await eventProcessor.catch((err: unknown) => {
+        console.warn("[cli-run] Event processor error during shutdown:", err)
+      })
       cleanup()
       return 130
     } catch (err) {

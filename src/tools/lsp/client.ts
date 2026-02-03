@@ -31,7 +31,9 @@ private registerProcessCleanup(): void {
       for (const [, managed] of this.clients) {
         try {
           // Fire-and-forget during sync exit - process is terminating
-          void managed.client.stop().catch(() => {})
+          void managed.client.stop().catch((err: unknown) => {
+            console.debug("[lsp] LSP client stop error during sync cleanup:", err)
+          })
         } catch {}
       }
       this.clients.clear()
@@ -45,7 +47,10 @@ private registerProcessCleanup(): void {
     const asyncCleanup = async () => {
       const stopPromises: Promise<void>[] = []
       for (const [, managed] of this.clients) {
-        stopPromises.push(managed.client.stop().catch(() => {}))
+        stopPromises.push(managed.client.stop().catch((err: unknown) => {
+          console.debug("[lsp] LSP client stop error during async cleanup:", err)
+          return undefined
+        }))
       }
       await Promise.allSettled(stopPromises)
       this.clients.clear()
@@ -60,12 +65,18 @@ private registerProcessCleanup(): void {
     // Don't call process.exit() here - let other handlers complete their cleanup first
     // The background-agent manager handles the final exit call
     // Use async handlers to properly await LSP subprocess cleanup
-    process.on("SIGINT", () => void asyncCleanup().catch(() => {}))
-    process.on("SIGTERM", () => void asyncCleanup().catch(() => {}))
+    process.on("SIGINT", () => void asyncCleanup().catch((err: unknown) => {
+      console.error("[lsp] Async cleanup failed on SIGINT:", err)
+    }))
+    process.on("SIGTERM", () => void asyncCleanup().catch((err: unknown) => {
+      console.error("[lsp] Async cleanup failed on SIGTERM:", err)
+    }))
 
     // Ctrl+Break - Windows specific
     if (process.platform === "win32") {
-      process.on("SIGBREAK", () => void asyncCleanup().catch(() => {}))
+      process.on("SIGBREAK", () => void asyncCleanup().catch((err: unknown) => {
+        console.error("[lsp] Async cleanup failed on SIGBREAK:", err)
+      }))
     }
   }
 

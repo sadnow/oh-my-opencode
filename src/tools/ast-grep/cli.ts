@@ -57,7 +57,9 @@ export async function getAstGrepPath(): Promise<string | null> {
 export function startBackgroundInit(): void {
   if (!initPromise) {
     initPromise = getAstGrepPath()
-    initPromise.catch(() => {})
+    initPromise.catch((err: unknown) => {
+      console.debug("[ast-grep] Background init failed:", err)
+    })
   }
 }
 
