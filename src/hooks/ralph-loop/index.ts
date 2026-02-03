@@ -287,7 +287,9 @@ export function createRalphLoopHook(
               duration: 5000,
             },
           })
-          .catch(() => {})
+          .catch((err: unknown) => {
+            log(`[${HOOK_NAME}] Failed to show completion toast:`, err)
+          })
 
         return
       }
@@ -309,7 +311,9 @@ export function createRalphLoopHook(
               duration: 5000,
             },
           })
-          .catch(() => {})
+          .catch((err: unknown) => {
+            log(`[${HOOK_NAME}] Failed to show max iterations toast:`, err)
+          })
 
         return
       }
@@ -348,7 +352,9 @@ export function createRalphLoopHook(
             duration: 2000,
           },
         })
-        .catch(() => {})
+        .catch((err: unknown) => {
+          log(`[${HOOK_NAME}] Failed to show iteration toast:`, err)
+        })
 
       try {
         let agent: string | undefined
