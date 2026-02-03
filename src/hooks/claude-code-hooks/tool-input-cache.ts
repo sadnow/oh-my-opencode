@@ -11,6 +11,8 @@ const cache = new Map<string, CacheEntry>()
 
 const CACHE_TTL = 60000 // 1 minute
 
+let cleanupInterval: ReturnType<typeof setInterval> | null = null
+
 export function cacheToolInput(
   sessionId: string,
   toolName: string,
@@ -37,11 +39,22 @@ export function getToolInput(
 }
 
 // Periodic cleanup (every minute)
-setInterval(() => {
-  const now = Date.now()
-  for (const [key, entry] of cache.entries()) {
-    if (now - entry.timestamp > CACHE_TTL) {
-      cache.delete(key)
+// Store interval ref to allow cleanup on process exit
+if (!cleanupInterval) {
+  cleanupInterval = setInterval(() => {
+    const now = Date.now()
+    for (const [key, entry] of cache.entries()) {
+      if (now - entry.timestamp > CACHE_TTL) {
+        cache.delete(key)
+      }
     }
-  }
-}, CACHE_TTL)
+  }, CACHE_TTL)
+
+  // Clear interval on process exit to prevent leaks
+  process.once("exit", () => {
+    if (cleanupInterval) {
+      clearInterval(cleanupInterval)
+      cleanupInterval = null
+    }
+  })
+}

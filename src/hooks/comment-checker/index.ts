@@ -22,6 +22,7 @@ const PENDING_CALL_TTL = 60_000
 
 let cliPathPromise: Promise<string | null> | null = null
 let cleanupIntervalStarted = false
+let cleanupIntervalRef: ReturnType<typeof setInterval> | null = null
 
 function cleanupOldPendingCalls(): void {
   const now = Date.now()
@@ -37,7 +38,15 @@ export function createCommentCheckerHooks(config?: CommentCheckerConfig) {
 
   if (!cleanupIntervalStarted) {
     cleanupIntervalStarted = true
-    setInterval(cleanupOldPendingCalls, 10_000)
+    cleanupIntervalRef = setInterval(cleanupOldPendingCalls, 10_000)
+    
+    // Clear interval on process exit to prevent leaks
+    process.once("exit", () => {
+      if (cleanupIntervalRef) {
+        clearInterval(cleanupIntervalRef)
+        cleanupIntervalRef = null
+      }
+    })
   }
   
   // Start background CLI initialization (may trigger lazy download)
