@@ -18,6 +18,7 @@ class LSPServerManager {
   private clients = new Map<string, ManagedClient>()
   private cleanupInterval: ReturnType<typeof setInterval> | null = null
   private readonly IDLE_TIMEOUT = 5 * 60 * 1000
+  private readonly STARTUP_TIMEOUT = 30 * 1000  // 30 seconds for LSP server startup
 
   private constructor() {
     this.startCleanupTimer()
@@ -114,10 +115,20 @@ private registerProcessCleanup(): void {
     }
 
     const client = new LSPClient(root, server)
-    const initPromise = (async () => {
+    
+    // Wrap initialization with timeout to prevent indefinite hangs
+    const startupPromise = (async () => {
       await client.start()
       await client.initialize()
     })()
+    
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      setTimeout(() => {
+        reject(new Error(`LSP server startup timed out after ${this.STARTUP_TIMEOUT}ms`))
+      }, this.STARTUP_TIMEOUT)
+    })
+    
+    const initPromise = Promise.race([startupPromise, timeoutPromise])
 
     this.clients.set(key, {
       client,
@@ -152,10 +163,20 @@ private registerProcessCleanup(): void {
     if (this.clients.has(key)) return
 
     const client = new LSPClient(root, server)
-    const initPromise = (async () => {
+    
+    // Wrap initialization with timeout to prevent indefinite hangs
+    const startupPromise = (async () => {
       await client.start()
       await client.initialize()
     })()
+    
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      setTimeout(() => {
+        reject(new Error(`LSP server warmup timed out after ${this.STARTUP_TIMEOUT}ms`))
+      }, this.STARTUP_TIMEOUT)
+    })
+    
+    const initPromise = Promise.race([startupPromise, timeoutPromise])
 
     this.clients.set(key, {
       client,
