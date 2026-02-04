@@ -1089,10 +1089,12 @@ describe("sisyphus-task", () => {
   })
 
   describe("unstable agent forced background mode", () => {
-    test("gemini model with run_in_background=false should force background but wait for result", async () => {
-      // #given - category using gemini model with run_in_background=false
+    test("non-preview gemini model (gemini-3-pro) with run_in_background=false should run sync (not forced to background)", async () => {
+      // #given - category using non-preview gemini model with run_in_background=false
+      // Non-preview Gemini models (gemini-3-pro, gemini-3-flash) are stable and should NOT be forced to background
       const { createDelegateTask } = require("./tools")
       let launchCalled = false
+      let promptCalled = false
       
       const mockManager = {
         launch: async () => {
@@ -1113,14 +1115,14 @@ describe("sisyphus-task", () => {
         model: { list: async () => [{ id: "google/gemini-3-pro" }] },
         session: {
           get: async () => ({ data: { directory: "/project" } }),
-          create: async () => ({ data: { id: "ses_unstable_gemini" } }),
-          prompt: async () => ({ data: {} }),
+          create: async () => ({ data: { id: "ses_sync_gemini_stable" } }),
+          prompt: async () => { promptCalled = true; return { data: {} } },
           messages: async () => ({
             data: [
               { info: { role: "assistant", time: { created: Date.now() } }, parts: [{ type: "text", text: "Gemini task completed successfully" }] }
             ]
           }),
-          status: async () => ({ data: { "ses_unstable_gemini": { type: "idle" } } }),
+          status: async () => ({ data: { "ses_sync_gemini_stable": { type: "idle" } } }),
         },
       }
       
@@ -1136,10 +1138,10 @@ describe("sisyphus-task", () => {
         abort: new AbortController().signal,
       }
       
-      // #when - using visual-engineering (gemini model) with run_in_background=false
+      // #when - using visual-engineering (gemini-3-pro, NOT preview) with run_in_background=false
       const result = await tool.execute(
         {
-          description: "Test gemini forced background",
+          description: "Test gemini stable sync",
           prompt: "Do something visual",
           category: "visual-engineering",
           run_in_background: false,
@@ -1148,10 +1150,79 @@ describe("sisyphus-task", () => {
         toolContext
       )
       
+      // #then - should run sync, NOT forced to background (gemini-3-pro is not a preview model)
+      expect(launchCalled).toBe(false)  // manager.launch should NOT be called
+      expect(promptCalled).toBe(true)   // sync mode uses session.prompt
+      expect(result).not.toContain("SUPERVISED TASK COMPLETED")
+    }, { timeout: 20000 })
+
+    test("preview gemini model (gemini-3-flash-preview) with run_in_background=false should force background but wait for result", async () => {
+      // #given - category using preview gemini model with run_in_background=false
+      // Only google/gemini-*-preview models should be forced to background
+      const { createDelegateTask } = require("./tools")
+      let launchCalled = false
+      
+      const mockManager = {
+        launch: async () => {
+          launchCalled = true
+          return {
+            id: "task-preview",
+            sessionID: "ses_preview_gemini",
+            description: "Preview gemini task",
+            agent: "sisyphus-junior",
+            status: "running",
+          }
+        },
+      }
+      
+      const mockClient = {
+        app: { agents: async () => ({ data: [] }) },
+        config: { get: async () => ({ data: { model: SYSTEM_DEFAULT_MODEL } }) },
+        model: { list: async () => [{ id: "google/gemini-3-flash-preview" }] },
+        session: {
+          get: async () => ({ data: { directory: "/project" } }),
+          create: async () => ({ data: { id: "ses_preview_gemini" } }),
+          prompt: async () => ({ data: {} }),
+          messages: async () => ({
+            data: [
+              { info: { role: "assistant", time: { created: Date.now() } }, parts: [{ type: "text", text: "Preview gemini result" }] }
+            ]
+          }),
+          status: async () => ({ data: { "ses_preview_gemini": { type: "idle" } } }),
+        },
+      }
+      
+      const tool = createDelegateTask({
+        manager: mockManager,
+        client: mockClient,
+        userCategories: {
+          quick: { model: "google/gemini-3-flash-preview" },
+        },
+      })
+      
+      const toolContext = {
+        sessionID: "parent-session",
+        messageID: "parent-message",
+        agent: "sisyphus",
+        abort: new AbortController().signal,
+      }
+      
+      // #when - using quick category with gemini-3-flash-preview (a preview model)
+      const result = await tool.execute(
+        {
+          description: "Test preview gemini forced background",
+          prompt: "Do something quick",
+          category: "quick",
+          run_in_background: false,
+          load_skills: [],
+        },
+        toolContext
+      )
+      
       // #then - should launch as background BUT wait for and return actual result
       expect(launchCalled).toBe(true)
       expect(result).toContain("SUPERVISED TASK COMPLETED")
-      expect(result).toContain("Gemini task completed successfully")
+      expect(result).toContain("Preview gemini result")
     }, { timeout: 20000 })
 
     test("gemini model with run_in_background=true should not show unstable message (normal background)", async () => {
@@ -1273,10 +1344,11 @@ describe("sisyphus-task", () => {
       expect(result).not.toContain("UNSTABLE AGENT MODE")
     }, { timeout: 20000 })
 
-    test("artistry category (gemini) with run_in_background=false should force background but wait for result", async () => {
-      // #given - artistry also uses gemini model
+    test("artistry category (non-preview gemini-3-pro) with run_in_background=false should run sync", async () => {
+      // #given - artistry uses gemini-3-pro which is NOT a preview model → stable → sync mode
       const { createDelegateTask } = require("./tools")
       let launchCalled = false
+      let promptCalled = false
       
       const mockManager = {
         launch: async () => {
@@ -1298,7 +1370,7 @@ describe("sisyphus-task", () => {
         session: {
           get: async () => ({ data: { directory: "/project" } }),
           create: async () => ({ data: { id: "ses_artistry_gemini" } }),
-          prompt: async () => ({ data: {} }),
+          prompt: async () => { promptCalled = true; return { data: {} } },
           messages: async () => ({
             data: [
               { info: { role: "assistant", time: { created: Date.now() } }, parts: [{ type: "text", text: "Artistry result here" }] }
@@ -1320,10 +1392,10 @@ describe("sisyphus-task", () => {
         abort: new AbortController().signal,
       }
       
-      // #when - artistry category (gemini-3-pro with max variant)
+      // #when - artistry category (gemini-3-pro, NOT preview)
       const result = await tool.execute(
         {
-          description: "Test artistry forced background",
+          description: "Test artistry sync",
           prompt: "Do something artistic",
           category: "artistry",
           run_in_background: false,
@@ -1332,16 +1404,17 @@ describe("sisyphus-task", () => {
         toolContext
       )
       
-      // #then - should launch as background BUT wait for and return actual result
-      expect(launchCalled).toBe(true)
-      expect(result).toContain("SUPERVISED TASK COMPLETED")
-      expect(result).toContain("Artistry result here")
+      // #then - should run sync, NOT forced to background (gemini-3-pro is not preview)
+      expect(launchCalled).toBe(false)
+      expect(promptCalled).toBe(true)
+      expect(result).not.toContain("SUPERVISED TASK COMPLETED")
     }, { timeout: 20000 })
 
-    test("writing category (gemini-flash) with run_in_background=false should force background but wait for result", async () => {
-      // #given - writing uses gemini-3-flash
+    test("writing category (non-preview gemini-3-flash) with run_in_background=false should run sync", async () => {
+      // #given - writing uses gemini-3-flash which is NOT a preview model → stable → sync mode
       const { createDelegateTask } = require("./tools")
       let launchCalled = false
+      let promptCalled = false
       
       const mockManager = {
         launch: async () => {
@@ -1363,7 +1436,7 @@ describe("sisyphus-task", () => {
         session: {
           get: async () => ({ data: { directory: "/project" } }),
           create: async () => ({ data: { id: "ses_writing_gemini" } }),
-          prompt: async () => ({ data: {} }),
+          prompt: async () => { promptCalled = true; return { data: {} } },
           messages: async () => ({
             data: [
               { info: { role: "assistant", time: { created: Date.now() } }, parts: [{ type: "text", text: "Writing result here" }] }
@@ -1385,10 +1458,10 @@ describe("sisyphus-task", () => {
         abort: new AbortController().signal,
       }
       
-      // #when - writing category (gemini-3-flash)
+      // #when - writing category (gemini-3-flash, NOT preview)
       const result = await tool.execute(
         {
-          description: "Test writing forced background",
+          description: "Test writing sync",
           prompt: "Write something",
           category: "writing",
           run_in_background: false,
@@ -1397,10 +1470,10 @@ describe("sisyphus-task", () => {
         toolContext
       )
       
-      // #then - should launch as background BUT wait for and return actual result
-      expect(launchCalled).toBe(true)
-      expect(result).toContain("SUPERVISED TASK COMPLETED")
-      expect(result).toContain("Writing result here")
+      // #then - should run sync, NOT forced to background (gemini-3-flash is not preview)
+      expect(launchCalled).toBe(false)
+      expect(promptCalled).toBe(true)
+      expect(result).not.toContain("SUPERVISED TASK COMPLETED")
     }, { timeout: 20000 })
 
     test("is_unstable_agent=true should force background but wait for result", async () => {

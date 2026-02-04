@@ -669,7 +669,14 @@ Current category: ${args.category}
 Available categories: ${categoryNames.join(", ")}`
           }
 
-          const isUnstableAgent = resolved.config.is_unstable_agent === true || (actualModel?.toLowerCase().includes("gemini") ?? false)
+          // Only mark as unstable if explicitly configured OR if it's a direct Google Gemini preview model.
+          // Antigravity Gemini models (google/antigravity-*) are proxied and stable.
+          // GitHub Copilot Gemini models (github-copilot/gemini-*) are also stable.
+          // Only raw google/gemini-*-preview models are considered unstable.
+          const isGeminiPreviewDirect = actualModel
+            ? actualModel.startsWith("google/gemini-") && actualModel.includes("preview") && !actualModel.includes("antigravity")
+            : false
+          const isUnstableAgent = resolved.config.is_unstable_agent === true || isGeminiPreviewDirect
         // Handle both boolean false and string "false" due to potential serialization
         const isRunInBackgroundExplicitlyFalse = args.run_in_background === false || args.run_in_background === "false" as unknown as boolean
 
