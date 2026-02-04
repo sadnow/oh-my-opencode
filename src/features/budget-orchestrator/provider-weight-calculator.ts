@@ -59,8 +59,6 @@ export class ProviderWeightCalculator {
   /** Track current weights for Smooth WRR */
   private currentWeights: Map<string, number> = new Map()
   
-  /** Round-robin counter for tiebreaking */
-  private roundRobinCounter = 0
 
   constructor(config?: ProviderWeightConfig) {
     this.priorityMultipliers = config?.priorityMultipliers ?? PROVIDER_PRIORITY_MULTIPLIERS
@@ -298,16 +296,14 @@ export class ProviderWeightCalculator {
    */
   reset(): void {
     this.currentWeights.clear()
-    this.roundRobinCounter = 0
   }
 
   /**
    * Get current internal weights for debugging.
    */
-  getDebugState(): { currentWeights: Record<string, number>; roundRobinCounter: number } {
+  getDebugState(): { currentWeights: Record<string, number> } {
     return {
       currentWeights: Object.fromEntries(this.currentWeights),
-      roundRobinCounter: this.roundRobinCounter,
     }
   }
 }
