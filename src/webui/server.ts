@@ -48,6 +48,7 @@ import {
   handleCheckDowngrade,
   handleGetRecommendations,
   handleGetStatus,
+  handleGetCircuitStatus,
   type OrchestrationRouteContext,
 } from "./routes/orchestration"
 
@@ -447,6 +448,9 @@ async function handleAPI(
   }
   if (pathname === "/orchestration/status" && method === "GET") {
     return handleGetStatus(ctx.orchCtx)
+  }
+  if (pathname === "/orchestration/circuit-status" && method === "GET") {
+    return handleGetCircuitStatus(ctx.orchCtx)
   }
 
   // Claude Max routes
