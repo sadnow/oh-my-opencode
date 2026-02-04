@@ -59,12 +59,13 @@ describe("AGENT_MODEL_REQUIREMENTS", () => {
     const explore = AGENT_MODEL_REQUIREMENTS["explore"]
 
     // #when - accessing explore requirement
-    // #then - fallbackChain exists with claude-haiku-4-5 as first entry, gpt-5-mini as second, big-pickle as third
-    // NOTE: opencode is NOT included for OpenAI-underlying models (gpt-5-nano) to prevent
-    // silent fallback to Zen BYOK which burns real money. Only native Zen models (big-pickle) are used.
+    // #then - fallbackChain exists with claude-haiku-4-5 as first, gpt-5-mini as second,
+    // then free native Zen models (glm-4.7-free, kimi-k2.5-free) before big-pickle as ultimate fallback.
+    // NOTE: opencode is NOT included for OpenAI-underlying models to prevent
+    // silent fallback to Zen BYOK which burns real money. Only native Zen models are used.
     expect(explore).toBeDefined()
     expect(explore.fallbackChain).toBeArray()
-    expect(explore.fallbackChain).toHaveLength(3)
+    expect(explore.fallbackChain).toHaveLength(5)
 
     const primary = explore.fallbackChain[0]
     expect(primary.providers).toContain("anthropic")
@@ -75,9 +76,18 @@ describe("AGENT_MODEL_REQUIREMENTS", () => {
     expect(secondary.providers).toContain("github-copilot")
     expect(secondary.model).toBe("gpt-5-mini")
 
-    const tertiary = explore.fallbackChain[2]
-    expect(tertiary.providers).toContain("opencode")
-    expect(tertiary.model).toBe("big-pickle") // Native Zen model, no BYOK cost
+    // Free native Zen models as intermediate fallbacks
+    const freeZen1 = explore.fallbackChain[2]
+    expect(freeZen1.providers).toContain("opencode")
+    expect(freeZen1.model).toBe("glm-4.7-free") // Free native Zen model
+
+    const freeZen2 = explore.fallbackChain[3]
+    expect(freeZen2.providers).toContain("opencode")
+    expect(freeZen2.model).toBe("kimi-k2.5-free") // Free native Zen model
+
+    const ultimate = explore.fallbackChain[4]
+    expect(ultimate.providers).toContain("opencode")
+    expect(ultimate.model).toBe("big-pickle") // Ultimate native Zen fallback
   })
 
   test("multimodal-looker has valid fallbackChain with gemini-3-flash as primary", () => {
