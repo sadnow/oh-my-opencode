@@ -608,7 +608,7 @@ async function handleAPI(
 
 // WebSocket message types
 export interface WSMessage {
-  type: 'budget_update' | 'tier_change' | 'alert' | 'usage_update' | 'connected'
+  type: 'budget_update' | 'tier_change' | 'alert' | 'usage_update' | 'circuit_update' | 'connected'
   timestamp: number
   data: unknown
 }
@@ -621,6 +621,23 @@ export function broadcastWS(server: BunServer, message: WSMessage): void {
   if (broadcastFn) {
     broadcastFn(message)
   }
+}
+
+/**
+ * Broadcast circuit breaker state change to all connected WebSocket clients.
+ * Called when a provider's circuit breaker transitions between states.
+ */
+export function broadcastCircuitUpdate(server: BunServer, circuitData: {
+  provider: string
+  state: 'closed' | 'open' | 'half_open'
+  failureCount: number
+  timestamp: number
+}): void {
+  broadcastWS(server, {
+    type: 'circuit_update',
+    timestamp: Date.now(),
+    data: circuitData,
+  })
 }
 
 /**
