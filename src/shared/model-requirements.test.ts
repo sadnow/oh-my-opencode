@@ -59,14 +59,16 @@ describe("AGENT_MODEL_REQUIREMENTS", () => {
     const explore = AGENT_MODEL_REQUIREMENTS["explore"]
 
     // #when - accessing explore requirement
-    // #then - fallbackChain exists with claude-haiku-4-5 as first entry, gpt-5-mini as second, gpt-5-nano as third
+    // #then - fallbackChain exists with claude-haiku-4-5 as first entry, gpt-5-mini as second, big-pickle as third
+    // NOTE: opencode is NOT included for OpenAI-underlying models (gpt-5-nano) to prevent
+    // silent fallback to Zen BYOK which burns real money. Only native Zen models (big-pickle) are used.
     expect(explore).toBeDefined()
     expect(explore.fallbackChain).toBeArray()
     expect(explore.fallbackChain).toHaveLength(3)
 
     const primary = explore.fallbackChain[0]
     expect(primary.providers).toContain("anthropic")
-    expect(primary.providers).toContain("opencode")
+    expect(primary.providers).not.toContain("opencode") // No BYOK fallback for claude
     expect(primary.model).toBe("claude-haiku-4-5")
 
     const secondary = explore.fallbackChain[1]
@@ -75,7 +77,7 @@ describe("AGENT_MODEL_REQUIREMENTS", () => {
 
     const tertiary = explore.fallbackChain[2]
     expect(tertiary.providers).toContain("opencode")
-    expect(tertiary.model).toBe("gpt-5-nano")
+    expect(tertiary.model).toBe("big-pickle") // Native Zen model, no BYOK cost
   })
 
   test("multimodal-looker has valid fallbackChain with gemini-3-flash as primary", () => {
