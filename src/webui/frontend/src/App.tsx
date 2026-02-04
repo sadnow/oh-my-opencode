@@ -8,19 +8,27 @@ import { CopilotUsage } from '../components/CopilotUsage'
 import { QuotaMatrix } from '../components/QuotaMatrix'
 import { Settings } from '../components/Settings'
 import { StatsDashboard } from '../components/StatsDashboard'
+import { CircuitBreakerGrid } from '../components/circuit-breaker/CircuitBreakerGrid'
+import { CircuitDetailModal } from '../components/circuit-breaker/CircuitDetailModal'
+import type { ModelStatus } from '../components/circuit-breaker/useCircuitStatus'
 
-type TabType = 'presets' | 'routing' | 'budget' | 'usage' | 'settings' | 'export' | 'stats'
+type TabType = 'circuit' | 'presets' | 'routing' | 'budget' | 'usage' | 'settings' | 'export' | 'stats'
 
-const TABS: TabType[] = ['presets', 'routing', 'budget', 'usage', 'settings', 'export', 'stats']
+const TABS: TabType[] = ['circuit', 'presets', 'routing', 'budget', 'usage', 'settings', 'export', 'stats']
 
 function App() {
-  const [activeTab, setActiveTab] = useState<TabType>('budget')
+  const [activeTab, setActiveTab] = useState<TabType>('circuit')
   const [showHelp, setShowHelp] = useState(false)
+  const [selectedModel, setSelectedModel] = useState<{
+    modelId: string
+    provider: string
+    status: ModelStatus
+  } | null>(null)
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Number keys 1-7 for tab navigation
-      if (e.key >= '1' && e.key <= '7') {
+      // Number keys 1-8 for tab navigation
+      if (e.key >= '1' && e.key <= '8') {
         const index = parseInt(e.key) - 1
         if (index < TABS.length) {
           setActiveTab(TABS[index])
@@ -34,7 +42,7 @@ function App() {
         e.preventDefault()
       }
       
-      // Escape to close help modal
+      // Escape to close help modal (CircuitDetailModal handles its own Escape)
       if (e.key === 'Escape' && showHelp) {
         setShowHelp(false)
         e.preventDefault()
@@ -54,6 +62,15 @@ return (
 
 <nav className="nav-tabs" style={{ marginBottom: 'var(--spacing-4)', display: 'flex', gap: 'var(--spacing-2)', flexWrap: 'wrap' }}>
         <button
+          type="button"
+          className={activeTab === 'circuit' ? 'active' : ''}
+          onClick={() => setActiveTab('circuit')}
+          style={{ padding: 'var(--spacing-2) var(--spacing-3)', fontSize: 'var(--font-size-sm)' }}
+        >
+          Circuit
+        </button>
+        <button
+          type="button"
           className={activeTab === 'presets' ? 'active' : ''}
           onClick={() => setActiveTab('presets')}
           style={{ padding: 'var(--spacing-2) var(--spacing-3)', fontSize: 'var(--font-size-sm)' }}
@@ -61,6 +78,7 @@ return (
           Presets
         </button>
         <button
+          type="button"
           className={activeTab === 'routing' ? 'active' : ''}
           onClick={() => setActiveTab('routing')}
           style={{ padding: 'var(--spacing-2) var(--spacing-3)', fontSize: 'var(--font-size-sm)' }}
@@ -68,6 +86,7 @@ return (
           Routing Logs
         </button>
         <button
+          type="button"
           className={activeTab === 'budget' ? 'active' : ''}
           onClick={() => setActiveTab('budget')}
           style={{ padding: 'var(--spacing-2) var(--spacing-3)', fontSize: 'var(--font-size-sm)' }}
@@ -75,6 +94,7 @@ return (
           Budget
         </button>
         <button
+          type="button"
           className={activeTab === 'usage' ? 'active' : ''}
           onClick={() => setActiveTab('usage')}
           style={{ padding: 'var(--spacing-2) var(--spacing-3)', fontSize: 'var(--font-size-sm)' }}
@@ -82,6 +102,7 @@ return (
           Usage
         </button>
         <button
+          type="button"
           className={activeTab === 'settings' ? 'active' : ''}
           onClick={() => setActiveTab('settings')}
           style={{ padding: 'var(--spacing-2) var(--spacing-3)', fontSize: 'var(--font-size-sm)' }}
@@ -89,6 +110,7 @@ return (
           ⚙️ Settings
         </button>
         <button
+          type="button"
           className={activeTab === 'export' ? 'active' : ''}
           onClick={() => setActiveTab('export')}
           style={{ padding: 'var(--spacing-2) var(--spacing-3)', fontSize: 'var(--font-size-sm)' }}
@@ -96,6 +118,7 @@ return (
           Export
         </button>
         <button
+          type="button"
           className={activeTab === 'stats' ? 'active' : ''}
           onClick={() => setActiveTab('stats')}
           style={{ padding: 'var(--spacing-2) var(--spacing-3)', fontSize: 'var(--font-size-sm)' }}
@@ -105,6 +128,14 @@ return (
       </nav>
 
       <main>
+        {activeTab === 'circuit' && (
+          <CircuitBreakerGrid
+            onModelClick={(provider, modelId, status) => {
+              setSelectedModel({ provider, modelId, status })
+            }}
+          />
+        )}
+
         {activeTab === 'presets' && (
           <div>
             <PresetComparison />
@@ -184,10 +215,30 @@ return (
           <StatsDashboard />
         )}
       </main>
+
+      {/* Circuit Detail Modal */}
+      {selectedModel && (
+        <CircuitDetailModal
+          isOpen={true}
+          onClose={() => setSelectedModel(null)}
+          modelId={selectedModel.modelId}
+          provider={selectedModel.provider}
+          status={selectedModel.status}
+        />
+      )}
+
       {showHelp && (
         <div 
           className="help-modal-overlay" 
           onClick={() => setShowHelp(false)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault()
+              setShowHelp(false)
+            }
+          }}
+          role="button"
+          tabIndex={0}
           style={{
             position: 'fixed',
             top: 0,
@@ -205,6 +256,12 @@ return (
           <div 
             className="help-modal" 
             onClick={(e) => e.stopPropagation()}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.stopPropagation()
+              }
+            }}
+            role="document"
             style={{
               backgroundColor: 'var(--color-bg-elevated)',
               padding: 'var(--spacing-4)',
@@ -230,7 +287,7 @@ return (
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 'var(--font-size-sm)' }}>
               <tbody>
                 <tr style={{ borderBottom: '1px solid var(--color-border-subtle)' }}>
-                  <td style={{ padding: 'var(--spacing-2) 0', fontWeight: 600, color: 'var(--color-text-primary)' }}>1 - 7</td>
+                  <td style={{ padding: 'var(--spacing-2) 0', fontWeight: 600, color: 'var(--color-text-primary)' }}>1 - 8</td>
                   <td style={{ padding: 'var(--spacing-2) 0', color: 'var(--color-text-secondary)', textAlign: 'right' }}>Switch Tabs</td>
                 </tr>
                 <tr style={{ borderBottom: '1px solid var(--color-border-subtle)' }}>
@@ -245,6 +302,7 @@ return (
             </table>
             <div style={{ marginTop: 'var(--spacing-4)', display: 'flex', justifyContent: 'flex-end' }}>
               <button 
+                type="button"
                 onClick={() => setShowHelp(false)}
                 style={{
                   padding: 'var(--spacing-1) var(--spacing-3)',
