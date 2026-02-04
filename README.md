@@ -1,8 +1,9 @@
-> [!NOTE]
-> **This is oh-im-broke**: A budget-focused fork of [oh-my-opencode](https://github.com/code-yeongyu/oh-my-opencode)
+> [!IMPORTANT]
+> **This project has been put on hold.**
 >
-> The name is a playful take on "oh-my-opencode" that reflects our philosophy: **vibe code without breaking the bank.**  
-> Adds deadlock detection for background agents and prioritizes cost-efficiency. See [FORK.md](FORK.md) for details.
+> Development on this public fork is paused indefinitely. No further updates, fixes, or features will be pushed here.
+>
+> For the upstream project, see [oh-my-opencode](https://github.com/code-yeongyu/oh-my-opencode).
 
 > [!WARNING]
 > **Security warning: impersonation site**
