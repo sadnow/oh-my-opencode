@@ -159,4 +159,40 @@ describe("Budget Orchestrator Integration", () => {
     const weightedLogs = logs.filter(log => log.metadata && (log.metadata as Record<string, unknown>).weights)
     expect(weightedLogs.length).toBeGreaterThanOrEqual(2)
   })
+
+  it("never returns broken Zen models from getBestAvailableModel", () => {
+    //#given: Only opencode provider available with known broken models
+    const nowRef = { value: 0 }
+    const { manager } = createTempOverrideManager(nowRef)
+    const brokenModels = [
+      "opencode/gemini-3-pro",
+      "opencode/gemini-3-flash",
+      "opencode/minimax-m2.1-free",
+    ]
+    const useCases = [
+      "implementation",
+      "oracle",
+      "librarian",
+      "explorer",
+      "quick",
+      "orchestrator",
+      "ultrabrain",
+    ]
+
+    //#when: Resolve best available model per use case
+    for (const useCase of useCases) {
+      const result = manager.getBestAvailableModel(
+        useCase as any,
+        undefined,
+        ["opencode"],
+        { opencode: 0 },
+        {}
+      )
+
+      //#then: Broken Zen models are never returned
+      if (result) {
+        expect(brokenModels).not.toContain(result)
+      }
+    }
+  })
 })
