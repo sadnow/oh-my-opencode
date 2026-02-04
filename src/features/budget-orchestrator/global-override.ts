@@ -46,16 +46,16 @@ import { getHybridProviderTracker } from "./hybrid-tracker"
 // Zen proxy 500 errors on all endpoints (tested 2026-02-03).
 // opencode/minimax-m2.1-free also excluded from OPENCODE_FREE_MODELS for same reason.
 export const USE_CASE_FALLBACKS = {
-  /** Librarian - docs search, GitHub, needs moderate reasoning + tool use */
+/** Librarian - docs search, GitHub, needs moderate reasoning + tool use */
   librarian: [
     "anthropic/claude-sonnet-4-5",       // Best overall for tool use
     "openai/gpt-5.2",                    // Strong tool use
     "github-copilot/claude-sonnet-4.5",  // Good tool use, free with subscription
+    "opencode/glm-4.7",                  // Good at agentic tasks
     "github-copilot/gpt-5.1-codex",      // Strong alternative, free (1x)
+    "opencode/kimi-k2-thinking",         // Thinking model, good at analysis
     "google/gemini-3-flash-preview",     // Fast with good tool use
     "opencode/gpt-5.2",                  // BYOK OpenAI through Zen
-    "opencode/glm-4.7",                  // Good at agentic tasks
-    "opencode/kimi-k2-thinking",         // Thinking model, good at analysis
     "anthropic/claude-haiku-4-5",        // Fast Claude
     "github-copilot/gpt-5-mini",         // Budget copilot option (0x FREE!)
     "github-copilot/gpt-4.1",            // Budget copilot (0x FREE!)
@@ -63,68 +63,67 @@ export const USE_CASE_FALLBACKS = {
     "opencode/big-pickle",               // Ultimate fallback
   ],
   
-  /** Explorer - fast codebase search, needs SPEED not deep reasoning */
+/** Explorer - fast codebase search, needs SPEED not deep reasoning */
   explorer: [
     "google/gemini-3-flash-preview",     // Fastest current gen
     "opencode/gpt-5-nano",               // BYOK OpenAI through Zen (fast + cheap)
     "github-copilot/gpt-5-mini",         // Fast + free with subscription (0x FREE!)
+    "opencode/glm-4.7-free",             // Free GLM (Zen)
     "github-copilot/gpt-4.1",            // Fast + free (0x FREE!)
+    "opencode/kimi-k2.5-free",           // Free Kimi (Zen)
     "google/gemini-2.5-flash",           // Fast previous gen
     "github-copilot/gemini-3-flash",     // Fast via Copilot (0.33x)
     "github-copilot/grok-code-fast-1",   // Very fast via Copilot (0.25x)
     "openai/gpt-4.1-nano",               // Very fast
     "anthropic/claude-haiku-4-5",        // Fast Claude
     "github-copilot/claude-haiku-4.5",   // Fast Claude via Copilot (0.33x)
-    "opencode/glm-4.7-free",             // Free GLM (Zen)
-    "opencode/glm-4.6",                  // Budget GLM
-    "opencode/kimi-k2.5-free",           // Free Kimi (Zen)
     "opencode/big-pickle",               // Ultimate fallback
   ],
   
-  /** Oracle - debugging, architecture, needs BEST reasoning */
+/** Oracle - debugging, architecture, needs BEST reasoning */
   oracle: [
     "anthropic/claude-opus-4-5",         // Best reasoning overall
     "openai/o1-pro",                     // Strong reasoning
     "openai/gpt-5.2",                    // Very strong
+    "opencode/kimi-k2-thinking",         // Great thinking model
     "opencode/gpt-5.2",                  // BYOK OpenAI through Zen
     "github-copilot/gpt-5.2-codex",      // Premium copilot reasoning, free
-    "opencode/kimi-k2-thinking",         // Great thinking model
     "anthropic/claude-sonnet-4-5",       // Good reasoning
     "github-copilot/claude-sonnet-4.5",  // Good reasoning, free fallback
-    "google/gemini-3-pro-preview",       // Strong Gemini
     "opencode/glm-4.7",                  // Capable
+    "google/gemini-3-pro-preview",       // Strong Gemini
     "opencode/big-pickle",               // Ultimate fallback
   ],
   
-  /** Orchestrator - planning, delegation, complex reasoning */
+/** Orchestrator - planning, delegation, complex reasoning */
   orchestrator: [
     "anthropic/claude-opus-4-5",         // Best for orchestration
     "anthropic/claude-sonnet-4-5",       // Good alternative
     "openai/gpt-5.2-codex",              // Strong coding orchestration
     "opencode/gpt-5.2-codex",            // BYOK OpenAI through Zen
+    "opencode/kimi-k2-thinking",         // Good for planning
     "opencode/gpt-5.2",                  // BYOK OpenAI through Zen
     "github-copilot/claude-opus-4.5",    // Best via Copilot (3x but free with sub)
     "github-copilot/claude-sonnet-4.5",  // Good orchestration, free (1x)
+    "opencode/glm-4.7",                  // Capable at agentic tasks
     "github-copilot/gpt-5.2-codex",      // Strong via Copilot (1x)
     "openai/o1-pro",                     // Good reasoning
-    "opencode/kimi-k2-thinking",         // Good for planning
-    "opencode/glm-4.7",                  // Capable at agentic tasks
     "google/gemini-3-pro-preview",       // Strong Gemini
     "opencode/big-pickle",               // Ultimate fallback
   ],
   
-  /** Implementation - code writing, needs coding ability */
+/** Implementation - code writing, needs coding ability */
   implementation: [
     "anthropic/claude-sonnet-4-5",       // Best coding
     "openai/gpt-5.2-codex",              // Strong coding
     "opencode/gpt-5.2-codex",            // BYOK OpenAI through Zen
     "opencode/gpt-5.1-codex",            // BYOK OpenAI through Zen
+    "opencode/glm-4.7",                  // Good at coding
     "github-copilot/claude-sonnet-4.5",  // Strong coding, free (1x)
     "github-copilot/gpt-5.2-codex",      // Strong coding via Copilot (1x)
+    "opencode/qwen3-coder",              // Specialized for code
     "github-copilot/gpt-5.1-codex",      // Good coding via Copilot (1x)
     "anthropic/claude-opus-4-5",         // Premium quality
-    "opencode/glm-4.7",                  // Good at coding
-    "opencode/qwen3-coder",              // Specialized for code
     "google/gemini-3-flash-preview",     // Fast coding
     "github-copilot/gpt-5-mini",         // Budget coding, free (0x FREE!)
     "github-copilot/gpt-5.1-codex-mini", // Budget coding (0.33x)
@@ -132,49 +131,49 @@ export const USE_CASE_FALLBACKS = {
     "opencode/big-pickle",               // Ultimate fallback
   ],
   
-  /** Quick - fast responses for simple queries */
+/** Quick - fast responses for simple queries */
   quick: [
     "google/gemini-3-flash-preview",     // Fastest
     "opencode/gpt-5-nano",               // BYOK OpenAI through Zen (fast + cheap)
+    "opencode/glm-4.7-free",             // Free GLM (Zen)
     "github-copilot/gpt-5-mini",         // Fast + free (0x FREE!)
-    "github-copilot/gpt-4.1",            // Fast + free (0x FREE!)
     "google/gemini-2.5-flash",           // Fast
+    "opencode/kimi-k2.5-free",           // Free Kimi (Zen)
+    "github-copilot/gpt-4.1",            // Fast + free (0x FREE!)
     "github-copilot/gemini-3-flash",     // Fast via Copilot (0.33x)
     "github-copilot/grok-code-fast-1",   // Very fast via Copilot (0.25x)
     "github-copilot/claude-haiku-4.5",   // Fast Claude via Copilot (0.33x)
     "anthropic/claude-haiku-4-5",        // Fast Claude
     "openai/gpt-4.1-nano",               // Very fast
     "opencode/glm-4.6",                  // Fast budget
-    "opencode/glm-4.7-free",             // Free GLM (Zen)
-    "opencode/kimi-k2.5-free",           // Free Kimi (Zen)
     "opencode/big-pickle",               // Ultimate fallback
   ],
   
-  /** Ultrabrain - deep reasoning and complex analysis */
+/** Ultrabrain - deep reasoning and complex analysis */
   ultrabrain: [
     "anthropic/claude-opus-4-5",         // Best reasoning overall
     "openai/o1-pro",                     // Strong reasoning
     "openai/gpt-5.2",                    // Very strong
-    "github-copilot/gpt-5.2-codex",      // Premium copilot reasoning, free
     "opencode/kimi-k2-thinking",         // Great thinking model
+    "github-copilot/gpt-5.2-codex",      // Premium copilot reasoning, free
     "anthropic/claude-sonnet-4-5",       // Good reasoning
     "github-copilot/claude-sonnet-4.5",  // Good reasoning, free fallback
-    "google/gemini-3-pro-preview",       // Strong Gemini
     "opencode/glm-4.7",                  // Capable
+    "google/gemini-3-pro-preview",       // Strong Gemini
     "opencode/big-pickle",               // Ultimate fallback
   ],
   
-  /** Parallel Worker - tasks that run in parallel, optimize for load distribution */
+/** Parallel Worker - tasks that run in parallel, optimize for load distribution */
   "parallel-worker": [
     "github-copilot/gpt-5-mini",         // Fast + free (0x FREE! optimal for parallel)
     "github-copilot/gpt-4.1",            // Fast + free (0x FREE!)
     "google/gemini-3-flash-preview",     // Fast
+    "opencode/glm-4.7-free",             // Free GLM (Zen)
     "github-copilot/gemini-3-flash",     // Fast via Copilot (0.33x)
     "github-copilot/grok-code-fast-1",   // Very fast via Copilot (0.25x)
     "google/gemini-2.5-flash",           // Fast
     "github-copilot/claude-haiku-4.5",   // Fast Claude via Copilot (0.33x)
     "anthropic/claude-haiku-4-5",        // Fast Claude
-    "opencode/glm-4.7-free",             // Free GLM (Zen)
     "opencode/glm-4.6",                  // Budget
     "opencode/big-pickle",               // Ultimate fallback
   ],

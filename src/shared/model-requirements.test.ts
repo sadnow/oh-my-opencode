@@ -54,13 +54,13 @@ describe("AGENT_MODEL_REQUIREMENTS", () => {
     expect(primary.model).toBe("glm-4.7")
   })
 
-  test("explore has valid fallbackChain with claude-haiku-4-5 as primary", () => {
+test("explore has valid fallbackChain with glm-4.7-free as primary", () => {
     // #given - explore agent requirement
     const explore = AGENT_MODEL_REQUIREMENTS["explore"]
 
     // #when - accessing explore requirement
-    // #then - fallbackChain exists with claude-haiku-4-5 as first, gpt-5-mini as second,
-    // then free native Zen models (glm-4.7-free, kimi-k2.5-free) before big-pickle as ultimate fallback.
+    // #then - fallbackChain exists with glm-4.7-free as first (free model for light tasks),
+    // then claude-haiku-4-5, kimi-k2.5-free (interleaved free), gpt-5-mini, and big-pickle as ultimate fallback.
     // NOTE: opencode is NOT included for OpenAI-underlying models to prevent
     // silent fallback to Zen BYOK which burns real money. Only native Zen models are used.
     expect(explore).toBeDefined()
@@ -68,22 +68,21 @@ describe("AGENT_MODEL_REQUIREMENTS", () => {
     expect(explore.fallbackChain).toHaveLength(5)
 
     const primary = explore.fallbackChain[0]
-    expect(primary.providers).toContain("anthropic")
-    expect(primary.providers).not.toContain("opencode") // No BYOK fallback for claude
-    expect(primary.model).toBe("claude-haiku-4-5")
+    expect(primary.providers).toContain("opencode")
+    expect(primary.model).toBe("glm-4.7-free") // Free native Zen model FIRST
 
     const secondary = explore.fallbackChain[1]
-    expect(secondary.providers).toContain("github-copilot")
-    expect(secondary.model).toBe("gpt-5-mini")
+    expect(secondary.providers).toContain("anthropic")
+    expect(secondary.model).toBe("claude-haiku-4-5")
 
-    // Free native Zen models as intermediate fallbacks
+    // Free native Zen models interleaved
     const freeZen1 = explore.fallbackChain[2]
     expect(freeZen1.providers).toContain("opencode")
-    expect(freeZen1.model).toBe("glm-4.7-free") // Free native Zen model
+    expect(freeZen1.model).toBe("kimi-k2.5-free") // Free native Zen model
 
-    const freeZen2 = explore.fallbackChain[3]
-    expect(freeZen2.providers).toContain("opencode")
-    expect(freeZen2.model).toBe("kimi-k2.5-free") // Free native Zen model
+    const gptMini = explore.fallbackChain[3]
+    expect(gptMini.providers).toContain("github-copilot")
+    expect(gptMini.model).toBe("gpt-5-mini")
 
     const ultimate = explore.fallbackChain[4]
     expect(ultimate.providers).toContain("opencode")
@@ -235,34 +234,34 @@ describe("CATEGORY_MODEL_REQUIREMENTS", () => {
     expect(primary.model).toBe("gemini-3-pro")
   })
 
-  test("quick has valid fallbackChain with claude-haiku-4-5 as primary", () => {
+test("quick has valid fallbackChain with glm-4.7-free as primary", () => {
     // #given - quick category requirement
     const quick = CATEGORY_MODEL_REQUIREMENTS["quick"]
 
     // #when - accessing quick requirement
-    // #then - fallbackChain exists with claude-haiku-4-5 as first entry
+    // #then - fallbackChain exists with glm-4.7-free as first entry (free model for light tasks)
     expect(quick).toBeDefined()
     expect(quick.fallbackChain).toBeArray()
     expect(quick.fallbackChain.length).toBeGreaterThan(0)
 
     const primary = quick.fallbackChain[0]
-    expect(primary.model).toBe("claude-haiku-4-5")
-    expect(primary.providers[0]).toBe("anthropic")
+    expect(primary.model).toBe("glm-4.7-free")
+    expect(primary.providers[0]).toBe("opencode")
   })
 
-  test("unspecified-low has valid fallbackChain with claude-sonnet-4-5 as primary", () => {
+test("unspecified-low has valid fallbackChain with glm-4.7-free as primary", () => {
     // #given - unspecified-low category requirement
     const unspecifiedLow = CATEGORY_MODEL_REQUIREMENTS["unspecified-low"]
 
     // #when - accessing unspecified-low requirement
-    // #then - fallbackChain exists with claude-sonnet-4-5 as first entry
+    // #then - fallbackChain exists with glm-4.7-free as first entry (free model for light tasks)
     expect(unspecifiedLow).toBeDefined()
     expect(unspecifiedLow.fallbackChain).toBeArray()
     expect(unspecifiedLow.fallbackChain.length).toBeGreaterThan(0)
 
     const primary = unspecifiedLow.fallbackChain[0]
-    expect(primary.model).toBe("claude-sonnet-4-5")
-    expect(primary.providers[0]).toBe("anthropic")
+    expect(primary.model).toBe("glm-4.7-free")
+    expect(primary.providers[0]).toBe("opencode")
   })
 
   test("unspecified-high has valid fallbackChain with claude-opus-4-5 as primary", () => {
@@ -297,19 +296,19 @@ describe("CATEGORY_MODEL_REQUIREMENTS", () => {
     expect(primary.providers[0]).toBe("google")
   })
 
-  test("writing has valid fallbackChain with gemini-3-flash as primary", () => {
+test("writing has valid fallbackChain with glm-4.7-free as primary", () => {
     // #given - writing category requirement
     const writing = CATEGORY_MODEL_REQUIREMENTS["writing"]
 
     // #when - accessing writing requirement
-    // #then - fallbackChain exists with gemini-3-flash as first entry
+    // #then - fallbackChain exists with glm-4.7-free as first entry (free model for light tasks)
     expect(writing).toBeDefined()
     expect(writing.fallbackChain).toBeArray()
     expect(writing.fallbackChain.length).toBeGreaterThan(0)
 
     const primary = writing.fallbackChain[0]
-    expect(primary.model).toBe("gemini-3-flash")
-    expect(primary.providers[0]).toBe("google")
+    expect(primary.model).toBe("glm-4.7-free")
+    expect(primary.providers[0]).toBe("opencode")
   })
 
   test("all 7 categories have valid fallbackChain arrays", () => {
