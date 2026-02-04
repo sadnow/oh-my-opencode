@@ -10,6 +10,7 @@ import {
   USE_CASE_FALLBACKS,
   type UseCase,
 } from "./global-override"
+import { getModelTier } from "./tiers"
 import { CircuitBreaker } from "./circuit-breaker"
 import { join } from "path"
 import { tmpdir } from "os"
@@ -398,6 +399,28 @@ describe("GlobalOverrideManager", () => {
       // Working models should still be allowed
       expect(manager.isModelAllowed("opencode/big-pickle", ["opencode"])).toBe(true)
       expect(manager.isModelAllowed("opencode/gpt-5-nano", ["opencode"])).toBe(true)
+    })
+  })
+
+  describe("model list consistency", () => {
+    it("every model in USE_CASE_FALLBACKS has a known tier in MODEL_TIERS", () => {
+      const missingModels: string[] = []
+      const allModels = new Set<string>()
+
+      // Collect all models from all use cases
+      Object.values(USE_CASE_FALLBACKS).forEach((models) => {
+        models.forEach((model) => allModels.add(model))
+      })
+
+      // Verify each model has a tier
+      for (const model of allModels) {
+        const tier = getModelTier(model, true) // strict mode
+        if (tier === null) {
+          missingModels.push(model)
+        }
+      }
+
+      expect(missingModels).toEqual([])
     })
   })
 })
