@@ -11,6 +11,8 @@ import { StatsDashboard } from '../components/StatsDashboard'
 import { CircuitBreakerGrid } from '../components/circuit-breaker/CircuitBreakerGrid'
 import { CircuitDetailModal } from '../components/circuit-breaker/CircuitDetailModal'
 import type { ModelStatus } from '../components/circuit-breaker/useCircuitStatus'
+import { BudgetUsageChart, ModelDistributionChart } from '../components/charts'
+import { ProviderHealthMatrix } from '../components/ProviderHealthMatrix'
 
 type TabType = 'circuit' | 'presets' | 'routing' | 'budget' | 'usage' | 'settings' | 'export' | 'stats'
 
@@ -129,11 +131,16 @@ return (
 
       <main>
         {activeTab === 'circuit' && (
-          <CircuitBreakerGrid
-            onModelClick={(provider, modelId, status) => {
-              setSelectedModel({ provider, modelId, status })
-            }}
-          />
+          <div>
+            <CircuitBreakerGrid
+              onModelClick={(provider, modelId, status) => {
+                setSelectedModel({ provider, modelId, status })
+              }}
+            />
+            <div style={{ marginTop: 'var(--spacing-4)' }}>
+              <ProviderHealthMatrix />
+            </div>
+          </div>
         )}
 
         {activeTab === 'presets' && (
@@ -155,7 +162,18 @@ return (
         )}
 
         {activeTab === 'budget' && (
-          <BudgetDashboard />
+          <div>
+            <BudgetDashboard />
+            <div style={{ 
+              display: 'grid', 
+              gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))', 
+              gap: 'var(--spacing-4)', 
+              marginTop: 'var(--spacing-4)' 
+            }}>
+              <BudgetUsageChart />
+              <ModelDistributionChart />
+            </div>
+          </div>
         )}
 
 {activeTab === 'usage' && (
